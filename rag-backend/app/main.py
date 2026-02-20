@@ -37,11 +37,11 @@ async def lifespan(app: FastAPI):
     os.makedirs(os.path.join(settings.storage_dir, "indexes"), exist_ok=True)
     os.makedirs(settings.model_cache_dir, exist_ok=True)
 
-    # Pre-load embedding model (80MB, must be in memory before first request)
-    get_embedding_model()
+    # Pre-load embedding model (80MB, lazy-load on first request instead)
+    # get_embedding_model()
 
-    # Pre-load cross-encoder reranker (~22MB, must be in memory before first request)
-    get_reranker()
+    # Pre-load cross-encoder reranker (lazy-load)
+    # get_reranker()
 
     # Create MongoDB indexes
     await create_indexes()

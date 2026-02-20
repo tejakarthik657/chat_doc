@@ -18,12 +18,20 @@ def get_embedding_model() -> SentenceTransformer:
     """Lazy singleton — loads only once."""
     global _embedding_model
     if _embedding_model is None:
-        print(f"[EmbeddingEngine] Loading {settings.embedding_model}...")
-        _embedding_model = SentenceTransformer(
-            settings.embedding_model,
-            cache_folder=settings.model_cache_dir
-        )
-        print("[EmbeddingEngine] Model ready.")
+        try:
+            # We use local_files_only=False by default to allow first-time download
+            # but device="cpu" for stability on this env.
+            _embedding_model = SentenceTransformer(
+                settings.embedding_model,
+                cache_folder=settings.model_cache_dir,
+                device="cpu",
+                trust_remote_code=True
+            )
+            print(f"✅ Embedding model loaded: {settings.embedding_model}")
+        except Exception as e:
+            print(f"❌ CRITICAL ERROR: Failed to load embedding model: {e}")
+            # Fallback or re-raise
+            raise RuntimeError(f"Embedding model failed to load: {e}")
     return _embedding_model
 
 

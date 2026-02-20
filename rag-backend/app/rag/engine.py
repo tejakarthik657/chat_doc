@@ -116,10 +116,11 @@ async def update_memory(doc_id: str, user_id: str, question: str, answer: str):
 
 # ── Analytics ─────────────────────────────────────────────────────────────────
 
-async def log_question(user_id: str, doc_id: str, question: str, embedding: list):
+async def log_question(user_id: str, doc_id: str, filename: str, question: str, embedding: list):
     await analytics_col().insert_one({
         "user_id": user_id,
         "doc_id": doc_id,
+        "document_filename": filename,
         "question": question,
         "embedding": embedding,
         "timestamp": datetime.utcnow()
@@ -237,7 +238,7 @@ async def answer_question(
 
     if not fused_embedding_ids:
         raw_vector = embed_texts([question])[0]
-        await log_question(user_id, doc_id, question, raw_vector.tolist())
+        await log_question(user_id, doc_id, doc.get("filename", "Unknown"), question, raw_vector.tolist())
         return _not_found_response(doc_id)
 
     # Step 5: Fetch chunk metadata (preserve fusion order)
@@ -298,7 +299,7 @@ async def answer_question(
         "timestamp": datetime.utcnow()
     })
     await update_memory(doc_id, user_id, question, answer)
-    await log_question(user_id, doc_id, question, raw_vector.tolist())
+    await log_question(user_id, doc_id, doc.get("filename", "Unknown"), question, raw_vector.tolist())
 
     return ChatResponse(
         answer=answer,
