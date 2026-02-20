@@ -1,0 +1,104 @@
+"use client";
+
+import Link from "next/link";
+import { Card } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
+import { FileText, MoreVertical, ArrowRight, Loader2 } from "lucide-react";
+import { useEffect, useState } from "react";
+import { documentService, DocumentOut } from "@/services/document.service";
+
+export function DocumentGrid() {
+    const [documents, setDocuments] = useState<DocumentOut[]>([]);
+    const [loading, setLoading] = useState(true);
+
+    useEffect(() => {
+        const fetchDocs = async () => {
+            try {
+                const data = await documentService.list();
+                setDocuments(data.documents);
+            } catch (error) {
+                console.error(error);
+            } finally {
+                setLoading(false);
+            }
+        };
+        fetchDocs();
+    }, []);
+
+    if (loading) {
+        return (
+            <div className="flex h-40 items-center justify-center">
+                <Loader2 className="animate-spin text-accent" />
+            </div>
+        );
+    }
+
+    return (
+        <div className="space-y-4">
+            <div className="flex items-center justify-between">
+                <h2 className="font-display text-2xl">My Documents</h2>
+                <Link href="/dashboard/documents/upload">
+                    <Button variant="primary" size="sm">
+                        + Upload
+                    </Button>
+                </Link>
+            </div>
+
+            {documents.length === 0 ? (
+                <div className="border border-dashed border-border rounded-lg p-12 flex flex-col items-center justify-center text-center hover:bg-surface-high/20 transition-colors cursor-pointer group">
+                    <Link href="/dashboard/documents/upload">
+                        <div className="h-16 w-16 bg-surface-high rounded-full flex items-center justify-center mb-4 group-hover:scale-110 transition-transform mx-auto">
+                            <FileText size={32} className="text-text-muted" />
+                        </div>
+                        <h3 className="font-display text-xl mb-2">Your first document is waiting.</h3>
+                        <p className="text-text-muted text-sm max-w-xs mb-6 mx-auto">Drop a PDF here or click to browse.</p>
+                        <Button variant="primary">Upload Document</Button>
+                    </Link>
+                </div>
+            ) : (
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                    {documents.map((doc) => (
+                        <Card key={doc.id} className="group relative overflow-hidden transition-all hover:-translate-y-1 hover:border-accent/50 cursor-pointer">
+                            {/* Colored header strip */}
+                            <div className={`h-1.5 w-full ${doc.status === 'error' ? 'bg-red-500' :
+                                    doc.status === 'processing' ? 'bg-amber-500' :
+                                        'bg-gradient-to-r from-accent to-blue-500'
+                                }`} />
+
+                            <div className="p-5 space-y-4">
+                                <div className="flex justify-between items-start">
+                                    <div className="p-2 bg-surface-high rounded text-text-primary">
+                                        <FileText size={20} />
+                                    </div>
+                                    <Button variant="ghost" size="icon" className="h-8 w-8 text-text-muted hover:text-text-primary">
+                                        <MoreVertical size={16} />
+                                    </Button>
+                                </div>
+
+                                <div>
+                                    <h3 className="font-medium text-lg leading-tight truncate mb-1" title={doc.filename}>{doc.filename}</h3>
+                                    <p className="text-xs font-mono text-text-muted">{doc.page_count} pages · {doc.size_mb} MB · {new Date(doc.uploaded_at).toLocaleDateString()}</p>
+                                </div>
+
+                                <div className="flex items-center justify-between pt-2">
+                                    <Badge variant={doc.status as any}>
+                                        {doc.status.toUpperCase()}
+                                    </Badge>
+
+                                    {doc.status === 'ready' && (
+                                        <Link href={`/dashboard/chat/${doc.id}`} className="opacity-0 group-hover:opacity-100 transition-opacity absolute bottom-5 right-5">
+                                            <div className="flex items-center gap-1 text-xs font-mono text-accent hover:underline">
+                                                Ask <ArrowRight size={12} />
+                                            </div>
+                                        </Link>
+                                    )}
+                                </div>
+                            </div>
+                        </Card>
+                    ))}
+                </div>
+            )}
+        </div>
+    );
+}
