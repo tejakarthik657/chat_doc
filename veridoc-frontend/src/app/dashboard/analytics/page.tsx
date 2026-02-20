@@ -11,18 +11,28 @@ export default function AnalyticsPage() {
     const [stats, setStats] = useState<AnalyticsSummary | null>(null);
     const [loading, setLoading] = useState(true);
 
+    const loadStats = async (showLoading = true) => {
+        if (showLoading) setLoading(true);
+        try {
+            const data = await analyticsService.getSummary();
+            setStats(data);
+        } catch (error) {
+            console.error("Failed to load analytics:", error);
+        } finally {
+            if (showLoading) setLoading(false);
+        }
+    };
+
     useEffect(() => {
-        const loadStats = async () => {
-            try {
-                const data = await analyticsService.getSummary();
-                setStats(data);
-            } catch (error) {
-                console.error("Failed to load analytics:", error);
-            } finally {
-                setLoading(false);
-            }
-        };
         loadStats();
+    }, []);
+
+    // ── Real-time Analytics Polling ──────────────────────────────────────────
+    useEffect(() => {
+        const interval = setInterval(() => {
+            loadStats(false); // Silent refresh
+        }, 10000); // Every 10 seconds
+        return () => clearInterval(interval);
     }, []);
 
     return (

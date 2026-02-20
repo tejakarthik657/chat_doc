@@ -2,6 +2,7 @@
 
 import { Sidebar } from "@/components/layout/sidebar";
 import { TopBar } from "@/components/layout/top-bar";
+import { SearchProvider } from "@/lib/contexts/search-context";
 
 export default function DashboardLayout({
     children,
@@ -9,12 +10,14 @@ export default function DashboardLayout({
     children: React.ReactNode;
 }) {
     return (
-        <div className="min-h-screen bg-background text-text-primary">
-            <Sidebar />
-            <TopBar />
-            <div className="pl-[240px] pt-[60px] min-h-screen bg-background">
-                {children}
+        <SearchProvider>
+            <div className="min-h-screen bg-background text-text-primary">
+                <Sidebar />
+                <TopBar />
+                <div className="pl-[240px] pt-[60px] min-h-screen bg-background">
+                    {children}
+                </div>
             </div>
-        </div>
+        </SearchProvider>
     );
 }

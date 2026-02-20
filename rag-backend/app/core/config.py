@@ -1,4 +1,5 @@
 from pydantic_settings import BaseSettings, SettingsConfigDict
+from typing import Optional
 from functools import lru_cache
 
 
@@ -24,6 +25,9 @@ class Settings(BaseSettings):
     embedding_model: str = "all-MiniLM-L6-v2"
     local_llm_path: str = "./models/tinyllama-1.1b-chat-v1.0.Q4_K_M.gguf"
     local_llm_type: str = "llama"
+
+    # Groq
+    groq_api_key: Optional[str] = None
 
     # RAG
     retrieval_top_k: int = 6

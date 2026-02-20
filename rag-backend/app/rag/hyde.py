@@ -28,6 +28,7 @@ When to use HyDE:
 Cost: One extra local LLM call per query (cheap, ~0.5s on CPU).
 Fallback: If HyDE generation fails → silently fall back to raw question.
 """
+from groq import Groq
 from app.core.config import get_settings
 
 settings = get_settings()
@@ -49,14 +50,30 @@ Question: {question}
 
 def generate_hypothetical_document(question: str) -> str:
     """
-    Generate a hypothetical answer passage using the local LLM.
+    Generate a hypothetical answer passage using Groq (fast cloud LLM).
     Returns the fake passage, or the original question on failure.
     """
     try:
-        from app.core.llm import get_llm
-        llm = get_llm()
-        prompt = HYDE_PROMPT_TEMPLATE.format(question=question)
-        hypothesis = llm(prompt, max_new_tokens=150).strip()
+        api_key = settings.groq_api_key
+        if not api_key:
+            raise RuntimeError("GROQ_API_KEY not set in environment")
+
+        client = Groq(api_key=api_key)
+        
+        # Simplified prompt for Groq
+        system_msg = "You are a document assistant. Write a SHORT, factual passage (2-3 sentences) that would ANSWER the question. Write as if you are an excerpt from a technical document."
+        
+        response = client.chat.completions.create(
+            model="llama-3.3-70b-versatile",
+            messages=[
+                {"role": "system", "content": system_msg},
+                {"role": "user", "content": f"Question: {question}"}
+            ],
+            temperature=0.5,
+            max_tokens=150
+        )
+        
+        hypothesis = response.choices[0].message.content.strip()
 
         # Sanity check — if output is garbage, fall back
         if len(hypothesis) < 20 or "?" in hypothesis[:30]:

@@ -7,24 +7,44 @@ import { Badge } from "@/components/ui/badge";
 import { FileText, MoreVertical, ArrowRight, Loader2 } from "lucide-react";
 import { useEffect, useState } from "react";
 import { documentService, DocumentOut } from "@/services/document.service";
+import { useSearch } from "@/lib/contexts/search-context";
 
 export function DocumentGrid() {
+    const { searchQuery } = useSearch();
     const [documents, setDocuments] = useState<DocumentOut[]>([]);
     const [loading, setLoading] = useState(true);
 
+    const fetchDocs = async (showLoading = true) => {
+        if (showLoading) setLoading(true);
+        try {
+            const data = await documentService.list();
+            setDocuments(data.documents);
+        } catch (error) {
+            console.error(error);
+        } finally {
+            if (showLoading) setLoading(false);
+        }
+    };
+
     useEffect(() => {
-        const fetchDocs = async () => {
-            try {
-                const data = await documentService.list();
-                setDocuments(data.documents);
-            } catch (error) {
-                console.error(error);
-            } finally {
-                setLoading(false);
-            }
-        };
         fetchDocs();
     }, []);
+
+    // ── Real-time Status Polling ─────────────────────────────────────────────
+    useEffect(() => {
+        const hasProcessing = documents.some(doc => doc.status === 'processing');
+
+        if (hasProcessing) {
+            const interval = setInterval(() => {
+                fetchDocs(false); // Silent refresh
+            }, 5000);
+            return () => clearInterval(interval);
+        }
+    }, [documents]);
+
+    const filteredDocuments = documents.filter(doc =>
+        doc.filename.toLowerCase().includes(searchQuery.toLowerCase())
+    );
 
     if (loading) {
         return (
@@ -45,25 +65,29 @@ export function DocumentGrid() {
                 </Link>
             </div>
 
-            {documents.length === 0 ? (
+            {filteredDocuments.length === 0 ? (
                 <div className="border border-dashed border-border rounded-lg p-12 flex flex-col items-center justify-center text-center hover:bg-surface-high/20 transition-colors cursor-pointer group">
                     <Link href="/dashboard/documents/upload">
                         <div className="h-16 w-16 bg-surface-high rounded-full flex items-center justify-center mb-4 group-hover:scale-110 transition-transform mx-auto">
                             <FileText size={32} className="text-text-muted" />
                         </div>
-                        <h3 className="font-display text-xl mb-2">Your first document is waiting.</h3>
-                        <p className="text-text-muted text-sm max-w-xs mb-6 mx-auto">Drop a PDF here or click to browse.</p>
-                        <Button variant="primary">Upload Document</Button>
+                        <h3 className="font-display text-xl mb-2">
+                            {searchQuery ? "No documents match your search." : "Your first document is waiting."}
+                        </h3>
+                        <p className="text-text-muted text-sm max-w-xs mb-6 mx-auto">
+                            {searchQuery ? "Try a different search term or upload a new file." : "Drop a PDF here or click to browse."}
+                        </p>
+                        <Button variant="primary">{searchQuery ? "Clear Search" : "Upload Document"}</Button>
                     </Link>
                 </div>
             ) : (
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                    {documents.map((doc) => (
+                    {filteredDocuments.map((doc) => (
                         <Card key={doc.id} className="group relative overflow-hidden transition-all hover:-translate-y-1 hover:border-accent/50 cursor-pointer">
                             {/* Colored header strip */}
                             <div className={`h-1.5 w-full ${doc.status === 'error' ? 'bg-red-500' :
-                                    doc.status === 'processing' ? 'bg-amber-500' :
-                                        'bg-gradient-to-r from-accent to-blue-500'
+                                doc.status === 'processing' ? 'bg-amber-500' :
+                                    'bg-gradient-to-r from-accent to-blue-500'
                                 }`} />
 
                             <div className="p-5 space-y-4">

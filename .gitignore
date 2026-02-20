@@ -1,0 +1,33 @@
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+*.so
+*.egg-info/
+*.egg
+
+# Virtual environments
+.venv/
+venv/
+.env/
+
+# Model files / large artifacts
+*.safetensors
+*.gguf
+*.bin
+*.pt
+*.pth
+*.onnx
+
+# Local model/cache folders
+models/
+rag-backend/models/
+rag-backend/storage/
+
+# Logs
+*.log
+
+# OS
+.DS_Store
+Thumbs.db

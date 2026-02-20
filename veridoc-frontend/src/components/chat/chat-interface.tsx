@@ -2,6 +2,7 @@
 
 import { useState, useRef, useEffect } from "react";
 import { Send, User, Bot, RotateCcw, AlertTriangle } from "lucide-react";
+import axios from "axios";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Citation } from "@/components/ui/citation";
@@ -59,6 +60,21 @@ export function ChatInterface({ docId, onCitationClick }: { docId: string, onCit
     }, [docId]);
 
 
+    const simulateStreaming = async (fullText: string, aiMsgId: string) => {
+        const words = fullText.split(" ");
+        let currentText = "";
+
+        for (let i = 0; i < words.length; i++) {
+            currentText += (i === 0 ? "" : " ") + words[i];
+            setMessages(prev => prev.map(m =>
+                m.id === aiMsgId ? { ...m, content: currentText } : m
+            ));
+            // Type faster for longer responses
+            const delay = Math.max(10, 50 - words.length / 5);
+            await new Promise(resolve => setTimeout(resolve, delay));
+        }
+    };
+
     const handleSend = async () => {
         if (!input.trim()) return;
 
@@ -67,27 +83,44 @@ export function ChatInterface({ docId, onCitationClick }: { docId: string, onCit
         setInput("");
         setIsLoading(true);
 
+        // Add placeholder AI message for "streaming"
+        const aiMsgId = (Date.now() + 1).toString();
+        const placeholderAiMsg: Message = {
+            id: aiMsgId,
+            role: "assistant",
+            content: "",
+            isGrounded: true
+        };
+        setMessages(prev => [...prev, placeholderAiMsg]);
+
         try {
             const response = await chatService.sendMessage(docId, userMsg.content);
+            setIsLoading(false); // Stop thinking indicator before starting to type
 
-            const aiMsg: Message = {
-                id: (Date.now() + 1).toString(),
-                role: "assistant",
-                content: response.answer,
-                citations: response.sources.map(s => s.page),
-                isGrounded: response.grounded
-            };
-            setMessages(prev => [...prev, aiMsg]);
+            // Update AI message with metadata but keep content empty for streaming
+            setMessages(prev => prev.map(m =>
+                m.id === aiMsgId ? {
+                    ...m,
+                    citations: response.sources.map(s => s.page),
+                    isGrounded: response.grounded
+                } : m
+            ));
+
+            await simulateStreaming(response.answer, aiMsgId);
         } catch (err) {
-            const errorMsg: Message = {
-                id: (Date.now() + 1).toString(),
-                role: "assistant",
-                content: "Sorry, I encountered an error answering that.",
-                isGrounded: false
-            };
-            setMessages(prev => [...prev, errorMsg]);
-        } finally {
+            console.error("[CHAT ERROR]", err);
             setIsLoading(false);
+            let errorText = "Sorry, I encountered an error answering that.";
+            if (axios.isAxiosError(err)) {
+                const status = err.response?.status;
+                const detail = err.response?.data?.detail;
+                if (detail) {
+                    errorText = `Error${status ? ` (${status})` : ""}: ${detail}`;
+                }
+            }
+            setMessages(prev => prev.map(m =>
+                m.id === aiMsgId ? { ...m, content: errorText, isGrounded: false } : m
+            ));
         }
     };
 

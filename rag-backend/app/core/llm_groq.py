@@ -5,8 +5,8 @@ Uses Llama 3.1 70B - better than GPT-3.5, completely free.
 Get free API key from: https://console.groq.com/keys
 Free tier: 30 requests/minute (more than enough for your app)
 """
-import os
 from groq import Groq
+from app.core.config import get_settings
 
 SYSTEM_PROMPT = """You are a helpful document assistant, similar to ChatGPT.
 
@@ -28,7 +28,8 @@ def generate(context: str, question: str, memory: str = "") -> str:
     Call Groq API for generation. ULTRA FAST and FREE.
     Returns the model's answer string.
     """
-    api_key = os.getenv("GROQ_API_KEY")
+    settings = get_settings()
+    api_key = settings.groq_api_key
     if not api_key:
         raise RuntimeError("GROQ_API_KEY not set in environment. Get free key from https://console.groq.com/keys")
     
