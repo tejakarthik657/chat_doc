@@ -37,7 +37,7 @@ export function Features() {
                     </div>
                     <h2 className="font-display text-5xl">It reads between the lines AND reads the lines.</h2>
                     <p className="text-text-secondary text-lg leading-relaxed">
-                        Most AI misses the obvious. Keyword search misses the context. Veridoc combines vector embeddings with BM25 keyword matching to find the exact needle in the haystack.
+                        Most AI misses the obvious. Keyword search misses the context. IDRS combines vector embeddings with BM25 keyword matching to find the exact needle in the haystack.
                     </p>
                 </div>
             </div>
@@ -68,9 +68,9 @@ export function Features() {
                         </div>
 
                         {/* Source snippet popover mock */}
-                        <div className="self-end mt-2 w-full max-w-[80%] bg-[#1A1000] border border-amber-500/20 p-3 rounded text-xs font-mono text-text-secondary">
-                            <div className="text-amber-500 mb-1">[Page 7] Security Policy</div>
-                            <div className="text-white/80">...employees shall not create, store, or access Company Data on <span className="bg-amber-500/20 text-amber-500">personal devices</span> under any circumstances...</div>
+                        <div className="self-end mt-2 w-full max-w-[80%] bg-amber-500/5 border border-amber-500/20 p-3 rounded text-xs font-mono text-text-secondary">
+                            <div className="text-amber-700 mb-1 font-semibold">[Page 7] Security Policy</div>
+                            <div className="text-text-secondary">...employees shall not create, store, or access Company Data on <span className="bg-amber-500/10 text-amber-800 font-medium px-1">personal devices</span> under any circumstances...</div>
                         </div>
                     </Card>
                 </motion.div>
@@ -104,7 +104,7 @@ export function Features() {
                     </div>
                     <h2 className="font-display text-5xl">It refuses rather than guesses.</h2>
                     <p className="text-text-secondary text-lg leading-relaxed">
-                        When the answer isn't there, Veridoc admits it. We prioritize silence over plausible-sounding fiction. Ideal for legal and medical use cases where accuracy is paramount.
+                        When the answer isn't there, IDRS admits it. We prioritize silence over plausible-sounding fiction. Ideal for administrative and audit use cases where accuracy is paramount.
                     </p>
                 </div>
             </div>

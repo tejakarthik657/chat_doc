@@ -15,10 +15,18 @@ async def get_analytics(user_id: str = Depends(get_current_user)):
     data = await get_user_analytics(user_id)
 
     return AnalyticsSummary(
+        total_documents=data["total_documents"],
         total_questions=data["total_questions"],
         questions_today=data["questions_today"],
         daily_limit=data["daily_limit"],
         top_clusters=data["top_clusters"],
         storage_used_mb=user.get("storage_used_mb", 0),
+        questions_by_day=data["questions_by_day"],
+        questions_by_document=data["questions_by_document"],
         recent_activity=data["recent_activity"]
     )
+
+
+@router.get("/summary", response_model=AnalyticsSummary)
+async def get_analytics_summary(user_id: str = Depends(get_current_user)):
+    return await get_analytics(user_id)

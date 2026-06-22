@@ -699,7 +699,9 @@ export class SceneEngine {
                     p.active = true
                     p.currentNode = Math.floor(Math.random() * NODE_COUNT)
                     p.targetNode = this._nextNode(p)
-                    p.mesh.material.opacity = 0.95
+                    if (p.mesh.material && !Array.isArray(p.mesh.material)) {
+                        (p.mesh.material as any).opacity = 0.95;
+                    }
                 }, i * 400)
             })
         }

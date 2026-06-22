@@ -4,6 +4,8 @@ export interface SourceCitation {
     page: number;
     chunk_id: string;
     snippet: string;
+    url?: string;
+    source_name?: string;
 }
 
 export interface ChatResponse {
@@ -12,6 +14,9 @@ export interface ChatResponse {
     grounded: boolean;
     doc_id: string;
     timestamp: string;
+    support_label?: string;
+    support_confidence?: number;
+    support_snippet?: string;
 }
 
 export interface ChatHistoryItem {
@@ -22,8 +27,8 @@ export interface ChatHistoryItem {
 }
 
 export const chatService = {
-    async sendMessage(docId: string, question: string) {
-        const response = await api.post<ChatResponse>(`/chat/${docId}`, { question });
+    async sendMessage(docId: string, question: string, strictMode = false) {
+        const response = await api.post<ChatResponse>(`/chat/${docId}`, { question, strict_mode: strictMode });
         return response.data;
     },
 
@@ -34,5 +39,24 @@ export const chatService = {
 
     async clearMemory(docId: string) {
         await api.delete(`/chat/${docId}/memory`);
+    },
+
+    // ── Projects Chat API Callers ──
+    async sendMessageProject(projectId: string, question: string, strictMode = false, scopedSources?: string[]) {
+        const response = await api.post<ChatResponse>(`/chat/project/${projectId}`, { 
+            question, 
+            strict_mode: strictMode,
+            scoped_sources: scopedSources
+        });
+        return response.data;
+    },
+
+    async getHistoryProject(projectId: string) {
+        const response = await api.get<ChatHistoryItem[]>(`/chat/project/${projectId}/history`);
+        return response.data;
+    },
+
+    async clearMemoryProject(projectId: string) {
+        await api.delete(`/chat/project/${projectId}/memory`);
     }
 };

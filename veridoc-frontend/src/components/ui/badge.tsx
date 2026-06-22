@@ -2,16 +2,21 @@ import * as React from "react";
 import { cn } from "@/lib/utils";
 
 export interface BadgeProps extends React.HTMLAttributes<HTMLDivElement> {
-    variant?: "default" | "ready" | "processing" | "error";
+    variant?: "default" | "ready" | "processing" | "error" | "success" | "info" | "warning" | "destructive" | "secondary";
 }
 
 const Badge = React.forwardRef<HTMLDivElement, BadgeProps>(
     ({ className, variant = "default", children, ...props }, ref) => {
         const variants = {
-            default: "bg-surface-high text-text-secondary border-border",
-            ready: "bg-[#0D1F0D] text-accent border-[#1A3A1A]",
-            processing: "bg-[#1A1500] text-accent-warm border-[#3A2800]",
-            error: "bg-[#1A0000] text-red-500 border-[#3A0000]",
+            default: "bg-slate-100 text-slate-600 border-slate-200",
+            secondary: "bg-slate-100 text-slate-600 border-slate-200",
+            ready: "bg-emerald-50 text-emerald-700 border-emerald-200/50",
+            success: "bg-emerald-50 text-emerald-700 border-emerald-200/50",
+            processing: "bg-amber-50 text-amber-700 border-amber-200/50",
+            warning: "bg-amber-50 text-amber-700 border-amber-200/50",
+            info: "bg-blue-50 text-blue-700 border-blue-200/50",
+            error: "bg-red-50 text-red-700 border-red-200/50",
+            destructive: "bg-red-50 text-red-700 border-red-200/50",
         };
 
         return (
@@ -24,11 +29,11 @@ const Badge = React.forwardRef<HTMLDivElement, BadgeProps>(
                 )}
                 {...props}
             >
-                {variant === "ready" && (
-                    <span className="mr-2 h-1.5 w-1.5 rounded-full bg-accent animate-pulse" />
+                {(variant === "ready" || variant === "success") && (
+                    <span className="mr-2 h-1.5 w-1.5 rounded-full bg-emerald-500 animate-pulse" />
                 )}
-                {variant === "processing" && (
-                    <span className="mr-2 h-1.5 w-1.5 rounded-full bg-accent-warm animate-pulse" />
+                {(variant === "processing" || variant === "warning" || variant === "info") && (
+                    <span className="mr-2 h-1.5 w-1.5 rounded-full bg-amber-500 animate-pulse" />
                 )}
                 {children}
             </div>

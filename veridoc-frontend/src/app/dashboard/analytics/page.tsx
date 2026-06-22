@@ -43,8 +43,8 @@ export default function AnalyticsPage() {
                 </div>
 
                 <StatsRow
-                    totalDocs={stats?.total_questions}
-                    totalQueries={stats?.questions_today}
+                    totalDocs={stats?.total_documents}
+                    totalQueries={stats?.total_questions}
                     storageUsed={stats?.storage_used_mb}
                     loading={loading}
                 />

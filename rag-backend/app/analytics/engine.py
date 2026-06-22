@@ -9,7 +9,7 @@ from datetime import datetime, timedelta
 from sklearn.cluster import KMeans
 from sklearn.preprocessing import normalize
 
-from app.db.mongodb import analytics_col
+from app.db.mongodb import analytics_col, documents_col
 from app.core.config import get_settings
 
 settings = get_settings()
@@ -56,11 +56,39 @@ async def get_user_analytics(user_id: str, days: int = 30) -> dict:
             "citation_count": len(r.get("sources", []))
         })
 
+    # ── Questions by Day (Last 7 Days) ───────────────────────────────────────
+    days_data = []
+    for i in range(6, -1, -1):
+        dt = (datetime.utcnow() - timedelta(days=i)).replace(hour=0, minute=0, second=0, microsecond=0)
+        end_dt = dt + timedelta(days=1)
+        count = len([r for r in records if dt <= r["timestamp"] < end_dt])
+        days_data.append({
+            "day": dt.strftime("%a"),
+            "count": count,
+            "isToday": i == 0
+        })
+
+    # ── Questions by Document ────────────────────────────────────────────────
+    doc_counts = {}
+    for r in records:
+        doc_name = r.get("document_filename", "Unknown")
+        doc_counts[doc_name] = doc_counts.get(doc_name, 0) + 1
+    
+    # Sort and take top 5
+    sorted_docs = sorted(doc_counts.items(), key=lambda x: x[1], reverse=True)[:5]
+    doc_breakdown = [{"name": name, "count": count} for name, count in sorted_docs]
+
+    total_docs = await documents_col().count_documents({"user_id": user_id})
+
     return {
+        "total_documents": total_docs,
         "total_questions": total,
         "questions_today": today_count,
         "daily_limit": settings.max_questions_per_day,
         "top_clusters": clusters,
+        "storage_used_mb": 0.0,  # Will be filled by router
+        "questions_by_day": days_data,
+        "questions_by_document": doc_breakdown,
         "recent_activity": recent_docs
     }
 

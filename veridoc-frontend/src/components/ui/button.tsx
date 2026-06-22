@@ -4,7 +4,7 @@ import { Loader2 } from "lucide-react";
 
 export interface ButtonProps
     extends React.ButtonHTMLAttributes<HTMLButtonElement> {
-    variant?: "primary" | "ghost" | "danger" | "default";
+    variant?: "primary" | "ghost" | "danger" | "default" | "outline";
     size?: "default" | "sm" | "lg" | "icon";
     isLoading?: boolean;
     asChild?: boolean;
@@ -14,6 +14,7 @@ const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(
     ({ className, variant = "default", size = "default", isLoading, children, asChild, ...props }, ref) => {
         const variants = {
             default: "bg-surface text-text-primary border border-border hover:border-text-secondary hover:-translate-y-0.5 shadow-sm",
+            outline: "bg-surface text-text-primary border border-border hover:border-text-secondary hover:-translate-y-0.5 shadow-sm",
             primary: "bg-accent text-black hover:brightness-110 shadow-md",
             ghost: "bg-transparent text-accent border border-accent/20 hover:bg-accent/10 hover:border-accent",
             danger: "bg-transparent text-red-500 border border-red-500/20 hover:bg-red-500/10 hover:border-red-500",

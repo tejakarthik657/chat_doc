@@ -1,4 +1,4 @@
-# Python
+# ── Python ─────────────────────────────────────────────────────────
 __pycache__/
 *.py[cod]
 *.pyo
@@ -6,28 +6,124 @@ __pycache__/
 *.so
 *.egg-info/
 *.egg
+*.manifest
+*.spec
+*.cover
+*.py,cover
+.coverage
+.coverage.*
+coverage.xml
+htmlcov/
+.pytest_cache/
+.hypothesis/
+test-results/
 
-# Virtual environments
+# ── Virtual environments ──────────────────────────────────────────
 .venv/
 venv/
-.env/
+.venv311/
+env/
+ENV/
+env.bak/
+venv.bak/
 
-# Model files / large artifacts
+# ── Environment / Secrets ─────────────────────────────────────────
+# Ignore all .env files (actual credentials)
+.env
+.env.local
+.env.*.local
+.env.development
+.env.development.local
+.env.test
+.env.test.local
+.env.production
+.env.staging
+.env.dev
+*.env
+
+# Keep .env.example templates (committed for setup reference)
+!.env.example
+
+# ── Model files / large artifacts ────────────────────────────────
 *.safetensors
 *.gguf
 *.bin
 *.pt
 *.pth
 *.onnx
+*.h5
+*.ckpt
+*.pickle
+*.pkl
 
 # Local model/cache folders
 models/
-rag-backend/models/
-rag-backend/storage/
+.huggingface/
+.cache/
 
-# Logs
+# ── Storage / Runtime data ────────────────────────────────────────
+storage/
+*.faiss
+qdrant_db/
+uploads/
+
+# ── Logs ──────────────────────────────────────────────────────────
 *.log
+auth_debug.log
+auth_error.log
+db_test_log.txt
 
-# OS
+# ── Debug / Scratch scripts ───────────────────────────────────────
+check_db*.py
+check_pydantic.py
+db_test*.py
+test_mongo.py
+pymongo*.py
+
+# ── Frontend ──────────────────────────────────────────────────────
+node_modules/
+.npm/
+.npx/
+.pnpm-store/
+.yarn/
+.yarn/cache
+.yarn/unplugged
+.yarn/build-state.yml
+.yarn/install-state.gz
+.pnp.*
+
+# Next.js
+.next/
+out/
+build/
+dist/
+
+# TypeScript build info
+*.tsbuildinfo
+
+# ── OS ────────────────────────────────────────────────────────────
 .DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
 Thumbs.db
+desktop.ini
+$RECYCLE.BIN/
+
+# ── Misc tools ────────────────────────────────────────────────────
+.zencoder/
+.zenflow/
+
+# ── Root-level lockfile (frontend's belongs in veridoc-frontend/) ─
+package-lock.json
+
+# ── IDE / Editors ─────────────────────────────────────────────────
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+*.sublime-project
+*.sublime-workspace

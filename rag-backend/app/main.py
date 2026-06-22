@@ -3,6 +3,7 @@ main.py — FastAPI application entry point.
 One process. One port. One mental model.
 """
 # Avoid Intel/LLVM OpenMP conflict (sentence-transformers, numpy, torch)
+# Reload trigger comment
 import os
 import warnings
 os.environ.setdefault("KMP_DUPLICATE_LIB_OK", "TRUE")
@@ -17,7 +18,12 @@ from app.core.config import get_settings
 from app.core.embeddings import get_embedding_model
 from app.core.reranker import get_reranker
 from app.db.mongodb import create_indexes
-from app.api.routes import auth, documents, chat, analytics
+from app.api.routes.auth import router as auth_router
+from app.api.routes.documents import router as documents_router
+from app.api.routes.chat import router as chat_router
+from app.api.routes.analytics import router as analytics_router
+from app.api.routes.features import router as features_router
+from app.api.routes.project import router as project_router
 
 settings = get_settings()
 
@@ -30,7 +36,7 @@ async def lifespan(app: FastAPI):
     Startup: load embedding model into memory, create DB indexes.
     This ensures the first request isn't slow.
     """
-    print("🚀 Starting RAG backend...")
+    print("Starting RAG backend...")
 
     # Create storage directories
     os.makedirs(os.path.join(settings.storage_dir, "uploads"), exist_ok=True)
@@ -46,9 +52,9 @@ async def lifespan(app: FastAPI):
     # Create MongoDB indexes
     await create_indexes()
 
-    print("✅ Backend ready.")
+    print("Backend ready.")
     yield
-    print("👋 Shutting down.")
+    print("Shutting down.")
 
 
 # ── App ───────────────────────────────────────────────────────────────────────
@@ -100,10 +106,12 @@ async def global_exception_handler(request: Request, exc: Exception):
 
 # ── Routes ────────────────────────────────────────────────────────────────────
 
-app.include_router(auth.router)
-app.include_router(documents.router)
-app.include_router(chat.router)
-app.include_router(analytics.router)
+app.include_router(auth_router)
+app.include_router(documents_router)
+app.include_router(chat_router)
+app.include_router(analytics_router)
+app.include_router(features_router)
+app.include_router(project_router)
 
 
 @app.get("/health")

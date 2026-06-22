@@ -36,6 +36,15 @@ def memory_col():
 def analytics_col():
     return get_db()["question_analytics"]
 
+def projects_col():
+    return get_db()["projects"]
+
+def crawl_jobs_col():
+    return get_db()["crawl_jobs"]
+
+def crawled_pages_col():
+    return get_db()["crawled_pages"]
+
 
 async def create_indexes():
     """Run once at startup to ensure fast queries."""
@@ -44,3 +53,8 @@ async def create_indexes():
     await chat_history_col().create_index([("user_id", 1), ("doc_id", 1)])
     await chunks_col().create_index([("doc_id", 1)])
     await analytics_col().create_index([("user_id", 1), ("timestamp", -1)])
+    
+    # Projects & Crawlers
+    await projects_col().create_index([("user_id", 1), ("_id", 1)])
+    await crawl_jobs_col().create_index([("project_id", 1), ("_id", 1)])
+    await crawled_pages_col().create_index([("project_id", 1), ("url", 1)], unique=True)

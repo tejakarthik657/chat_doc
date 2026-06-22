@@ -11,6 +11,7 @@ import { Button } from "@/components/ui/button";
 const navItems = [
     { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
     { href: "/dashboard/documents", label: "My Documents", icon: Files },
+    { href: "/dashboard/projects", label: "Knowledge Projects", icon: Database },
     { href: "/dashboard/analytics", label: "Analytics", icon: BarChart3 },
     { href: "/dashboard/settings", label: "Settings", icon: Settings },
 ];
@@ -39,7 +40,10 @@ export function Sidebar() {
     return (
         <div className="fixed left-0 top-0 h-full w-[240px] border-r border-border bg-background flex flex-col z-40">
             <div className="p-6">
-                <h1 className="font-display text-2xl text-text-primary">Veridoc</h1>
+                <div className="flex flex-col">
+                    <span className="font-display text-2xl text-text-primary tracking-tight font-bold">IDRS</span>
+                    <span className="text-[10px] font-mono text-text-muted tracking-wider leading-none uppercase mt-0.5">Document Retrieval</span>
+                </div>
             </div>
 
             <nav className="flex-1 px-4 space-y-2">

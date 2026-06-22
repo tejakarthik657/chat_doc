@@ -49,7 +49,7 @@ export default function OnboardingPage() {
                                 </div>
                                 <h1 className="font-display text-5xl">The document doesn't lie.</h1>
                                 <p className="text-text-secondary text-lg leading-relaxed">
-                                    Unlike chatbots that guess, Veridoc grounds every answer in your specific file.
+                                    Unlike chatbots that guess, IDRS grounds every answer in your specific file.
                                     If the answer isn't there, we tell you. No hallucinations.
                                 </p>
                                 <Button variant="primary" size="lg" onClick={nextStep} className="mt-4">
@@ -116,7 +116,7 @@ export default function OnboardingPage() {
                                 </div>
                                 <h2 className="font-display text-3xl">Ask away.</h2>
                                 <p className="text-text-secondary text-sm">
-                                    Try asking specific questions. Veridoc will search, rerank, and cite the exact source page.
+                                    Try asking specific questions. IDRS will search, rerank, and cite the exact source page.
                                 </p>
 
                                 <div className="space-y-2 pt-4">

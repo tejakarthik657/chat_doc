@@ -42,13 +42,14 @@ from app.core.embeddings import embed_texts, load_faiss_index, search_index
 from app.core.bm25 import load_bm25_index, bm25_search
 from app.core.fusion import reciprocal_rank_fusion, explain_fusion
 from app.core.reranker import rerank_chunks
+from app.core.feature_models import verify_answer_support
 from app.rag.hyde import generate_hypothetical_document, should_use_hyde
 # Use Groq for FAST & FREE responses (1-2 sec, 100% free tier)
 from app.core.llm_groq import generate
 # from app.core.llm_openai import generate  # Uncomment to use OpenAI (paid)
 # from app.core.llm import generate  # Uncomment to use local TinyLlama (20+ min on CPU)
 from app.core.config import get_settings
-from app.db.mongodb import chunks_col, chat_history_col, memory_col, analytics_col
+from app.db.mongodb import chunks_col, chat_history_col, memory_col, analytics_col, documents_col
 from app.models.schemas import ChatResponse, SourceCitation
 
 settings = get_settings()
@@ -77,6 +78,19 @@ def _is_overview_question(question: str) -> bool:
 
 
 # ── Context Assembly ──────────────────────────────────────────────────────────
+
+def deduplicate_chunks(chunks: list[dict], scores: list[float]) -> list[tuple[dict, float]]:
+    """Keep only the highest scoring chunk per page to ensure diverse context."""
+    best_per_page = {}
+    for chunk, score in zip(chunks, scores):
+        page = chunk.get("page", 1)
+        if page not in best_per_page or score > best_per_page[page][1]:
+            best_per_page[page] = (chunk, score)
+    
+    # Sort by score descending
+    sorted_ranked = sorted(best_per_page.values(), key=lambda x: x[1], reverse=True)
+    return sorted_ranked
+
 
 def build_context_string(ranked_chunks: list[tuple]) -> str:
     """Format reranked chunks into the LLM context block."""
@@ -205,7 +219,8 @@ async def answer_question(
     question: str,
     doc_id: str,
     user_id: str,
-    debug: bool = False
+    debug: bool = False,
+    strict_mode: bool = False
 ) -> ChatResponse:
     """
     Full upgraded RAG pipeline.
@@ -217,6 +232,9 @@ async def answer_question(
         faiss_index = load_faiss_index(doc_id)
     except FileNotFoundError:
         return _not_found_response(doc_id)
+
+    doc = await documents_col().find_one({"_id": doc_id, "user_id": user_id}, {"filename": 1})
+    doc_filename = doc.get("filename", "Unknown") if doc else "Unknown"
 
     # Step 1–4: Hybrid Retrieval
     fused_embedding_ids, debug_info = await hybrid_retrieve(
@@ -238,7 +256,7 @@ async def answer_question(
 
     if not fused_embedding_ids:
         raw_vector = embed_texts([question])[0]
-        await log_question(user_id, doc_id, doc.get("filename", "Unknown"), question, raw_vector.tolist())
+        await log_question(user_id, doc_id, doc_filename, question, raw_vector.tolist())
         return _not_found_response(doc_id)
 
     # Step 5: Fetch chunk metadata (preserve fusion order)
@@ -277,6 +295,14 @@ async def answer_question(
     # Step 8: Generate grounded answer
     answer = generate(context=context, question=question, memory=memory)
 
+    verification = verify_answer_support(
+        answer,
+        [chunk["text"] for chunk, _ in reranked]
+    )
+
+    if strict_mode and verification["label"] in {"weak_support", "insufficient"}:
+        answer = "I cannot provide a confident answer from this document in strict mode. Try asking a more specific question or disable strict mode."
+
     # Step 9: Build citations
     sources = [
         SourceCitation(
@@ -299,12 +325,212 @@ async def answer_question(
         "timestamp": datetime.utcnow()
     })
     await update_memory(doc_id, user_id, question, answer)
-    await log_question(user_id, doc_id, doc.get("filename", "Unknown"), question, raw_vector.tolist())
+    await log_question(user_id, doc_id, doc_filename, question, raw_vector.tolist())
 
     return ChatResponse(
         answer=answer,
         sources=sources,
         grounded=True,
         doc_id=doc_id,
-        timestamp=datetime.utcnow()
+        timestamp=datetime.utcnow(),
+        support_label=verification["label"],
+        support_confidence=verification["confidence"],
+        support_snippet=verification["best_snippet"],
     )
+
+
+async def answer_project_question(
+    question: str,
+    project_id: str,
+    user_id: str,
+    strict_mode: bool = False,
+    scoped_sources: list[str] | None = None
+) -> ChatResponse:
+    """
+    RAG pipeline for Projects.
+    Retrieves candidate chunks from Qdrant, rerank with Cross-Encoder, and calls Groq.
+    """
+    from app.db.mongodb import projects_col
+    
+    # 1. Verify project exists
+    project = await projects_col().find_one({"_id": project_id, "user_id": user_id})
+    if not project:
+        return ChatResponse(
+            answer="Project not found or you do not have permission to view it.",
+            sources=[],
+            grounded=False,
+            doc_id=project_id,
+            timestamp=datetime.utcnow()
+        )
+        
+    project_name = project.get("name", "Project")
+    
+    # Detect if comparison or multi-document analysis is requested
+    lower_q = question.lower()
+    comparison_keywords = {"compare", "comparison", "yearly", "trends", "difference", "similar", "progress", "accreditation", "vs", "versus"}
+    is_comparison = any(kw in lower_q for kw in comparison_keywords)
+
+    retrieval_limit = RETRIEVAL_POOL_SIZE
+    top_k_context = settings.context_top_k
+    if is_comparison:
+        retrieval_limit = RETRIEVAL_POOL_SIZE * 2
+        top_k_context = min(settings.context_top_k * 2, 10)
+
+    # 2. Embed the question
+    q_vector = embed_texts([question])[0]
+    
+    # 3. Retrieve from Qdrant
+    from app.db.qdrant import get_qdrant_client
+    client = get_qdrant_client()
+    collection_name = f"project_{project_id}"
+    
+    # Build filter if scoped_sources is provided
+    query_filter = None
+    if scoped_sources:
+        from qdrant_client.http import models as qdrant_models
+        # Filter where payload["url"] is one of the scoped_sources
+        query_filter = qdrant_models.Filter(
+            should=[
+                qdrant_models.FieldCondition(
+                    key="url",
+                    match=qdrant_models.MatchValue(value=src)
+                )
+                for src in scoped_sources
+            ]
+        )
+    
+    try:
+        res = client.search(
+            collection_name=collection_name,
+            query_vector=q_vector.tolist(),
+            query_filter=query_filter,
+            limit=retrieval_limit
+        )
+    except Exception as e:
+        print(f"[Qdrant] Search failed (maybe collection does not exist): {e}")
+        return ChatResponse(
+            answer="No document chunks or crawled pages indexed in this project yet. Please verify that the crawler is done.",
+            sources=[],
+            grounded=False,
+            doc_id=project_id,
+            timestamp=datetime.utcnow()
+        )
+        
+    if not res:
+        return ChatResponse(
+            answer="I couldn't find any relevant information for your question in the project's knowledge base.",
+            sources=[],
+            grounded=False,
+            doc_id=project_id,
+            timestamp=datetime.utcnow()
+        )
+        
+    # Convert hits to chunks for Reranker
+    candidates = [
+        {
+            "chunk_id": hit.payload["chunk_id"],
+            "text": hit.payload["text"],
+            "source_name": hit.payload["source_name"],
+            "url": hit.payload["url"],
+            "page": hit.payload["page"]
+        }
+        for hit in res
+    ]
+    
+    # 4. Cross-Encoder Reranking
+    try:
+        reranked = rerank_chunks(
+            query=question,
+            chunks=candidates,
+            top_k=top_k_context
+        )
+    except Exception as e:
+        print(f"[Reranker] Project search rerank failed, using original retrieval order: {e}")
+        reranked = [(c, 1.0) for c in candidates[:top_k_context]]
+        
+    if not reranked:
+        return ChatResponse(
+            answer="I couldn't find any relevant information for your question in the project's knowledge base.",
+            sources=[],
+            grounded=False,
+            doc_id=project_id,
+            timestamp=datetime.utcnow()
+        )
+        
+    # 5. Assemble context string
+    parts = []
+    for chunk, score in reranked:
+        source_lbl = f"Source: {chunk['source_name']}"
+        if chunk.get("url"):
+            source_lbl += f" URL: {chunk['url']}"
+        if chunk.get("page") and chunk["page"] > 1:
+            source_lbl += f" Page: {chunk['page']}"
+            
+        parts.append(f"[{source_lbl}]\n{chunk['text']}")
+    context = "\n\n---\n\n".join(parts)
+    
+    # 6. Retrieve conversation history memory
+    memory = await get_memory(project_id, user_id)
+    
+    # 7. Generate answer via Groq
+    augmented_question = question
+    if is_comparison:
+        augmented_question = (
+            f"{question}\n\n"
+            f"[INSTRUCTION] The user is requesting a comparison, trend, or multi-document synthesis. "
+            f"Please synthesize and contrast facts across the different documents, sources, and pages in the context. "
+            f"Structure your response with clear comparison sections, highlighting differences, similarities, and chronological timelines if applicable. "
+            f"Be sure to cite the specific sources (e.g., [Source Name] or [URL]) when referencing facts."
+        )
+    answer = generate(context=context, question=augmented_question, memory=memory)
+    
+    # 8. Verify answer support
+    verification = {"label": "supported", "confidence": 1.0, "best_snippet": ""}
+    try:
+        verification = verify_answer_support(
+            answer,
+            [chunk["text"] for chunk, _ in reranked]
+        )
+    except Exception as verify_err:
+        print(f"[Verification] Answer verification skipped: {verify_err}")
+        
+    if strict_mode and verification.get("label") in {"weak_support", "insufficient"}:
+        answer = "I cannot provide a confident answer from the indexed pages in strict mode. Try asking a more specific question."
+        
+    # 9. Format response citations
+    sources = [
+        SourceCitation(
+            page=chunk["page"],
+            chunk_id=chunk["chunk_id"],
+            snippet=chunk["text"][:200],
+            url=chunk.get("url"),
+            source_name=chunk.get("source_name")
+        )
+        for chunk, _ in reranked
+    ]
+    
+    # 10. Persist to MongoDB
+    await chat_history_col().insert_one({
+        "user_id": user_id,
+        "doc_id": project_id,  # Use doc_id to maintain database schema compatibility with the history page
+        "question": question,
+        "answer": answer,
+        "sources": [s.dict() for s in sources],
+        "timestamp": datetime.utcnow()
+    })
+    await update_memory(project_id, user_id, question, answer)
+    
+    # Log analytics
+    await log_question(user_id, project_id, project_name, question, q_vector.tolist())
+    
+    return ChatResponse(
+        answer=answer,
+        sources=sources,
+        grounded=True,
+        doc_id=project_id,
+        timestamp=datetime.utcnow(),
+        support_label=verification.get("label"),
+        support_confidence=verification.get("confidence"),
+        support_snippet=verification.get("best_snippet"),
+    )
+

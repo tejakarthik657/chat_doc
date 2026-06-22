@@ -84,7 +84,8 @@ async def upload_document(
         size_mb=size_mb,
         page_count=0,
         uploaded_at=now,
-        status="processing"
+        status="processing",
+        error_message=None
     )
 
 
@@ -101,7 +102,8 @@ async def list_documents(user_id: str = Depends(get_current_user)):
                 size_mb=d["size_mb"],
                 page_count=d.get("page_count", 0),
                 uploaded_at=d["uploaded_at"],
-                status=d.get("status", "unknown")
+                status=d.get("status", "unknown"),
+                error_message=d.get("error_message")
             )
             for d in docs
         ],
@@ -121,7 +123,8 @@ async def get_document(doc_id: str, user_id: str = Depends(get_current_user)):
         size_mb=doc["size_mb"],
         page_count=doc.get("page_count", 0),
         uploaded_at=doc["uploaded_at"],
-        status=doc.get("status", "unknown")
+        status=doc.get("status", "unknown"),
+        error_message=doc.get("error_message")
     )
 
 

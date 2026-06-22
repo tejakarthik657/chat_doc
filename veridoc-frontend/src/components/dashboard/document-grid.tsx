@@ -4,7 +4,7 @@ import Link from "next/link";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { FileText, MoreVertical, ArrowRight, Loader2 } from "lucide-react";
+import { FileText, Trash2, ArrowRight, Loader2 } from "lucide-react";
 import { useEffect, useState } from "react";
 import { documentService, DocumentOut } from "@/services/document.service";
 import { useSearch } from "@/lib/contexts/search-context";
@@ -29,6 +29,19 @@ export function DocumentGrid() {
     useEffect(() => {
         fetchDocs();
     }, []);
+
+    const handleDelete = async (e: React.MouseEvent, docId: string, filename: string) => {
+        e.preventDefault();
+        e.stopPropagation();
+        if (confirm(`Are you sure you want to delete "${filename}"? All associated vectors and chunk metadata will be permanently deleted.`)) {
+            try {
+                await documentService.delete(docId);
+                setDocuments(prev => prev.filter(d => d.id !== docId));
+            } catch (err) {
+                alert("Failed to delete document.");
+            }
+        }
+    };
 
     // ── Real-time Status Polling ─────────────────────────────────────────────
     useEffect(() => {
@@ -95,8 +108,14 @@ export function DocumentGrid() {
                                     <div className="p-2 bg-surface-high rounded text-text-primary">
                                         <FileText size={20} />
                                     </div>
-                                    <Button variant="ghost" size="icon" className="h-8 w-8 text-text-muted hover:text-text-primary">
-                                        <MoreVertical size={16} />
+                                    <Button
+                                        variant="ghost"
+                                        size="icon"
+                                        className="h-8 w-8 text-text-muted hover:text-red-500 hover:bg-red-50/50 rounded-none transition-colors"
+                                        onClick={(e) => handleDelete(e, doc.id, doc.filename)}
+                                        title="Delete Document"
+                                    >
+                                        <Trash2 size={16} />
                                     </Button>
                                 </div>
 

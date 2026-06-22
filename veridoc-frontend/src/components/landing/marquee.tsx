@@ -13,7 +13,7 @@ export function Marquee() {
     ];
 
     return (
-        <div className="relative w-full overflow-hidden bg-[#0D1F0D] py-4 border-y border-[#1A3A1A]">
+        <div className="relative w-full overflow-hidden bg-slate-100 py-4 border-y border-slate-200/60">
             <div className="flex">
                 <motion.div
                     initial={{ x: 0 }}

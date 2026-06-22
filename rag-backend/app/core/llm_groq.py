@@ -7,6 +7,7 @@ Free tier: 30 requests/minute (more than enough for your app)
 """
 from groq import Groq
 from app.core.config import get_settings
+from app.core.llm import generate as local_generate
 
 SYSTEM_PROMPT = """You are a helpful document assistant, similar to ChatGPT.
 
@@ -57,4 +58,5 @@ def generate(context: str, question: str, memory: str = "") -> str:
         return response.choices[0].message.content.strip()
     except Exception as e:
         print(f"[Groq Error] {e}")
-        raise RuntimeError(f"Groq API call failed: {e}")
+        print("[Groq] Falling back to local LLM.")
+        return local_generate(context=context, question=question, memory=memory)

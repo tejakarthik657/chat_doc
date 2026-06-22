@@ -27,9 +27,9 @@ def get_embedding_model() -> SentenceTransformer:
                 device="cpu",
                 trust_remote_code=True
             )
-            print(f"✅ Embedding model loaded: {settings.embedding_model}")
+            print(f"[Embeddings] Model loaded: {settings.embedding_model}")
         except Exception as e:
-            print(f"❌ CRITICAL ERROR: Failed to load embedding model: {e}")
+            print(f"[Embeddings] [ERROR] Failed to load embedding model: {e}")
             # Fallback or re-raise
             raise RuntimeError(f"Embedding model failed to load: {e}")
     return _embedding_model

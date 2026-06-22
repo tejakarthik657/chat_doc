@@ -49,13 +49,13 @@ export default function LoginPage() {
             {/* Left Panel - Form */}
             <div className="w-full md:w-1/2 flex flex-col justify-center px-8 md:px-24 py-12 border-r border-border">
                 <div className="mb-2 w-max">
-                    <Link href="/" className="font-display text-2xl text-text-primary hover:opacity-80 transition-opacity">Veridoc</Link>
+                    <Link href="/" className="font-display text-2xl text-text-primary hover:opacity-80 transition-opacity">IDRS</Link>
                 </div>
 
                 <div className="space-y-6 mt-12 max-w-sm w-full mx-auto md:mx-0">
                     <div className="space-y-2">
                         <h1 className="font-display text-4xl">Welcome back.</h1>
-                        <p className="font-mono text-sm text-accent">Your documents are waiting.</p>
+                        <p className="font-mono text-sm text-accent">Institutional document retrieval hub.</p>
                     </div>
 
                     <form onSubmit={handleSubmit} className="space-y-4">
@@ -114,7 +114,7 @@ export default function LoginPage() {
             </div>
 
             {/* Right Panel - Visualization */}
-            <div className="hidden md:block w-1/2 relative bg-[#080D10]">
+            <div className="hidden md:block w-1/2 relative bg-slate-50">
                 <PipelineVisualizer />
             </div>
         </div>

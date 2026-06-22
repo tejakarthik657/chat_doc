@@ -36,7 +36,8 @@ async def ask_question(
         response = await answer_question(
             question=body.question,
             doc_id=doc_id,
-            user_id=user_id
+            user_id=user_id,
+            strict_mode=body.strict_mode
         )
         return response
     except Exception as e:
@@ -76,3 +77,87 @@ async def clear_memory(doc_id: str, user_id: str = Depends(get_current_user)):
     """Reset conversation memory for a document (start fresh)."""
     from app.db.mongodb import memory_col
     await memory_col().delete_one({"doc_id": doc_id, "user_id": user_id})
+
+
+# ── Projects Chat Endpoints ──────────────────────────────────────────────────
+
+@router.post("/project/{project_id}", response_model=ChatResponse)
+async def ask_project_question(
+    project_id: str,
+    body: QuestionRequest,
+    user_id: str = Depends(get_current_user)
+):
+    from app.db.mongodb import projects_col
+    from app.rag.engine import answer_project_question
+
+    # 1. Verify project exists
+    project = await projects_col().find_one({"_id": project_id, "user_id": user_id})
+    if not project:
+        raise HTTPException(status_code=404, detail="Project not found.")
+    if project.get("status") not in ["active", "ready"]:
+        # Allow if active
+        pass
+
+    # 2. Rate limit check
+    today_count = await count_questions_today(user_id)
+    if today_count >= settings.max_questions_per_day:
+        raise HTTPException(
+            status_code=429,
+            detail=f"Daily question limit reached ({settings.max_questions_per_day}/day on free plan)."
+        )
+
+    # 3. Call project RAG pipeline
+    try:
+        response = await answer_project_question(
+            question=body.question,
+            project_id=project_id,
+            user_id=user_id,
+            strict_mode=body.strict_mode,
+            scoped_sources=body.scoped_sources
+        )
+        return response
+    except Exception as e:
+        print(f"[PROJECT CHAT ERROR] {type(e).__name__}: {e}")
+        raise HTTPException(status_code=500, detail=f"Error processing question: {str(e)}")
+
+
+@router.get("/project/{project_id}/history", response_model=list[ChatHistoryItem])
+async def get_project_chat_history(
+    project_id: str,
+    limit: int = 20,
+    user_id: str = Depends(get_current_user)
+):
+    from app.db.mongodb import projects_col
+
+    # Verify project exists
+    project = await projects_col().find_one({"_id": project_id, "user_id": user_id})
+    if not project:
+        raise HTTPException(status_code=404, detail="Project not found.")
+
+    history = await chat_history_col().find(
+        {"doc_id": project_id, "user_id": user_id}
+    ).sort("timestamp", -1).limit(limit).to_list(length=limit)
+
+    return [
+        ChatHistoryItem(
+            question=h["question"],
+            answer=h["answer"],
+            sources=h.get("sources", []),
+            timestamp=h["timestamp"]
+        )
+        for h in reversed(history)
+    ]
+
+
+@router.delete("/project/{project_id}/memory", status_code=204)
+async def clear_project_memory(project_id: str, user_id: str = Depends(get_current_user)):
+    """Reset conversation memory for a project (start fresh)."""
+    from app.db.mongodb import memory_col, projects_col
+    
+    # Verify project exists
+    project = await projects_col().find_one({"_id": project_id, "user_id": user_id})
+    if not project:
+        raise HTTPException(status_code=404, detail="Project not found.")
+
+    await memory_col().delete_one({"doc_id": project_id, "user_id": user_id})
+

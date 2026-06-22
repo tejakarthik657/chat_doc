@@ -7,7 +7,7 @@ export function SourcePanel({ page, onClose }: { page: number, onClose: () => vo
             <div className="p-4 border-b border-border flex items-center justify-between">
                 <div className="flex items-center gap-2">
                     <span className="font-mono text-xs text-text-muted">SOURCE</span>
-                    <span className="bg-[#1A1000] text-amber-500 border border-amber-500/20 px-1.5 py-0.5 rounded text-xs font-mono">[PAGE {page}]</span>
+                    <span className="bg-amber-500/10 text-amber-700 border border-amber-500/20 px-1.5 py-0.5 rounded text-xs font-mono">[PAGE {page}]</span>
                 </div>
                 <Button variant="ghost" size="icon" onClick={onClose} className="h-6 w-6">
                     <X size={14} />

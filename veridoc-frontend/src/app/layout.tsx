@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import { Instrument_Serif, DM_Sans, JetBrains_Mono } from "next/font/google";
 import "./globals.css";
-import { clsx } from "clsx";
+import clsx from "clsx";
 
 const instrumentSerif = Instrument_Serif({
     weight: "400",
@@ -20,8 +20,8 @@ const jetbrainsMono = JetBrains_Mono({
 });
 
 export const metadata: Metadata = {
-    title: "Veridoc | The Document Doesn't Lie",
-    description: "Source-grounded AI. No hallucinations. No guessing. Just the document.",
+    title: "IDRS | Institute Document Retrieval System",
+    description: "High-fidelity document search and RAG retrieval system for academic, governance, and institutional files.",
 };
 
 export default function RootLayout({

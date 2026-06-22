@@ -5,7 +5,7 @@ import { FileText, Database, Search, ArrowRight, Zap } from "lucide-react";
 
 export function PipelineVisualizer() {
     return (
-        <div className="relative w-full h-full bg-[#080D10] overflow-hidden flex items-center justify-center">
+        <div className="relative w-full h-full bg-slate-50 overflow-hidden flex items-center justify-center">
             <div className="absolute inset-0 bg-[url('/grid.svg')] opacity-10" />
 
             {/* Central visualization container */}

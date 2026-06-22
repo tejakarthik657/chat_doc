@@ -18,6 +18,25 @@ export function UploadDropzone() {
     const [uploadedDoc, setUploadedDoc] = useState<DocumentOut | null>(null);
     const [errorMsg, setErrorMsg] = useState("");
 
+    const formatErrorDetail = (detail: unknown): string | undefined => {
+        if (typeof detail === "string") return detail;
+        if (Array.isArray(detail)) {
+            const parts = detail.map(formatErrorDetail).filter(Boolean);
+            return parts.length ? parts.join(", ") : undefined;
+        }
+        if (detail && typeof detail === "object") {
+            const errorObject = detail as Record<string, unknown>;
+            const message = errorObject.msg ?? errorObject.message ?? errorObject.detail;
+            if (typeof message === "string") return message;
+            try {
+                return JSON.stringify(detail);
+            } catch {
+                return String(detail);
+            }
+        }
+        return undefined;
+    };
+
     const handleDragOver = (e: React.DragEvent) => {
         e.preventDefault();
         setIsDragActive(true);
@@ -59,7 +78,7 @@ export function UploadDropzone() {
 
         } catch (err: any) {
             setUploadStatus("error");
-            setErrorMsg(err.response?.data?.detail || "Upload failed. Please try again.");
+            setErrorMsg(formatErrorDetail(err.response?.data?.detail) || "Upload failed. Please try again.");
         }
     };
 
@@ -81,7 +100,7 @@ export function UploadDropzone() {
                 } else if (doc.status === 'error') {
                     clearInterval(interval);
                     setUploadStatus("error");
-                    setErrorMsg("Processing failed on server.");
+                    setErrorMsg(doc.error_message || "Processing failed on server.");
                 }
             } catch (e) {
                 // ignore poll errors

@@ -29,9 +29,15 @@ class Settings(BaseSettings):
     # Groq
     groq_api_key: Optional[str] = None
 
+    # Qdrant Vector Database
+    qdrant_url: Optional[str] = None
+    qdrant_host: str = "localhost"
+    qdrant_port: int = 6333
+    qdrant_path: str = "./storage/qdrant_db"
+
     # RAG
-    retrieval_top_k: int = 6
-    context_top_k: int = 3
+    retrieval_top_k: int = 15          # Crawled site gets more chunks
+    context_top_k: int = 6
     similarity_threshold: float = 0.20
     chunk_size: int = 700
     chunk_overlap: int = 100

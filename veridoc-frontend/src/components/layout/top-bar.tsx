@@ -20,8 +20,8 @@ export function TopBar() {
     const [notifications, setNotifications] = useState<Notification[]>([
         {
             id: "1",
-            title: "Welcome to Veridoc",
-            message: "Start by uploading your first medical document.",
+            title: "Welcome to IDRS",
+            message: "Start by creating a knowledge project or uploading your documents.",
             type: "info",
             timestamp: new Date(),
             read: false

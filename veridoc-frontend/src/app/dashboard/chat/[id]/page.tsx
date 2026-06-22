@@ -4,6 +4,7 @@ import { use, useState } from "react";
 import { DocumentSidebar } from "@/components/chat/document-sidebar";
 import { ChatInterface } from "@/components/chat/chat-interface";
 import { SourcePanel } from "@/components/chat/source-panel";
+import { InsightsPanel } from "@/components/chat/insights-panel";
 import { AnimatePresence, motion } from "framer-motion";
 
 export default function ChatPage({ params }: { params: Promise<{ id: string }> }) {
@@ -26,6 +27,11 @@ export default function ChatPage({ params }: { params: Promise<{ id: string }> }
             </div>
 
             {/* Right Panel - Source Viewer */}
+            <div className="w-[340px] hidden xl:block">
+                <InsightsPanel docId={id} />
+            </div>
+
+            {/* Right Overlay Panel - Citation Source */}
             <AnimatePresence>
                 {activeCitation && (
                     <motion.div

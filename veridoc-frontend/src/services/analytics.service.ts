@@ -16,11 +16,14 @@ export interface RecentActivityItem {
 }
 
 export interface AnalyticsSummary {
+    total_documents: number;
     total_questions: number;
     questions_today: number;
     daily_limit: number;
     top_clusters: ClusterSummary[];
     storage_used_mb: number;
+    questions_by_day: { day: string, count: number, isToday: boolean }[];
+    questions_by_document: { name: string, count: number }[];
     recent_activity: RecentActivityItem[];
 }
 

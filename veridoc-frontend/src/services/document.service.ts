@@ -7,6 +7,7 @@ export interface DocumentOut {
     page_count: number;
     uploaded_at: string;
     status: 'processing' | 'ready' | 'error';
+    error_message?: string;
 }
 
 export interface DocumentList {

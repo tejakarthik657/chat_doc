@@ -10,10 +10,10 @@ interface StatsRowProps {
 
 export function StatsRow({ totalDocs, totalQueries, storageUsed, loading }: StatsRowProps) {
     const stats = [
-        { label: "DOCUMENTS INDEXED", value: totalDocs?.toString() ?? "-", change: "+12%", trend: "up", icon: FileText },
-        { label: "QUERIES TODAY", value: totalQueries?.toString() ?? "-", change: "+5", trend: "up", icon: MessageSquare },
-        { label: "STORAGE USED", value: storageUsed ? `${storageUsed.toFixed(1)} MB` : "-", change: "29%", trend: "neutral", icon: Database },
-        { label: "ANSWERS GROUNDED", value: "100%", change: "0%", trend: "neutral", icon: CheckCircle },
+        { label: "DOCUMENTS INDEXED", value: totalDocs?.toString() ?? "-", icon: FileText },
+        { label: "QUERIES TODAY", value: totalQueries?.toString() ?? "-", icon: MessageSquare },
+        { label: "STORAGE USED", value: storageUsed ? `${storageUsed.toFixed(1)} MB` : "-", icon: Database },
+        { label: "ANSWERS GROUNDED", value: "100%", icon: CheckCircle },
     ];
 
     if (loading) {

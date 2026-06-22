@@ -1,10 +1,11 @@
-from fastapi import APIRouter, HTTPException, status
+from fastapi import APIRouter, HTTPException, status, Depends
 from datetime import datetime
 from bson import ObjectId
 from pymongo.errors import DuplicateKeyError
 
 from app.models.schemas import UserRegister, UserLogin, TokenResponse, UserOut
 from app.core.security import hash_password, verify_password, create_access_token
+from app.core.security import get_current_user
 from app.db.mongodb import users_col
 
 router = APIRouter(prefix="/api/auth", tags=["auth"])
@@ -65,8 +66,7 @@ async def login(body: UserLogin):
 
 
 @router.get("/me", response_model=UserOut)
-async def get_me(user_id: str = None):
-    # user_id injected by dependency in main app
+async def get_me(user_id: str = Depends(get_current_user)):
     user = await users_col().find_one({"_id": user_id})
     if not user:
         raise HTTPException(status_code=404, detail="User not found.")

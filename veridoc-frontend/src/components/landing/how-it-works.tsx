@@ -7,20 +7,20 @@ export function HowItWorks() {
     const steps = [
         {
             id: "01",
-            title: "Upload PDF",
-            description: "Drag and drop any contract, research paper, or manual. We extract text with precision.",
+            title: "Ingest Knowledge",
+            description: "Crawl website directories or upload academic, administrative, and compliance PDFs.",
             icon: Upload,
         },
         {
             id: "02",
-            title: "AI Indexes It",
-            description: "Veridoc chunks and embeds your document using hybrid search (Keyword + Semantic).",
+            title: "AI Semantic Indexing",
+            description: "IDRS chunks, embeds, and indexes records automatically using hybrid search (Keyword + Semantic).",
             icon: Database,
         },
         {
             id: "03",
-            title: "Ask Anything",
-            description: "Get answers grounded in your data. Every response comes with a clickable citation.",
+            title: "Cited Query Search",
+            description: "Get precise, grounded answers accompanied by clickable, page-level citations.",
             icon: MessageSquare,
         },
     ];

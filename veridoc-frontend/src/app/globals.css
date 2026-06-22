@@ -3,8 +3,8 @@
 
 @layer base {
   :root {
-    --background: #0A0A0F;
-    --foreground: #F0F0F5;
+    --background: #F8FAFC;
+    --foreground: #0F172A;
   }
 
   body {
@@ -18,10 +18,10 @@
     height: 6px;
   }
   ::-webkit-scrollbar-track {
-    @apply bg-background;
+    @apply bg-slate-100;
   }
   ::-webkit-scrollbar-thumb {
-    @apply bg-surface-high rounded-full;
+    @apply bg-slate-300 rounded-full hover:bg-slate-400;
   }
 }
 

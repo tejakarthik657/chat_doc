@@ -107,3 +107,79 @@ def test_auto_label_cluster():
     questions = ["What is the treatment?", "What medication should I take?", "What is the drug dosage?"]
     label = _auto_label_cluster(questions)
     assert label in ["treatment", "dosage"]
+
+
+# ── Ingestion error handling tests ────────────────────────────────────────────
+
+@pytest.mark.asyncio
+async def test_process_project_crawled_data_with_empty_pdf():
+    from app.ingestion.pipeline import process_project_crawled_data
+    
+    mock_pages = [
+        {
+            "_id": "mock_page_id",
+            "project_id": "test_proj",
+            "url": "http://example.com/empty.pdf",
+            "page_type": "pdf",
+            "file_path": "dummy_path.pdf",
+            "title": "Empty PDF"
+        }
+    ]
+    
+    # Mocking MongoDB collections
+    mock_find_res = MagicMock()
+    mock_find_res.to_list = AsyncMock(return_value=mock_pages)
+    
+    mock_crawled_pages = MagicMock()
+    mock_crawled_pages.find.return_value = mock_find_res
+    mock_crawled_pages.update_one = AsyncMock()
+    
+    mock_projects = MagicMock()
+    mock_projects.update_one = AsyncMock()
+    
+    with patch("app.ingestion.pipeline.crawled_pages_col", return_value=mock_crawled_pages), \
+         patch("app.ingestion.pipeline.projects_col", return_value=mock_projects), \
+         patch("app.ingestion.pipeline.extract_pages_with_ocr", return_value=[]), \
+         patch("os.path.exists", return_value=True):
+         
+         # Execute
+         await process_project_crawled_data("test_proj", "test_user")
+         
+         # Verify update_one was called to mark the page with "error" status
+         mock_crawled_pages.update_one.assert_called_once()
+         call_args = mock_crawled_pages.update_one.call_args[0]
+         assert call_args[0] == {"_id": "mock_page_id"}
+         update_fields = call_args[1]["$set"]
+         assert update_fields["status"] == "error"
+         assert "No extractable text found in PDF" in update_fields["error_message"]
+         
+         # Verify project status updated to active since no chunks were created
+         mock_projects.update_one.assert_called_once_with(
+             {"_id": "test_proj"},
+             {"$set": {"status": "active"}}
+         )
+
+
+def test_parse_sitemap_urls():
+    from app.ingestion.crawler import parse_sitemap_urls
+    xml = """
+    <urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
+        <url>
+            <loc>https://example.com/page1</loc>
+            <lastmod>2026-06-21</lastmod>
+        </url>
+        <url>
+            <loc>https://example.com/page2</loc>
+        </url>
+    </urlset>
+    """
+    urls = parse_sitemap_urls(xml)
+    assert "https://example.com/page1" in urls
+    assert "https://example.com/page2" in urls
+
+
+def test_crawler_domain_helpers():
+    from app.ingestion.crawler import get_domain, is_same_domain
+    assert get_domain("https://sub.kitsw.ac.in/path") == "sub.kitsw.ac.in"
+    assert is_same_domain("https://sub.kitsw.ac.in/path", "kitsw.ac.in") is True
+    assert is_same_domain("https://google.com/path", "kitsw.ac.in") is False
