@@ -225,7 +225,7 @@ export function ChatInterface({ docId, onCitationClick }: { docId: string, onCit
                             msg.role === "user" ? "items-end" : "items-start"
                         )}>
                             <div className="flex items-center gap-2">
-                                <span className="text-xs font-mono text-text-muted uppercase">{msg.role === "user" ? "You" : "IDRS"}</span>
+                                <span className="text-xs font-mono text-text-muted uppercase">{msg.role === "user" ? "You" : "DevFrames Synapse"}</span>
                                 {msg.role === "assistant" && (
                                     msg.isGrounded ? (
                                         <span className="text-[10px] bg-accent/10 text-accent px-1.5 py-0.5 rounded border border-accent/20">GROUNDED</span>
@@ -290,7 +290,7 @@ export function ChatInterface({ docId, onCitationClick }: { docId: string, onCit
                         </div>
                         <div className="flex flex-col gap-2">
                             <div className="flex items-center gap-2">
-                                <span className="text-xs font-mono text-text-muted uppercase">IDRS</span>
+                                <span className="text-xs font-mono text-text-muted uppercase">DevFrames Synapse</span>
                                 <span className="text-[10px] text-text-muted">Thinking...</span>
                             </div>
                             <div className="flex items-center gap-2 h-8">

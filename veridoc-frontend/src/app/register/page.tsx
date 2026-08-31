@@ -3,7 +3,11 @@
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { PipelineVisualizer } from "@/components/auth/pipeline-visualizer";
+import dynamic from "next/dynamic";
+const PipelineVisualizer = dynamic(
+    () => import("@/components/auth/pipeline-visualizer").then((mod) => mod.PipelineVisualizer),
+    { ssr: false }
+);
 import { ArrowRight, User, Mail } from "lucide-react";
 import { useState } from "react";
 import { useRouter } from "next/navigation";
@@ -55,13 +59,13 @@ export default function RegisterPage() {
             {/* Left Panel - Form */}
             <div className="w-full md:w-1/2 flex flex-col justify-center px-8 md:px-24 py-12 border-r border-border">
                 <div className="mb-2 w-max">
-                    <Link href="/" className="font-display text-2xl text-text-primary hover:opacity-80 transition-opacity">IDRS</Link>
+                    <Link href="/" className="font-display text-2xl text-text-primary hover:opacity-80 transition-opacity">DevFrames Synapse</Link>
                 </div>
 
                 <div className="space-y-6 mt-12 max-w-sm w-full mx-auto md:mx-0">
                     <div className="space-y-2">
                         <h1 className="font-display text-4xl">Start with a document.</h1>
-                        <p className="font-mono text-sm text-accent">Create your institutional account.</p>
+                        <p className="font-mono text-sm text-accent">Create your document intelligence account.</p>
                     </div>
 
                     <form onSubmit={handleSubmit} className="space-y-4">

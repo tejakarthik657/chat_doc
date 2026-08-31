@@ -41,8 +41,8 @@ export function Sidebar() {
         <div className="fixed left-0 top-0 h-full w-[240px] border-r border-border bg-background flex flex-col z-40">
             <div className="p-6">
                 <div className="flex flex-col">
-                    <span className="font-display text-2xl text-text-primary tracking-tight font-bold">IDRS</span>
-                    <span className="text-[10px] font-mono text-text-muted tracking-wider leading-none uppercase mt-0.5">Document Retrieval</span>
+                    <span className="font-display text-xl text-text-primary tracking-tight font-bold">DevFrames Synapse</span>
+                    <span className="text-[9px] font-mono text-text-muted tracking-wider leading-none uppercase mt-0.5">Document Intelligence</span>
                 </div>
             </div>
 

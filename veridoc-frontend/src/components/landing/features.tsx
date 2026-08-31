@@ -37,7 +37,7 @@ export function Features() {
                     </div>
                     <h2 className="font-display text-5xl">It reads between the lines AND reads the lines.</h2>
                     <p className="text-text-secondary text-lg leading-relaxed">
-                        Most AI misses the obvious. Keyword search misses the context. IDRS combines vector embeddings with BM25 keyword matching to find the exact needle in the haystack.
+                        Most AI misses the obvious. Keyword search misses the context. DevFrames Synapse combines vector embeddings with BM25 keyword matching to find the exact needle in the haystack.
                     </p>
                 </div>
             </div>
@@ -104,7 +104,7 @@ export function Features() {
                     </div>
                     <h2 className="font-display text-5xl">It refuses rather than guesses.</h2>
                     <p className="text-text-secondary text-lg leading-relaxed">
-                        When the answer isn't there, IDRS admits it. We prioritize silence over plausible-sounding fiction. Ideal for administrative and audit use cases where accuracy is paramount.
+                        When the answer isn't there, DevFrames Synapse admits it. We prioritize silence over plausible-sounding fiction. Ideal for administrative and audit use cases where accuracy is paramount.
                     </p>
                 </div>
             </div>

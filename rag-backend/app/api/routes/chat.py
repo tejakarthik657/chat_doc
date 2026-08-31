@@ -1,4 +1,5 @@
 from fastapi import APIRouter, Depends, HTTPException
+from datetime import datetime
 from app.core.security import get_current_user
 from app.db.mongodb import documents_col, chat_history_col
 from app.rag.engine import answer_question
@@ -117,6 +118,8 @@ async def ask_project_question(
         )
         return response
     except Exception as e:
+        from app.core.logger import log_error
+        log_error(f"Project: {project_id}, User: {user_id}, Question: {body.question[:200]}", exc=e)
         print(f"[PROJECT CHAT ERROR] {type(e).__name__}: {e}")
         raise HTTPException(status_code=500, detail=f"Error processing question: {str(e)}")
 

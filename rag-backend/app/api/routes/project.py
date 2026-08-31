@@ -8,7 +8,7 @@ from app.core.security import get_current_user
 from app.core.config import get_settings
 from app.db.mongodb import projects_col, crawl_jobs_col, crawled_pages_col
 from app.db.qdrant import delete_collection
-from app.ingestion.crawler import crawl_website_task
+from app.tasks import crawl_website_task as crawl_task
 from app.models.schemas import ProjectCreate, ProjectOut, ProjectList, CrawlJobOut
 
 settings = get_settings()
@@ -64,8 +64,20 @@ async def create_project(
     }
     await crawl_jobs_col().insert_one(job_doc)
 
-    # 3. Trigger Crawl Background Task
-    background_tasks.add_task(crawl_website_task, project_id, job_id, user_id)
+    # 3. Trigger Crawl Task (Celery if worker is active, fallback to FastAPI BackgroundTasks if offline)
+    from app.celery_app import is_celery_worker_active
+    if is_celery_worker_active():
+        try:
+            crawl_task.delay(project_id, job_id, user_id)
+            print("[Celery] Successfully enqueued crawl task.")
+        except Exception as celery_err:
+            print(f"[Celery] Connection failed, falling back to FastAPI BackgroundTasks: {celery_err}")
+            from app.ingestion.crawler import crawl_website_task as run_crawler
+            background_tasks.add_task(run_crawler, project_id, job_id, user_id)
+    else:
+        print("[Celery] No active workers detected, falling back to FastAPI BackgroundTasks.")
+        from app.ingestion.crawler import crawl_website_task as run_crawler
+        background_tasks.add_task(run_crawler, project_id, job_id, user_id)
 
     return ProjectOut(
         id=project_id,
@@ -213,6 +225,61 @@ async def get_project_inventory(project_id: str, user_id: str = Depends(get_curr
     return {"web_pages": web_pages, "pdfs": pdfs}
 
 
+@router.post("/{project_id}/re-ingest")
+async def re_ingest_project(
+    project_id: str,
+    background_tasks: BackgroundTasks,
+    user_id: str = Depends(get_current_user)
+):
+    """
+    Re-index all crawled pages with the current pipeline.
+    Drops the Qdrant collection and rebuilds vectors (parent_id, contextual_text, etc.).
+    """
+    project = await projects_col().find_one({"_id": project_id, "user_id": user_id})
+    if not project:
+        raise HTTPException(status_code=404, detail="Project not found.")
+
+    if project.get("status") in ("crawling", "indexing"):
+        raise HTTPException(
+            status_code=400,
+            detail="Project is still crawling or indexing. Pause or wait before re-ingesting.",
+        )
+
+    page_count = await crawled_pages_col().count_documents({"project_id": project_id})
+    if page_count == 0:
+        raise HTTPException(status_code=400, detail="No crawled pages to re-ingest.")
+
+    await crawled_pages_col().update_many(
+        {"project_id": project_id},
+        {"$set": {"status": "pending"}, "$unset": {"error_message": ""}},
+    )
+    await projects_col().update_one(
+        {"_id": project_id},
+        {"$set": {"status": "indexing"}},
+    )
+
+    from app.celery_app import is_celery_worker_active
+    if is_celery_worker_active():
+        try:
+            from app.tasks import process_project_crawled_data_task as index_task
+            index_task.delay(project_id, user_id, True)
+            print("[Celery] Successfully enqueued re-indexing task.")
+        except Exception as celery_err:
+            print(f"[Celery] Connection failed, falling back to FastAPI BackgroundTasks: {celery_err}")
+            from app.ingestion.pipeline import process_project_crawled_data
+            background_tasks.add_task(process_project_crawled_data, project_id, user_id, True)
+    else:
+        print("[Celery] No active workers detected, falling back to FastAPI BackgroundTasks.")
+        from app.ingestion.pipeline import process_project_crawled_data
+        background_tasks.add_task(process_project_crawled_data, project_id, user_id, True)
+
+    return {
+        "status": "indexing",
+        "message": f"Re-ingest started for {page_count} pages.",
+        "pages_queued": page_count,
+    }
+
+
 @router.post("/{project_id}/pause")
 async def pause_project_crawl(project_id: str, user_id: str = Depends(get_current_user)):
     # Verify project ownership
@@ -253,9 +320,21 @@ async def resume_project_crawl(
         )
         if job:
             job_id = job["_id"]
-            # Trigger indexing background task on FastAPI server context
-            from app.ingestion.pipeline import process_project_crawled_data
-            background_tasks.add_task(process_project_crawled_data, project_id, user_id)
+            # Trigger indexing Celery task
+            from app.celery_app import is_celery_worker_active
+            if is_celery_worker_active():
+                try:
+                    from app.tasks import process_project_crawled_data_task as index_task
+                    index_task.delay(project_id, user_id)
+                    print("[Celery] Successfully enqueued resume indexing task.")
+                except Exception as celery_err:
+                    print(f"[Celery] Connection failed, falling back to FastAPI BackgroundTasks: {celery_err}")
+                    from app.ingestion.pipeline import process_project_crawled_data
+                    background_tasks.add_task(process_project_crawled_data, project_id, user_id)
+            else:
+                print("[Celery] No active workers detected, falling back to FastAPI BackgroundTasks.")
+                from app.ingestion.pipeline import process_project_crawled_data
+                background_tasks.add_task(process_project_crawled_data, project_id, user_id)
             return CrawlJobOut(
                 id=str(job_id),
                 project_id=str(project_id),
@@ -269,13 +348,13 @@ async def resume_project_crawl(
                 completed_at=job.get("completed_at")
             )
 
-    # Find latest paused job
+    # Find latest paused, pending, or failed job to resume
     job = await crawl_jobs_col().find_one(
-        {"project_id": project_id, "status": "paused"},
+        {"project_id": project_id, "status": {"$in": ["paused", "pending", "failed"]}},
         sort=[("started_at", -1)]
     )
     if not job:
-        raise HTTPException(status_code=400, detail="No paused crawl job found to resume.")
+        raise HTTPException(status_code=400, detail="No paused, pending, or failed crawl job found to resume.")
 
     job_id = job["_id"]
     # Update job and project status back to running/crawling
@@ -288,8 +367,20 @@ async def resume_project_crawl(
         {"$set": {"status": "crawling"}}
     )
 
-    # Trigger crawl background task
-    background_tasks.add_task(crawl_website_task, project_id, job_id, user_id)
+    # Trigger crawl background task via Celery (FastAPI BackgroundTasks fallback if Redis is down or worker offline)
+    from app.celery_app import is_celery_worker_active
+    if is_celery_worker_active():
+        try:
+            crawl_task.delay(project_id, job_id, user_id)
+            print("[Celery] Successfully enqueued resume crawl task.")
+        except Exception as celery_err:
+            print(f"[Celery] Connection failed, falling back to FastAPI BackgroundTasks: {celery_err}")
+            from app.ingestion.crawler import crawl_website_task as run_crawler
+            background_tasks.add_task(run_crawler, project_id, job_id, user_id)
+    else:
+        print("[Celery] No active workers detected, falling back to FastAPI BackgroundTasks.")
+        from app.ingestion.crawler import crawl_website_task as run_crawler
+        background_tasks.add_task(run_crawler, project_id, job_id, user_id)
 
     return CrawlJobOut(
         id=str(job_id),
@@ -303,3 +394,75 @@ async def resume_project_crawl(
         started_at=job.get("started_at"),
         completed_at=job.get("completed_at")
     )
+
+
+@router.get("/{project_id}/graph")
+async def get_project_graph(project_id: str, user_id: str = Depends(get_current_user)):
+    # 1. Verify project ownership
+    project = await projects_col().find_one({"_id": project_id, "user_id": user_id})
+    if not project:
+        raise HTTPException(status_code=404, detail="Project not found.")
+        
+    try:
+        from app.db.neo4j import get_neo4j_driver
+        driver = get_neo4j_driver()
+    except Exception as e:
+        # Fallback if Neo4j is not running/configured
+        # We can return an empty graph with a mock node so it doesn't crash the frontend
+        return {
+            "nodes": [
+                {"id": project.get("name", "Project"), "type": "Project", "group": 1}
+            ],
+            "links": [],
+            "warning": "Neo4j is not connected. This is a local database fallback."
+        }
+        
+    try:
+        nodes = []
+        links = []
+        node_ids = set()
+        
+        with driver.session() as session:
+            # Query project node and its connected entities
+            result = session.run(
+                "MATCH (p:Project {id: $project_id})-[r:HAS_ENTITY]->(e:Entity) "
+                "RETURN p.name as p_name, e.name as e_name, e.type as e_type",
+                {"project_id": project_id}
+            )
+            
+            p_name = project.get("name", "Project")
+            nodes.append({"id": p_name, "type": "Project", "group": 1})
+            node_ids.add(p_name)
+            
+            for record in result:
+                e_name = record["e_name"]
+                e_type = record["e_type"]
+                if e_name not in node_ids:
+                    nodes.append({"id": e_name, "type": e_type, "group": 2})
+                    node_ids.add(e_name)
+                # Link from project to entity
+                links.append({"source": p_name, "target": e_name, "type": "HAS_ENTITY", "value": 1})
+                
+            # Query relationships between entities of this project
+            result_rel = session.run(
+                "MATCH (a:Entity {project_id: $project_id})-[r]->(b:Entity {project_id: $project_id}) "
+                "RETURN a.name as source, type(r) as type, b.name as target",
+                {"project_id": project_id}
+            )
+            
+            for record in result_rel:
+                links.append({
+                    "source": record["source"],
+                    "target": record["target"],
+                    "type": record["type"],
+                    "value": 2
+                })
+                
+        return {"nodes": nodes, "links": links}
+    except Exception as query_err:
+        print(f"[Neo4j API] Query failed: {query_err}")
+        return {
+            "nodes": [{"id": project.get("name", "Project"), "type": "Project", "group": 1}],
+            "links": [],
+            "error": str(query_err)
+        }

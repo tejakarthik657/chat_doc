@@ -14,7 +14,7 @@ export function HowItWorks() {
         {
             id: "02",
             title: "AI Semantic Indexing",
-            description: "IDRS chunks, embeds, and indexes records automatically using hybrid search (Keyword + Semantic).",
+            description: "DevFrames Synapse chunks, embeds, and indexes records automatically using hybrid search (Keyword + Semantic).",
             icon: Database,
         },
         {

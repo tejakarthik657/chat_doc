@@ -9,11 +9,12 @@ import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { projectService, ProjectOut, CrawlJobOut } from "@/services/project.service";
 import { chatService, ChatHistoryItem, SourceCitation } from "@/services/chat.service";
+import api from "@/lib/api";
 import {
     Globe, Database, FileText, ArrowLeft, Loader2, RefreshCw,
     Send, ChevronRight, X, ExternalLink, Shield, Check, Info,
     Cpu, ListFilter, LayoutGrid, Terminal, CheckCircle2, AlertTriangle, Paperclip,
-    Trash2, Play, Pause
+    Trash2, Play, Pause, GitBranch, AlertOctagon, HeartPulse, FileBarChart2, SearchCode, Eye
 } from "lucide-react";
 
 export default function ProjectWorkspacePage({ params }: { params: Promise<{ project_id: string }> }) {
@@ -38,6 +39,23 @@ export default function ProjectWorkspacePage({ params }: { params: Promise<{ pro
     const [strictMode, setStrictMode] = useState(false);
     const [activeCitation, setActiveCitation] = useState<SourceCitation | null>(null);
     
+    // Tab States
+    const [activeTab, setActiveTab] = useState("chat");
+    const [graphData, setGraphData] = useState<{ nodes: any[]; links: any[] } | null>(null);
+    const [graphLoading, setGraphLoading] = useState(false);
+    const [contradictions, setContradictions] = useState<any[]>([]);
+    const [contradictionsLoading, setContradictionsLoading] = useState(false);
+    const [changes, setChanges] = useState<any[]>([]);
+    const [changesLoading, setChangesLoading] = useState(false);
+    const [health, setHealth] = useState<any | null>(null);
+    const [healthLoading, setHealthLoading] = useState(false);
+    const [reportType, setReportType] = useState("technical");
+    const [reportContent, setReportContent] = useState("");
+    const [reportLoading, setReportLoading] = useState(false);
+    const [investigationGoal, setInvestigationGoal] = useState("");
+    const [investigationResult, setInvestigationResult] = useState<any | null>(null);
+    const [investigationLoading, setInvestigationLoading] = useState(false);
+    
     // Simulated Log Entries for the Live-View
     const [logs, setLogs] = useState<string[]>([]);
     
@@ -53,7 +71,7 @@ export default function ProjectWorkspacePage({ params }: { params: Promise<{ pro
             const projData = await projectService.get(project_id);
             setProject(projData);
             
-            if (projData.status === "crawling" || projData.status === "indexing" || projData.status === "paused") {
+            if (["crawling", "indexing", "paused"].includes(projData.status)) {
                 try {
                     const statusData = await projectService.getCrawlStatus(project_id);
                     setCrawlStatus(statusData);
@@ -164,6 +182,55 @@ export default function ProjectWorkspacePage({ params }: { params: Promise<{ pro
         const interval = setInterval(loadProjectDetails, pollRate);
         return () => clearInterval(interval);
     }, [project?.status, project_id]);
+    
+    useEffect(() => {
+        if (project?.status !== "active") return;
+        
+        const loadTabData = async () => {
+            if (activeTab === "graph") {
+                setGraphLoading(true);
+                try {
+                    const res = await api.get(`/projects/${project_id}/graph`);
+                    setGraphData(res.data);
+                } catch (e) {
+                    console.error("Failed to load graph:", e);
+                } finally {
+                    setGraphLoading(false);
+                }
+            } else if (activeTab === "contradictions") {
+                setContradictionsLoading(true);
+                try {
+                    const res = await api.get(`/projects/${project_id}/contradictions`);
+                    setContradictions(res.data.contradictions || []);
+                } catch (e) {
+                    console.error("Failed to load contradictions:", e);
+                } finally {
+                    setContradictionsLoading(false);
+                }
+            } else if (activeTab === "changes") {
+                setChangesLoading(true);
+                try {
+                    const res = await api.get(`/projects/${project_id}/changes`);
+                    setChanges(res.data.changes || []);
+                } catch (e) {
+                    console.error("Failed to load changes:", e);
+                } finally {
+                    setChangesLoading(false);
+                }
+            } else if (activeTab === "health") {
+                setHealthLoading(true);
+                try {
+                    const res = await api.get(`/projects/${project_id}/health`);
+                    setHealth(res.data);
+                } catch (e) {
+                    console.error("Failed to load health audit:", e);
+                } finally {
+                    setHealthLoading(false);
+                }
+            }
+        };
+        loadTabData();
+    }, [activeTab, project_id, project?.status]);
 
     useEffect(() => {
         scrollToBottom();
@@ -174,6 +241,38 @@ export default function ProjectWorkspacePage({ params }: { params: Promise<{ pro
             logsEndRef.current.scrollIntoView({ behavior: "smooth" });
         }
     }, [logs]);
+
+    const handleGenerateReport = async () => {
+        setReportLoading(true);
+        setReportContent("");
+        try {
+            const res = await api.get(`/projects/${project_id}/report?type=${reportType}`);
+            setReportContent(res.data.content || "");
+        } catch (err) {
+            console.error("Failed to generate report:", err);
+            alert("Error compiling intelligence report.");
+        } finally {
+            setReportLoading(false);
+        }
+    };
+
+    const handleRunInvestigation = async (e: React.FormEvent) => {
+        e.preventDefault();
+        if (!investigationGoal.trim() || investigationLoading) return;
+        setInvestigationLoading(true);
+        setInvestigationResult(null);
+        try {
+            const res = await api.post(`/projects/${project_id}/investigate`, {
+                objective: investigationGoal.trim()
+            });
+            setInvestigationResult(res.data);
+        } catch (err) {
+            console.error("Agent failed:", err);
+            alert("Investigation agent run failed.");
+        } finally {
+            setInvestigationLoading(false);
+        }
+    };
 
     const handleToggleCrawl = async () => {
         if (!project || actionLoading) return;
@@ -386,6 +485,37 @@ export default function ProjectWorkspacePage({ params }: { params: Promise<{ pro
                     </Button>
                 </div>
             </div>
+
+            {/* Tab Bar (Only when project is active) */}
+            {project.status === "active" && (
+                <div className="flex border-b border-slate-200 bg-white px-6 shrink-0 h-10 items-center gap-1 select-none">
+                    {[
+                        { id: "chat", label: "Q&A Assistant", icon: Cpu },
+                        { id: "graph", label: "Intelligence Graph", icon: GitBranch },
+                        { id: "contradictions", label: "Contradictions", icon: AlertOctagon },
+                        { id: "changes", label: "Change Log", icon: RefreshCw },
+                        { id: "health", label: "Health Audit", icon: HeartPulse },
+                        { id: "report", label: "Auto Reports", icon: FileBarChart2 },
+                        { id: "investigate", label: "Agent Research", icon: SearchCode }
+                    ].map(t => {
+                        const Icon = t.icon;
+                        return (
+                            <button
+                                key={t.id}
+                                onClick={() => setActiveTab(t.id)}
+                                className={`h-full px-4 text-xs font-mono font-medium transition-colors border-b-2 flex items-center gap-1.5 ${
+                                    activeTab === t.id
+                                        ? "border-indigo-600 text-indigo-600 font-bold"
+                                        : "border-transparent text-slate-500 hover:text-slate-900"
+                                }`}
+                            >
+                                <Icon size={12} />
+                                {t.label}
+                            </button>
+                        );
+                    })}
+                </div>
+            )}
 
             {/* Content Area */}
             <div className="flex-1 flex overflow-hidden min-h-0 relative">
@@ -613,7 +743,7 @@ export default function ProjectWorkspacePage({ params }: { params: Promise<{ pro
                 )}
 
                 {/* STATE 2: 3-Column Split-Screen Research Chat Workspace */}
-                {project.status === "active" && (
+                {project.status === "active" && activeTab === "chat" && (
                     <div className="flex-1 flex overflow-hidden min-h-0 bg-slate-50">
                         
                         {/* COLUMN 1: Collapsible Left Sidebar (Context Inventory) */}
@@ -874,6 +1004,443 @@ export default function ProjectWorkspacePage({ params }: { params: Promise<{ pro
                                 </div>
                             </div>
                         )}
+                    </div>
+                )}
+
+                {/* STATE 3: Neo4j Knowledge Graph Tab */}
+                {project.status === "active" && activeTab === "graph" && (
+                    <div className="flex-1 p-8 overflow-y-auto space-y-6 flex flex-col h-full bg-slate-50">
+                        <div className="max-w-[1000px] w-full mx-auto space-y-4">
+                            <div>
+                                <h3 className="text-base font-semibold text-slate-900 tracking-tight">Neo4j Knowledge Graph</h3>
+                                <p className="text-xs text-slate-500 font-mono">Visualizes connected pages, entities, products, and semantic relations extracted via Qwen LLM.</p>
+                            </div>
+                            
+                            {graphLoading ? (
+                                <div className="h-[450px] bg-white border border-slate-200 flex items-center justify-center">
+                                    <div className="flex flex-col items-center gap-2">
+                                        <Loader2 className="animate-spin text-indigo-600" size={24} />
+                                        <span className="text-xs font-mono text-slate-500">Querying Neo4j Cypher collections...</span>
+                                    </div>
+                                </div>
+                            ) : graphData && graphData.nodes && graphData.nodes.length > 0 ? (
+                                <Card className="rounded-none border border-slate-200 bg-white p-6 shadow-sm flex flex-col items-center justify-center">
+                                    {/* Pure SVG Graph Visualizer */}
+                                    <div className="w-full max-w-[700px] border border-slate-100 bg-slate-50/50 relative overflow-hidden h-[480px]">
+                                        <svg className="w-full h-full">
+                                            {/* Draw Links */}
+                                            {(() => {
+                                                const nodes = graphData.nodes;
+                                                const nodePositions = new Map<string, { x: number; y: number }>();
+                                                const radius = 160;
+                                                const centerX = 350;
+                                                const centerY = 240;
+                                                nodes.forEach((n, idx) => {
+                                                    const angle = (2 * Math.PI * idx) / nodes.length;
+                                                    nodePositions.set(n.id, {
+                                                        x: centerX + radius * Math.cos(angle),
+                                                        y: centerY + radius * Math.sin(angle)
+                                                    });
+                                                });
+                                                return graphData.links.map((link, idx) => {
+                                                    const srcPos = nodePositions.get(link.source);
+                                                    const tgtPos = nodePositions.get(link.target);
+                                                    if (!srcPos || !tgtPos) return null;
+                                                    return (
+                                                        <g key={`link-${idx}`}>
+                                                            <line
+                                                                x1={srcPos.x}
+                                                                y1={srcPos.y}
+                                                                x2={tgtPos.x}
+                                                                y2={tgtPos.y}
+                                                                stroke="#cbd5e1"
+                                                                strokeWidth="1"
+                                                            />
+                                                            {/* Label text in middle */}
+                                                            <text
+                                                                x={(srcPos.x + tgtPos.x) / 2}
+                                                                y={(srcPos.y + tgtPos.y) / 2 - 3}
+                                                                fontSize="8"
+                                                                fontFamily="monospace"
+                                                                fill="#64748b"
+                                                                textAnchor="middle"
+                                                            >
+                                                                {link.type}
+                                                            </text>
+                                                        </g>
+                                                    );
+                                                });
+                                            })()}
+
+                                            {/* Draw Nodes */}
+                                            {graphData.nodes.map((n, idx) => {
+                                                const angle = (2 * Math.PI * idx) / graphData.nodes.length;
+                                                const radius = 160;
+                                                const centerX = 350;
+                                                const centerY = 240;
+                                                const x = centerX + radius * Math.cos(angle);
+                                                const y = centerY + radius * Math.sin(angle);
+                                                const isProject = n.type === "Project";
+                                                
+                                                return (
+                                                    <g key={`node-${idx}`} className="cursor-pointer group">
+                                                        <circle
+                                                            cx={x}
+                                                            cy={y}
+                                                            r={isProject ? 14 : 10}
+                                                            fill={isProject ? "#4f46e5" : "#10b981"}
+                                                            stroke="#ffffff"
+                                                            strokeWidth="2"
+                                                        />
+                                                        <text
+                                                            x={x}
+                                                            y={y + 24}
+                                                            textAnchor="middle"
+                                                            fontSize="9"
+                                                            fontFamily="monospace"
+                                                            fontWeight="bold"
+                                                            fill="#0f172a"
+                                                            className="bg-white/80"
+                                                        >
+                                                            {n.id.substring(0, 16)}
+                                                        </text>
+                                                    </g>
+                                                );
+                                            })}
+                                        </svg>
+                                    </div>
+                                    <div className="w-full mt-4 flex flex-wrap gap-4 text-xs font-mono text-slate-500 border-t border-slate-100 pt-4">
+                                        <div className="flex items-center gap-1.5"><div className="w-3 h-3 rounded-full bg-indigo-600" /> Project Core</div>
+                                        <div className="flex items-center gap-1.5"><div className="w-3 h-3 rounded-full bg-emerald-500" /> Extracted Entity</div>
+                                    </div>
+                                </Card>
+                            ) : (
+                                <div className="h-[200px] border border-slate-200 bg-white flex items-center justify-center text-xs font-mono text-slate-400">
+                                    No graph entities mapped. Index the project website first!
+                                </div>
+                            )}
+                        </div>
+                    </div>
+                )}
+
+                {/* STATE 4: Claim Contradictions Tab */}
+                {project.status === "active" && activeTab === "contradictions" && (
+                    <div className="flex-1 p-8 overflow-y-auto space-y-6 flex flex-col h-full bg-slate-50">
+                        <div className="max-w-[800px] w-full mx-auto space-y-4">
+                            <div>
+                                <h3 className="text-base font-semibold text-slate-900 tracking-tight">Contradiction & Claim Detector</h3>
+                                <p className="text-xs text-slate-500 font-mono">Finds conflicting specifications, dates, claims, and pricing across pages.</p>
+                            </div>
+                            
+                            {contradictionsLoading ? (
+                                <div className="space-y-3">
+                                    {[1, 2].map(i => (
+                                        <div key={i} className="h-28 bg-white border border-slate-200 animate-pulse" />
+                                    ))}
+                                </div>
+                            ) : contradictions.length > 0 ? (
+                                <div className="space-y-4">
+                                    {contradictions.map((c, idx) => (
+                                        <Card key={idx} className="rounded-none border border-slate-200 bg-white p-5 shadow-sm space-y-3">
+                                            <div className="flex items-center gap-2 text-xs font-mono text-amber-700 bg-amber-500/10 px-2.5 py-1 border border-amber-200/50 w-fit">
+                                                <AlertOctagon size={12} />
+                                                CONFLICT DETECTED: {c.claim_type.toUpperCase()}
+                                            </div>
+                                            <div className="space-y-2">
+                                                {c.conflicting_items.map((item: any, i: number) => (
+                                                    <div key={i} className="text-xs leading-relaxed text-slate-600 border-l-2 border-slate-200 pl-3">
+                                                        <span className="font-semibold text-slate-900 block font-mono text-[10px] uppercase text-slate-400">Source: {item.source}</span>
+                                                        "{item.statement}"
+                                                    </div>
+                                                ))}
+                                            </div>
+                                            <div className="border-t border-slate-100 pt-3 text-xs text-slate-500 leading-normal flex items-start gap-1.5 font-mono">
+                                                <span className="text-indigo-600 font-bold uppercase shrink-0">Resolution Hint:</span>
+                                                {c.resolution_hint}
+                                            </div>
+                                        </Card>
+                                    ))}
+                                </div>
+                            ) : (
+                                <div className="p-8 border border-emerald-200 bg-emerald-500/5 text-emerald-800 flex flex-col items-center justify-center text-center gap-3">
+                                    <CheckCircle2 className="text-emerald-600" size={32} />
+                                    <div>
+                                        <h4 className="text-sm font-semibold tracking-tight">No contradictions found</h4>
+                                        <p className="text-xs text-emerald-600 font-mono mt-0.5">All crawled claims and technical specs appear fully consistent across portals.</p>
+                                    </div>
+                                </div>
+                            )}
+                        </div>
+                    </div>
+                )}
+
+                {/* STATE 5: Version Changes Changelog Tab */}
+                {project.status === "active" && activeTab === "changes" && (
+                    <div className="flex-1 p-8 overflow-y-auto space-y-6 flex flex-col h-full bg-slate-50">
+                        <div className="max-w-[800px] w-full mx-auto space-y-4">
+                            <div>
+                                <h3 className="text-base font-semibold text-slate-900 tracking-tight">Change & Version Intelligence</h3>
+                                <p className="text-xs text-slate-500 font-mono">Detects changes, text updates, and code revisions between crawls.</p>
+                            </div>
+                            
+                            {changesLoading ? (
+                                <div className="space-y-3">
+                                    <div className="h-20 bg-white border border-slate-200 animate-pulse" />
+                                </div>
+                            ) : changes.length > 0 ? (
+                                <div className="space-y-4 border-l border-slate-200/80 pl-6 ml-4">
+                                    {changes.map((c, idx) => (
+                                        <div key={idx} className="relative space-y-2 pb-6">
+                                            {/* Node point */}
+                                            <div className="absolute -left-[31px] top-1 bg-white border border-indigo-600 rounded-full p-1 shadow-sm">
+                                                <RefreshCw size={10} className="text-indigo-600 animate-spin-slow" />
+                                            </div>
+                                            <div className="text-[10px] font-mono text-slate-400">
+                                                {new Date(c.crawled_at).toLocaleString()}
+                                            </div>
+                                            <Card className="rounded-none border border-slate-200 bg-white p-4 shadow-sm space-y-2">
+                                                <div className="flex items-center gap-2">
+                                                    <span className={`text-[9px] font-mono uppercase px-2 py-0.5 ${
+                                                        c.type === "modified" ? "bg-amber-500/10 text-amber-700" : "bg-emerald-500/10 text-emerald-700"
+                                                    }`}>
+                                                        {c.type}
+                                                    </span>
+                                                    <span className="text-xs font-mono text-slate-600 truncate">{c.page_url}</span>
+                                                </div>
+                                                <p className="text-xs leading-relaxed text-slate-700">
+                                                    {c.summary}
+                                                </p>
+                                            </Card>
+                                        </div>
+                                    ))}
+                                </div>
+                            ) : (
+                                <div className="h-[200px] border border-slate-200 bg-white flex items-center justify-center text-xs font-mono text-slate-400">
+                                    No changes detected yet. Refresh crawl to trigger snapshots.
+                                </div>
+                            )}
+                        </div>
+                    </div>
+                )}
+
+                {/* STATE 6: Health Audit & Information Gaps Tab */}
+                {project.status === "active" && activeTab === "health" && (
+                    <div className="flex-1 p-8 overflow-y-auto space-y-6 flex flex-col h-full bg-slate-50">
+                        <div className="max-w-[1000px] w-full mx-auto space-y-6">
+                            <div>
+                                <h3 className="text-base font-semibold text-slate-900 tracking-tight">Website Gap & Health Analyzer</h3>
+                                <p className="text-xs text-slate-500 font-mono">Audits structural layout details, non-200 URLs, duplicate pages, and critical content gaps.</p>
+                            </div>
+                            
+                            {healthLoading ? (
+                                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                                    <div className="h-56 bg-white border border-slate-200 animate-pulse" />
+                                    <div className="h-56 bg-white border border-slate-200 animate-pulse" />
+                                </div>
+                            ) : health ? (
+                                <div className="grid grid-cols-1 md:grid-cols-2 gap-6 items-start">
+                                    {/* Crawler Health stats */}
+                                    <Card className="rounded-none border border-slate-200 bg-white p-5 shadow-sm space-y-4">
+                                        <h4 className="text-xs font-mono font-bold text-slate-800 uppercase tracking-wider">Crawl Quality Metrics</h4>
+                                        <div className="grid grid-cols-2 gap-4">
+                                            <div className="border border-slate-100 p-3 bg-slate-50/50">
+                                                <div className="text-[10px] font-mono text-slate-400 uppercase font-bold">TOTAL PAGES</div>
+                                                <div className="text-xl font-bold text-slate-900 mt-1">{health.metrics.total_pages}</div>
+                                            </div>
+                                            <div className="border border-slate-100 p-3 bg-slate-50/50">
+                                                <div className="text-[10px] font-mono text-slate-400 uppercase font-bold">BROKEN LINKS</div>
+                                                <div className={`text-xl font-bold mt-1 ${health.metrics.broken_links_count > 0 ? "text-red-500" : "text-slate-900"}`}>{health.metrics.broken_links_count}</div>
+                                            </div>
+                                            <div className="border border-slate-100 p-3 bg-slate-50/50">
+                                                <div className="text-[10px] font-mono text-slate-400 uppercase font-bold">MISSING METADATA</div>
+                                                <div className="text-xl font-bold text-slate-900 mt-1">{health.metrics.missing_metadata_count}</div>
+                                            </div>
+                                            <div className="border border-slate-100 p-3 bg-slate-50/50">
+                                                <div className="text-[10px] font-mono text-slate-400 uppercase font-bold">DUPLICATE PAGES</div>
+                                                <div className="text-xl font-bold text-slate-900 mt-1">{health.metrics.duplicate_pages_count}</div>
+                                            </div>
+                                        </div>
+                                        
+                                        {health.broken_links.length > 0 ? (
+                                            <div className="space-y-2 border-t border-slate-100 pt-3">
+                                                <div className="text-[10px] font-mono text-red-500 uppercase font-bold flex items-center gap-1"><AlertTriangle size={10}/> Broken URLs (Top 5)</div>
+                                                <div className="space-y-1">
+                                                    {health.broken_links.map((link: string, i: number) => (
+                                                        <div key={i} className="text-[11px] font-mono text-slate-600 truncate">{link}</div>
+                                                    ))}
+                                                </div>
+                                            </div>
+                                        ) : (
+                                            <div className="text-xs text-emerald-700 bg-emerald-500/10 p-3 border border-emerald-100/50 text-center font-mono">
+                                                ✔ 0 broken link errors detected.
+                                            </div>
+                                        )}
+                                    </Card>
+
+                                    {/* Content Gaps */}
+                                    <Card className="rounded-none border border-slate-200 bg-white p-5 shadow-sm space-y-4">
+                                        <h4 className="text-xs font-mono font-bold text-slate-800 uppercase tracking-wider">LLM Information Gap Scan</h4>
+                                        <div className="space-y-3">
+                                            {health.information_gaps && health.information_gaps.length > 0 ? (
+                                                health.information_gaps.map((g: any, i: number) => (
+                                                    <div key={i} className="border-b border-slate-100 pb-3 last:border-0 last:pb-0 space-y-1">
+                                                        <div className="flex justify-between items-center">
+                                                            <span className="text-xs font-bold text-slate-900 font-mono">{g.missing_area}</span>
+                                                            <span className={`text-[9px] font-mono uppercase px-1.5 py-0.5 ${
+                                                                g.importance === "High" ? "bg-red-500/10 text-red-700" : "bg-amber-500/10 text-amber-700"
+                                                            }`}>{g.importance} Gap</span>
+                                                        </div>
+                                                        <p className="text-xs text-slate-600 leading-normal">{g.description}</p>
+                                                    </div>
+                                                ))
+                                            ) : (
+                                                <div className="text-xs text-slate-400 italic font-mono text-center py-6">No gaps detected. Project has a comprehensive site layout.</div>
+                                            )}
+                                        </div>
+                                    </Card>
+                                </div>
+                            ) : (
+                                <div className="h-[200px] border border-slate-200 bg-white flex items-center justify-center text-xs font-mono text-slate-400">
+                                    Failed to retrieve health audit data.
+                                </div>
+                            )}
+                        </div>
+                    </div>
+                )}
+
+                {/* STATE 7: Auto Intelligence Reports Tab */}
+                {project.status === "active" && activeTab === "report" && (
+                    <div className="flex-1 p-8 overflow-y-auto space-y-6 flex flex-col h-full bg-slate-50">
+                        <div className="max-w-[800px] w-full mx-auto space-y-6">
+                            <div className="flex justify-between items-end">
+                                <div>
+                                    <h3 className="text-base font-semibold text-slate-900 tracking-tight">Auto Intelligence Reports</h3>
+                                    <p className="text-xs text-slate-500 font-mono">Compiles executive briefings, technical analyses, or competitive audits.</p>
+                                </div>
+                                <div className="flex gap-2 items-center">
+                                    <select
+                                        value={reportType}
+                                        onChange={(e) => setReportType(e.target.value)}
+                                        className="h-9 px-3 border border-slate-200 bg-white text-xs font-mono focus:border-indigo-600 focus:outline-none"
+                                    >
+                                        <option value="technical">Technical Report</option>
+                                        <option value="executive">Executive Summary</option>
+                                        <option value="competitor">Competitor Audit</option>
+                                    </select>
+                                    <Button
+                                        onClick={handleGenerateReport}
+                                        disabled={reportLoading}
+                                        className="bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-mono rounded-none px-4 h-9 gap-1"
+                                    >
+                                        {reportLoading ? (
+                                            <>
+                                                <Loader2 className="animate-spin" size={12} />
+                                                Compiling...
+                                            </>
+                                        ) : (
+                                            <>
+                                                <RefreshCw size={12} />
+                                                Generate
+                                            </>
+                                        )}
+                                    </Button>
+                                </div>
+                            </div>
+
+                            {reportContent ? (
+                                <Card className="rounded-none border border-slate-200 bg-white p-6 shadow-sm max-h-[600px] overflow-y-auto font-sans leading-relaxed select-text">
+                                    <MarkdownText content={reportContent} />
+                                </Card>
+                            ) : (
+                                <div className="h-[250px] border border-slate-200 border-dashed bg-white/50 flex flex-col items-center justify-center gap-2 text-center p-6">
+                                    <FileBarChart2 className="text-slate-300" size={32} />
+                                    <div>
+                                        <h4 className="text-xs font-mono font-bold text-slate-600 uppercase">Generate Workspace report</h4>
+                                        <p className="text-xs text-slate-500 mt-1">Select a template above and compile standard, publication-grade summaries of your project dataset.</p>
+                                    </div>
+                                </div>
+                            )}
+                        </div>
+                    </div>
+                )}
+
+                {/* STATE 8: Autonomous Investigation Agent Tab */}
+                {project.status === "active" && activeTab === "investigate" && (
+                    <div className="flex-1 p-8 overflow-y-auto space-y-6 flex flex-col h-full bg-slate-50">
+                        <div className="max-w-[800px] w-full mx-auto space-y-6">
+                            <div>
+                                <h3 className="text-base font-semibold text-slate-900 tracking-tight">Autonomous Investigation Agent</h3>
+                                <p className="text-xs text-slate-500 font-mono">Assign a specific research goal. The agent plans, crawls, reads, and cross-checks data recursively.</p>
+                            </div>
+
+                            <Card className="rounded-none border border-slate-200 bg-white p-4 shadow-sm">
+                                <form onSubmit={handleRunInvestigation} className="flex gap-3 items-center">
+                                    <Input
+                                        placeholder="Objective: e.g. Analyze pricing structures, security models, or API support..."
+                                        value={investigationGoal}
+                                        onChange={(e) => setInvestigationGoal(e.target.value)}
+                                        className="h-10 text-sm rounded-none border-slate-200 bg-white flex-1"
+                                        disabled={investigationLoading}
+                                    />
+                                    <Button
+                                        type="submit"
+                                        disabled={investigationLoading || !investigationGoal.trim()}
+                                        className="bg-indigo-600 hover:bg-indigo-700 text-white font-mono text-xs rounded-none h-10 px-5 gap-1.5 shrink-0"
+                                    >
+                                        {investigationLoading ? (
+                                            <>
+                                                <Loader2 className="animate-spin" size={12} />
+                                                Investigating...
+                                            </>
+                                        ) : (
+                                            <>
+                                                <SearchCode size={14} />
+                                                Research
+                                            </>
+                                        )}
+                                    </Button>
+                                </form>
+                            </Card>
+
+                            {investigationLoading && (
+                                <div className="space-y-3">
+                                    <div className="p-4 bg-white border border-slate-200 flex items-center gap-3">
+                                        <Loader2 className="animate-spin text-indigo-600 shrink-0" size={16} />
+                                        <span className="text-xs font-mono text-slate-600 uppercase tracking-wide">Executing Agent Reason-Action Execution Loop...</span>
+                                    </div>
+                                    <div className="p-4 bg-slate-900 border border-slate-800 text-[11px] font-mono text-slate-400 space-y-1.5 max-h-[200px] overflow-y-auto">
+                                        <div>[RE-ACT AGENT] Goal: "{investigationGoal}"</div>
+                                        <div>[PLAN] Decomposing goal into targeted page query vectors...</div>
+                                        <div className="text-indigo-400">[ACTION] Searching dense vector index (Qdrant)...</div>
+                                        <div className="text-indigo-400">[ACTION] Retrieving matching document chunks...</div>
+                                        <div className="text-emerald-400">[REASON] Processing content with Qwen LLM for contradictions...</div>
+                                        <div className="text-amber-400 animate-pulse">[WAIT] Consolidating evidence and writing memo...</div>
+                                    </div>
+                                </div>
+                            )}
+
+                            {investigationResult && (
+                                <div className="space-y-4">
+                                    {/* Reasoning steps log */}
+                                    <div className="space-y-2">
+                                        <div className="text-[10px] font-mono text-slate-400 uppercase font-bold flex items-center gap-1"><Terminal size={10}/> Agent Activity Steps</div>
+                                        <div className="p-3 bg-slate-900 text-[10px] font-mono text-slate-400 leading-normal space-y-1">
+                                            {investigationResult.steps.map((step: string, i: number) => (
+                                                <div key={i}>{step}</div>
+                                            ))}
+                                        </div>
+                                    </div>
+
+                                    {/* Memo Answer */}
+                                    <div className="space-y-2">
+                                        <div className="text-[10px] font-mono text-slate-400 uppercase font-bold flex items-center gap-1"><Eye size={10}/> Investigation Memo Result</div>
+                                        <Card className="rounded-none border border-slate-200 bg-white p-5 shadow-sm font-sans leading-relaxed select-text">
+                                            <MarkdownText content={investigationResult.conclusion} />
+                                        </Card>
+                                    </div>
+                                </div>
+                            )}
+                        </div>
                     </div>
                 )}
             </div>

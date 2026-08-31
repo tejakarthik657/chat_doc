@@ -1,5 +1,3 @@
 --- Starting DB Check ---
-Attempting connection to @cluster0.gzkips3.mongodb.net/?appName=Cluster0
+Attempting connection to @cluster0.qxxncvx.mongodb.net/?appName=Cluster0
 Client created. Sending ping...
-✅ Connection Successful! Ping returned.
-Collections in rag_db: ['users', 'documents', 'chunks', 'chat_history', 'question_analytics', 'conversation_memory']

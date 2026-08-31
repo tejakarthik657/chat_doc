@@ -40,13 +40,28 @@ def compute_hash(text: str) -> str:
     return hashlib.sha256(text.encode("utf-8", errors="ignore")).hexdigest()
 
 
+def is_navigation_text(text: str) -> bool:
+    """Detect if extracted text is just navigation/link scaffolding with no real content."""
+    if not text or len(text.strip()) < 50:
+        return True
+    lines = [l.strip() for l in text.split("\n") if l.strip()]
+    if not lines:
+        return True
+    link_pattern_hits = sum(1 for l in lines if re.match(r'^(click here|read more|learn more|view all|\s*\[.*?\]\s*)$', l.lower().strip()))
+    if link_pattern_hits > len(lines) * 0.5:
+        return True
+    nav_ratio = sum(1 for l in lines if len(l.split()) <= 3) / len(lines)
+    if nav_ratio > 0.6 and len(lines) < 20:
+        return True
+    return False
+
+
 def is_noise_url(url: str) -> bool:
     """Check if the URL points to dynamic or noisy/junk pages that are irrelevant for indexing document content."""
     noise_patterns = [
         "/gallery", "/photo", "/album", "/image", "/video",
         "/news", "/press", "/feed", "/rss",
         "/event", "/calendar", "/announcement", "/notification",
-        "/faculty", "/staff", "/profile", "/directory", "/people",
         "/search", "/query", "wp-content", "wp-includes",
         "login", "logout", "signin", "signup"
     ]
@@ -54,6 +69,33 @@ def is_noise_url(url: str) -> bool:
     path_lower = parsed.path.lower()
     query_lower = parsed.query.lower()
     return any(pattern in path_lower or pattern in query_lower for pattern in noise_patterns)
+
+
+def get_url_priority(url: str, text: str = "") -> int:
+    """
+    Calculate crawling priority for a given URL (lower number is higher priority).
+    """
+    url_lower = url.lower()
+    text_lower = text.lower()
+    
+    # Priority 1: Faculty directories, individual profile pages, department pages, placements, syllabus
+    high_priority_keywords = [
+        "faculty", "profile", "staff", "department", "syllabus", "placement",
+        "cse", "ece", "eee", "it", "mech", "civil", "mba", "mca", "member", "teacher"
+    ]
+    if any(keyword in url_lower or keyword in text_lower for keyword in high_priority_keywords):
+        return 1
+        
+    # Priority 3: Non-academic, heavy/noisy administrative, gallery, or dynamic sub-pages
+    low_priority_keywords = [
+        "gallery", "admission", "fee", "facility", "hostel", "sports", "library",
+        "contact", "about", "feedback", "login", "logout"
+    ]
+    if any(keyword in url_lower or keyword in text_lower for keyword in low_priority_keywords):
+        return 3
+        
+    # Priority 2: Standard pages
+    return 2
 
 
 async def crawl_website_task(project_id: str, job_id: str, user_id: str):
@@ -260,7 +302,7 @@ async def crawl_website_task(project_id: str, job_id: str, user_id: str):
 
     # Set up asyncio Queue and enqueued set
     enqueued = set(initial_visited) | set(initial_to_visit)
-    queue = asyncio.Queue()
+    queue = asyncio.PriorityQueue()
     
     # Filter initial_to_visit to ensure we don't enqueue duplicates or already visited ones
     unique_initial_to_visit = [u for u in initial_to_visit if u not in initial_visited]
@@ -272,7 +314,7 @@ async def crawl_website_task(project_id: str, job_id: str, user_id: str):
             deduped_initial.append(u)
             
     for s_url in deduped_initial:
-        queue.put_nowait(s_url)
+        queue.put_nowait((get_url_priority(s_url), s_url))
 
     visited = initial_visited
     
@@ -296,7 +338,7 @@ async def crawl_website_task(project_id: str, job_id: str, user_id: str):
                 break
 
             try:
-                current_url = await asyncio.wait_for(queue.get(), timeout=1.0)
+                priority, current_url = await asyncio.wait_for(queue.get(), timeout=1.0)
             except asyncio.TimeoutError:
                 if queue.empty():
                     break
@@ -362,12 +404,37 @@ async def crawl_website_task(project_id: str, job_id: str, user_id: str):
                                 upsert=True
                             )
                             stats["docs_found"] += 1
+                            
+                            # Extract links from PDF page to enqueue them
+                            try:
+                                import fitz
+                                doc = fitz.open(file_path)
+                                for page in doc:
+                                    for link in page.get_links():
+                                        if link.get("kind") == 2:  # fitz.LINK_URI
+                                            uri = link.get("uri")
+                                            if uri:
+                                                full_link = urljoin(clean_url, uri)
+                                                parsed_link = urlparse(full_link)
+                                                if is_same_domain(full_link, seed_domain):
+                                                    extension = os.path.splitext(parsed_link.path)[1].lower()
+                                                    if extension not in [".jpg", ".jpeg", ".png", ".gif", ".svg", ".zip", ".tar", ".gz", ".mp4", ".mp3"]:
+                                                        clean_link = parsed_link._replace(fragment="").geturl()
+                                                        if not is_noise_url(clean_link):
+                                                            if clean_link not in enqueued:
+                                                                enqueued.add(clean_link)
+                                                                queue.put_nowait((get_url_priority(clean_link), clean_link))
+                                                                stats["urls_found"] += 1
+                                doc.close()
+                            except Exception as pdf_link_err:
+                                print(f"[Crawler Worker {worker_id}] [WARNING] Failed to extract links from PDF {clean_url}: {pdf_link_err}")
                     except Exception as pdf_err:
                         print(f"[Crawler Worker {worker_id}] Failed to download PDF {clean_url}: {pdf_err}")
                     queue.task_done()
                     continue
 
                 html_content = None
+                extracted_preview = None
                 
                 # Fast-Path HTTPX
                 try:
@@ -377,33 +444,34 @@ async def crawl_website_task(project_id: str, job_id: str, user_id: str):
                         content_type = response.headers.get("content-type", "").lower()
                         if "text/html" in content_type:
                             temp_html = response.text
-                            if not playwright_context:
-                                # Playwright is not available, so we must use HTTPX content directly
+                            
+                            # Quick quality check on extracted text
+                            extracted_preview = trafilatura.extract(temp_html, include_comments=False, include_tables=True)
+                            if not extracted_preview or len(extracted_preview.strip()) < 200:
+                                temp_soup = BeautifulSoup(temp_html, "html.parser")
+                                for tag in temp_soup(["script", "style", "iframe", "footer", "header", "nav"]):
+                                    tag.decompose()
+                                extracted_preview = temp_soup.get_text(separator="\n")
+                            
+                            text_is_quality = bool(extracted_preview) and not is_navigation_text(extracted_preview)
+                            
+                            # Check for accordion/collapse patterns that hide content
+                            has_dynamic_content = False
+                            accordion_patterns = ["accordion", "collapse", "toggle", "aria-expanded", "tabpanel", "role=\"tab\"", "aria-controls"]
+                            html_lower = temp_html.lower()
+                            if any(pat in html_lower for pat in accordion_patterns):
+                                has_dynamic_content = True
+                            
+                            # Decide: use HTTPX directly only if content is high quality and static
+                            if text_is_quality and not has_dynamic_content:
                                 html_content = temp_html
+                                print(f"[Crawler Worker {worker_id}] Fast-Path HTTPX success for {clean_url} (chars={len(extracted_preview)})")
+                            elif not playwright_context:
+                                html_content = temp_html
+                                print(f"[Crawler Worker {worker_id}] Fast-Path HTTPX forced (no Playwright) for {clean_url}")
                             else:
-                                # Playwright is available, check if we can bypass it
-                                extracted_text = trafilatura.extract(temp_html, include_comments=False, include_tables=True)
-                                if not extracted_text:
-                                    temp_soup = BeautifulSoup(temp_html, "html.parser")
-                                    for script in temp_soup(["script", "style", "nav", "footer", "header"]):
-                                        script.decompose()
-                                    extracted_text = temp_soup.get_text(separator="\n")
-                                
-                                text_len = len(extracted_text) if extracted_text else 0
-                                
-                                # Check for accordion patterns
-                                has_accordions = False
-                                accordion_patterns = ["accordion", "collapse", "toggle", "aria-expanded", "tabpanel", "role=\"tab\"", "aria-controls"]
-                                html_lower = temp_html.lower()
-                                if any(pat in html_lower for pat in accordion_patterns):
-                                    has_accordions = True
-                                
-                                if text_len > 300 and not has_accordions:
-                                    html_content = temp_html
-                                    print(f"[Crawler Worker {worker_id}] Fast-Path HTTPX success for {clean_url} (chars={text_len})")
-                                else:
-                                    reason = "short text" if text_len <= 300 else "has accordions"
-                                    print(f"[Crawler Worker {worker_id}] Fast-Path bypassed for {clean_url} ({reason}, chars={text_len}). Falling back to Playwright.")
+                                reason = "navigation text" if not text_is_quality else "dynamic content"
+                                print(f"[Crawler Worker {worker_id}] Fast-Path bypassed for {clean_url} ({reason}). Need Playwright rendering.")
                         elif "text/" in content_type or "xml" in content_type:
                             html_content = response.text
                     else:
@@ -413,28 +481,36 @@ async def crawl_website_task(project_id: str, job_id: str, user_id: str):
 
                 # Slow-Path Playwright Fallback
                 if not html_content and playwright_context:
-                    print(f"[Crawler Worker {worker_id}] Running Slow-Path Playwright for {clean_url}")
+                    print(f"[Crawler Worker {worker_id}] Running Slow-Path Playwright (aggressive) for {clean_url}")
                     try:
                         page = await playwright_context.new_page()
                         try:
-                            await page.goto(clean_url, wait_until="domcontentloaded", timeout=10000)
+                            await page.goto(clean_url, wait_until="networkidle", timeout=15000)
                         except Exception as goto_err:
-                            print(f"[Crawler Worker {worker_id}] Playwright goto timeout/error for {clean_url}: {goto_err}")
+                            print(f"[Crawler Worker {worker_id}] Playwright networkidle timeout, using domcontentloaded: {goto_err}")
+                            try:
+                                await page.goto(clean_url, wait_until="domcontentloaded", timeout=10000)
+                            except Exception:
+                                pass
                         
-                        # Capture content loaded up to this point
-                        html_content = await page.content()
-                        
-                        # Expand dynamic collapsibles
-                        accordion_selectors = [
+                        # Expand ALL dynamic content aggressively
+                        expand_selectors = [
                             "[aria-expanded='false']",
                             "[class*='accordion']",
                             "[class*='collapse']",
                             "[class*='expand']",
                             "[class*='toggle']",
+                            "[class*='dropdown']",
                             "button:has-text('Read More')",
-                            "button:has-text('Expand')"
+                            "button:has-text('Expand')",
+                            "button:has-text('View More')",
+                            "button:has-text('Show More')",
+                            "[data-expanded='false']",
+                            "[data-toggle='collapse']",
+                            "details:not([open])",
+                            ".nav-tabs [data-toggle='tab']",
                         ]
-                        for selector in accordion_selectors:
+                        for selector in expand_selectors:
                             try:
                                 el_list = await page.query_selector_all(selector)
                                 for el in el_list:
@@ -447,7 +523,17 @@ async def crawl_website_task(project_id: str, job_id: str, user_id: str):
                             except Exception:
                                 pass
                         
-                        await asyncio.sleep(0.2)
+                        # Wait for any lazy-loaded content
+                        await asyncio.sleep(0.5)
+                        
+                        # Scroll to trigger lazy loading
+                        try:
+                            await page.evaluate("window.scrollTo(0, document.body.scrollHeight)")
+                            await asyncio.sleep(0.3)
+                            await page.evaluate("window.scrollTo(0, 0)")
+                        except Exception:
+                            pass
+                        
                         html_content = await page.content()
                         await page.close()
                     except Exception as page_pw_err:
@@ -461,14 +547,19 @@ async def crawl_website_task(project_id: str, job_id: str, user_id: str):
                         title = soup.title.string.strip()
 
                     extracted_text = trafilatura.extract(html_content, include_comments=False, include_tables=True)
-                    if not extracted_text:
-                        for script in soup(["script", "style", "nav", "footer", "header"]):
-                            script.decompose()
-                        extracted_text = soup.get_text(separator="\n")
+                    if not extracted_text or len(extracted_text.strip()) < 200:
+                        cleaner_soup = BeautifulSoup(html_content, "html.parser")
+                        for tag in cleaner_soup(["script", "style", "iframe", "footer", "header", "nav"]):
+                            tag.decompose()
+                        extracted_text = cleaner_soup.get_text(separator="\n")
                     
                     lines = (line.strip() for line in extracted_text.splitlines())
                     chunks = (phrase for line in lines for phrase in line.split("  "))
                     clean_text = "\n".join(chunk for chunk in chunks if chunk)
+
+                    # Disabling secondary re-extraction loop for production efficiency. 
+                    # Playwright already expands all accordion selectors in the primary slow-path loop.
+                    pass
 
                     if clean_text:
                         content_hash = compute_hash(clean_text)
@@ -504,7 +595,7 @@ async def crawl_website_task(project_id: str, job_id: str, user_id: str):
                                     if not is_noise_url(clean_link):
                                         if clean_link not in enqueued:
                                             enqueued.add(clean_link)
-                                            queue.put_nowait(clean_link)
+                                            queue.put_nowait((get_url_priority(clean_link, link.get_text() or ""), clean_link))
                                             stats["urls_found"] += 1
             except Exception as e:
                 print(f"[Crawler Worker {worker_id}] [ERROR] Failed to fetch {clean_url}: {e}")
@@ -540,7 +631,9 @@ async def crawl_website_task(project_id: str, job_id: str, user_id: str):
         remaining_to_visit = []
         while not queue.empty():
             try:
-                remaining_to_visit.append(queue.get_nowait())
+                priority, url = queue.get_nowait()
+                remaining_to_visit.append(url)
+                queue.task_done()
             except Exception:
                 break
 

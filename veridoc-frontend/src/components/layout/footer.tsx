@@ -6,9 +6,9 @@ export function Footer() {
         <footer className="border-t border-border bg-background pt-16 pb-8">
             <div className="max-w-7xl mx-auto px-6 grid grid-cols-1 md:grid-cols-4 gap-12 mb-16">
                 <div className="col-span-1 md:col-span-2 space-y-4">
-                    <Link href="/" className="font-display text-2xl text-text-primary">IDRS</Link>
+                    <Link href="/" className="font-display text-2xl text-text-primary">DevFrames Synapse</Link>
                     <p className="text-text-muted text-sm max-w-xs">
-                        Institute Document Retrieval System (IDRS) is a high-fidelity document intelligence platform for academic and governance entities.
+                        DevFrames Synapse is a high-fidelity document intelligence platform for corporate, academic, and governance entities.
                     </p>
                 </div>
 

@@ -1,22 +1,50 @@
-# ── Python ─────────────────────────────────────────────────────────
-__pycache__/
-*.py[cod]
-*.pyo
-*.pyd
-*.so
-*.egg-info/
-*.egg
-*.manifest
-*.spec
-*.cover
-*.py,cover
-.coverage
-.coverage.*
-coverage.xml
-htmlcov/
-.pytest_cache/
-.hypothesis/
-test-results/
+# Python caching & compiled files
+**/__pycache__/
+**/*.py[cod]
+**/*.pyo
+**/*.pyd
+**/*.so
+**/*.egg-info/
+**/*.egg
+
+# Virtual environments & configuration
+.venv/
+venv/
+.env/
+**/.venv*/
+**/venv*/
+**/.env
+**/.env.*
+**/.env.local
+
+# Local storage, model files & vector indices
+**/storage/
+**/models/
+**/*.safetensors
+**/*.gguf
+**/*.bin
+**/*.pt
+**/*.pth
+**/*.onnx
+**/*.faiss
+
+# Logs & testing caches
+**/*.log
+**/.pytest_cache/
+**/auth_debug.log
+**/auth_error.log
+**/db_test_log.txt
+
+# Node.js/Frontend caches
+**/node_modules/
+**/.next/
+**/dist/
+**/build/
+**/.out/
+
+# OS specific files
+.DS_Store
+Thumbs.db
 
 # ── Virtual environments ──────────────────────────────────────────
 .venv/

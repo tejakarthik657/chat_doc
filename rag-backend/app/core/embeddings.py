@@ -35,14 +35,35 @@ def get_embedding_model() -> SentenceTransformer:
     return _embedding_model
 
 
-def embed_texts(texts: list[str]) -> np.ndarray:
-    """Batch embed a list of strings → float32 numpy array."""
+def _is_bge_model(model_name: str) -> bool:
+    """Check if the model is a BGE variant that requires prefix."""
+    return "bge" in model_name.lower()
+
+
+def _bge_prefix(texts: list[str], is_query: bool = False, model_name: str = "") -> list[str]:
+    """Apply BGE-specific prefixes only for BGE models."""
+    if not _is_bge_model(model_name):
+        return texts
+    if is_query:
+        return [f"query: {t}" for t in texts]
+    return [f"passage: {t}" for t in texts]
+
+
+def embed_texts(texts: list[str], is_query: bool = False) -> np.ndarray:
+    """Batch embed a list of strings → float32 numpy array.
+    
+    Args:
+        texts: List of text strings to embed
+        is_query: If True and model is BGE, applies 'query: ' prefix.
+    """
     model = get_embedding_model()
+    model_name = settings.embedding_model
+    prefixed_texts = _bge_prefix(texts, is_query=is_query, model_name=model_name)
     vectors = model.encode(
-        texts,
+        prefixed_texts,
         batch_size=32,
         show_progress_bar=False,
-        normalize_embeddings=True   # cosine similarity via dot product
+        normalize_embeddings=True
     )
     return vectors.astype(np.float32)
 

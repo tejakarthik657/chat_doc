@@ -29,9 +29,10 @@ def get_reranker():
     global _reranker
     if _reranker is None:
         from sentence_transformers import CrossEncoder
-        print(f"[Reranker] Loading {RERANKER_MODEL}...")
+        model_name = settings.reranker_model
+        print(f"[Reranker] Loading {model_name}...")
         _reranker = CrossEncoder(
-            RERANKER_MODEL,
+            model_name,
             max_length=512,          # keeps CPU inference fast
             device="cpu"
         )
@@ -60,6 +61,10 @@ def rerank_chunks(
 
     if not chunks:
         return []
+        
+    if not settings.reranker_enabled:
+        # Reranker disabled: return chunks in original fusion order with dummy scores
+        return [(c, 1.0) for c in chunks[:top_k]]
 
     reranker = get_reranker()
 

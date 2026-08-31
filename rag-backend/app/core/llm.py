@@ -73,3 +73,13 @@ def generate(context: str, question: str, memory: str = "") -> str:
     prompt = build_prompt(context, memory, question)
     response = llm(prompt)
     return response.strip()
+
+
+def generate_raw(prompt: str) -> str:
+    """
+    Run raw prompt inference on the local LLM.
+    """
+    llm = get_llm()
+    response = llm(prompt)
+    return response.strip()
+

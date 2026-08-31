@@ -20,7 +20,7 @@ const jetbrainsMono = JetBrains_Mono({
 });
 
 export const metadata: Metadata = {
-    title: "IDRS | Institute Document Retrieval System",
+    title: "DevFrames Synapse | Document Intelligence System",
     description: "High-fidelity document search and RAG retrieval system for academic, governance, and institutional files.",
 };
 

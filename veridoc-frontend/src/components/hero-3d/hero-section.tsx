@@ -40,7 +40,7 @@ export default function HeroSection() {
             <nav className="absolute top-0 left-0 right-0 z-30 flex items-center justify-between px-12 py-6 bg-gradient-to-b from-[#02020A]/90 to-transparent backdrop-blur-sm">
                 <div className="flex items-center gap-2.5 font-mono text-[13px] font-medium text-text-primary tracking-[0.15em] uppercase">
                     <span className="w-2.5 h-2.5 bg-accent rounded-full inline-block animate-[pulse_2s_ease-in-out_infinite]" />
-                    IDRS
+                    DevFrames Synapse
                 </div>
 
                 <ul className="flex gap-10 list-none m-0 p-0">

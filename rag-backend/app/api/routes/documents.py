@@ -9,8 +9,8 @@ from app.core.security import get_current_user
 from app.core.config import get_settings
 from app.core.embeddings import delete_faiss_index
 from app.db.mongodb import documents_col, chunks_col, users_col
-from app.ingestion.pipeline import ingest_document
 from app.models.schemas import DocumentOut, DocumentList
+from app.tasks import ingest_document_task  # Use Celery task instead
 
 router = APIRouter(prefix="/api/documents", tags=["documents"])
 settings = get_settings()
@@ -22,12 +22,22 @@ def _uploads_dir(user_id: str) -> str:
     return path
 
 
-@router.post("/upload", response_model=DocumentOut, status_code=201)
+@router.post("/upload", response_model=DocumentOut, status_code=202)
 async def upload_document(
-    background_tasks: BackgroundTasks,
     file: UploadFile = File(...),
+    background_tasks: BackgroundTasks = None,
     user_id: str = Depends(get_current_user)
 ):
+    """
+    Upload document for indexing (async).
+    
+    Returns 202 Accepted immediately. Document indexing happens in background Celery worker.
+    Frontend should poll GET /api/documents/{id} to check status.
+    
+    Status progression:
+      - processing → indexed (success)
+      - processing → failed (error)
+    """
     # ── Validate file type ───────────────────────────────────────────────────
     if not file.filename.lower().endswith(".pdf"):
         raise HTTPException(status_code=400, detail="Only PDF files are supported.")
@@ -75,8 +85,22 @@ async def upload_document(
         {"$inc": {"storage_used_mb": size_mb}}
     )
 
-    # ── Run ingestion in background ───────────────────────────────────────────
-    background_tasks.add_task(ingest_document, file_path, file.filename, doc_id, user_id)
+    # ── Queue Celery task (async, separate worker process, fallback if down/offline) ─
+    from app.celery_app import is_celery_worker_active
+    if is_celery_worker_active():
+        try:
+            ingest_document_task.delay(doc_id, file_path, user_id)
+            print("[Celery] Successfully enqueued document ingestion task.")
+        except Exception as celery_err:
+            print(f"[Celery] Connection failed, falling back to FastAPI BackgroundTasks: {celery_err}")
+            from app.ingestion.pipeline import ingest_document
+            if background_tasks:
+                background_tasks.add_task(ingest_document, file_path, file.filename, doc_id, user_id)
+    else:
+        print("[Celery] No active workers detected, falling back to FastAPI BackgroundTasks.")
+        from app.ingestion.pipeline import ingest_document
+        if background_tasks:
+            background_tasks.add_task(ingest_document, file_path, file.filename, doc_id, user_id)
 
     return DocumentOut(
         id=doc_id,

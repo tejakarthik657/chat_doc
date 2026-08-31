@@ -20,7 +20,7 @@ export function TopBar() {
     const [notifications, setNotifications] = useState<Notification[]>([
         {
             id: "1",
-            title: "Welcome to IDRS",
+            title: "Welcome to DevFrames Synapse",
             message: "Start by creating a knowledge project or uploading your documents.",
             type: "info",
             timestamp: new Date(),

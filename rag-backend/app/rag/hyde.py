@@ -64,7 +64,7 @@ def generate_hypothetical_document(question: str) -> str:
         system_msg = "You are a document assistant. Write a SHORT, factual passage (2-3 sentences) that would ANSWER the question. Write as if you are an excerpt from a technical document."
         
         response = client.chat.completions.create(
-            model="llama-3.3-70b-versatile",
+            model="qwen/qwen3.8-27b",
             messages=[
                 {"role": "system", "content": system_msg},
                 {"role": "user", "content": f"Question: {question}"}

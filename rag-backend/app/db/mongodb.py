@@ -9,7 +9,15 @@ _client: AsyncIOMotorClient = None
 def get_client() -> AsyncIOMotorClient:
     global _client
     if _client is None:
-        _client = AsyncIOMotorClient(settings.mongodb_url)
+        _client = AsyncIOMotorClient(
+            settings.mongodb_url,
+            maxPoolSize=10,
+            minPoolSize=2,
+            serverSelectionTimeoutMS=5000,
+            connectTimeoutMS=10000,
+            socketTimeoutMS=30000,
+            waitQueueTimeoutMS=5000,
+        )
     return _client
 
 
@@ -51,9 +59,9 @@ async def create_indexes():
     await users_col().create_index("email", unique=True)
     await documents_col().create_index([("user_id", 1), ("_id", 1)])
     await chat_history_col().create_index([("user_id", 1), ("doc_id", 1)])
-    await chunks_col().create_index([("doc_id", 1)])
+    await chunks_col().create_index([("doc_id", 1), ("embedding_id", 1)])
     await analytics_col().create_index([("user_id", 1), ("timestamp", -1)])
-    
+
     # Projects & Crawlers
     await projects_col().create_index([("user_id", 1), ("_id", 1)])
     await crawl_jobs_col().create_index([("project_id", 1), ("_id", 1)])

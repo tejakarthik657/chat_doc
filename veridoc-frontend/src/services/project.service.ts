@@ -5,7 +5,7 @@ export interface ProjectOut {
     name: string;
     website_url: string;
     created_at: string;
-    status: 'active' | 'crawling' | 'indexing' | 'error';
+    status: 'active' | 'crawling' | 'indexing' | 'error' | 'paused';
     pages_crawled: number;
     docs_found: number;
     use_dynamic_crawl?: boolean;

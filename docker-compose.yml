@@ -1,0 +1,171 @@
+version: '3.8'
+
+services:
+  # ─────────────────────────────────────────────────────────────────────────────
+  # Data Services
+  # ─────────────────────────────────────────────────────────────────────────────
+
+  mongodb:
+    image: mongo:6.0
+    container_name: rag-mongodb
+    restart: always
+    ports:
+      - "27017:27017"
+    volumes:
+      - mongodb_data:/data/db
+
+  qdrant:
+    image: qdrant/qdrant:v1.9.0
+    container_name: rag-qdrant
+    restart: always
+    ports:
+      - "6333:6333"
+      - "6334:6334"
+    volumes:
+      - qdrant_data:/qdrant/storage
+
+  # ─────────────────────────────────────────────────────────────────────────────
+  # PRODUCTION UPGRADES: Redis (Task Broker + Cache)
+  # ─────────────────────────────────────────────────────────────────────────────
+
+  redis:
+    image: redis:7-alpine
+    container_name: rag-redis
+    restart: always
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    command: redis-server --appendonly yes --requirepass redis_password
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+
+  # ─────────────────────────────────────────────────────────────────────────────
+  # API Server
+  # ─────────────────────────────────────────────────────────────────────────────
+
+  backend:
+    build:
+      context: ./rag-backend
+      dockerfile: Dockerfile
+    container_name: rag-backend
+    restart: always
+    ports:
+      - "8000:8000"
+    depends_on:
+      mongodb:
+        condition: service_started
+      qdrant:
+        condition: service_started
+      redis:
+        condition: service_healthy
+    env_file:
+      - ./rag-backend/.env
+    environment:
+      - MONGODB_URL=mongodb://mongodb:27017
+      - USE_QDRANT_SERVER=true
+      - QDRANT_URL=http://qdrant:6333
+      - QDRANT_HOST=qdrant
+      - REDIS_URL=redis://:redis_password@redis:6379/0
+      - CELERY_BROKER_URL=redis://:redis_password@redis:6379/1
+      - CELERY_RESULT_BACKEND=redis://:redis_password@redis:6379/2
+    volumes:
+      - ./rag-backend/storage:/app/storage
+      - ./rag-backend/models:/app/models
+    networks:
+      - rag-network
+
+  # ─────────────────────────────────────────────────────────────────────────────
+  # PRODUCTION UPGRADES: Celery Worker (Background Tasks)
+  # ─────────────────────────────────────────────────────────────────────────────
+
+  celery-worker:
+    build:
+      context: ./rag-backend
+      dockerfile: Dockerfile
+    container_name: rag-celery-worker
+    restart: always
+    depends_on:
+      mongodb:
+        condition: service_started
+      qdrant:
+        condition: service_started
+      redis:
+        condition: service_healthy
+    env_file:
+      - ./rag-backend/.env
+    environment:
+      - MONGODB_URL=mongodb://mongodb:27017
+      - USE_QDRANT_SERVER=true
+      - QDRANT_URL=http://qdrant:6333
+      - QDRANT_HOST=qdrant
+      - REDIS_URL=redis://:redis_password@redis:6379/0
+      - CELERY_BROKER_URL=redis://:redis_password@redis:6379/1
+      - CELERY_RESULT_BACKEND=redis://:redis_password@redis:6379/2
+    volumes:
+      - ./rag-backend/storage:/app/storage
+      - ./rag-backend/models:/app/models
+    command: celery -A app.celery_app worker --loglevel=info --concurrency=2
+    networks:
+      - rag-network
+
+  # ─────────────────────────────────────────────────────────────────────────────
+  # PRODUCTION UPGRADES: Celery Beat (Scheduled Tasks)
+  # ─────────────────────────────────────────────────────────────────────────────
+
+  celery-beat:
+    build:
+      context: ./rag-backend
+      dockerfile: Dockerfile
+    container_name: rag-celery-beat
+    restart: always
+    depends_on:
+      mongodb:
+        condition: service_started
+      redis:
+        condition: service_healthy
+    env_file:
+      - ./rag-backend/.env
+    environment:
+      - MONGODB_URL=mongodb://mongodb:27017
+      - REDIS_URL=redis://:redis_password@redis:6379/0
+      - CELERY_BROKER_URL=redis://:redis_password@redis:6379/1
+      - CELERY_RESULT_BACKEND=redis://:redis_password@redis:6379/2
+    volumes:
+      - celery_beat_schedule:/app/celery_beat_schedule
+    command: celery -A app.celery_app beat --loglevel=info --scheduler django_celery_beat.schedulers:DatabaseScheduler
+    networks:
+      - rag-network
+
+  # ─────────────────────────────────────────────────────────────────────────────
+  # Frontend
+  # ─────────────────────────────────────────────────────────────────────────────
+
+  frontend:
+    build:
+      context: ./veridoc-frontend
+      dockerfile: Dockerfile
+    container_name: veridoc-frontend
+    restart: always
+    ports:
+      - "3000:3000"
+    depends_on:
+      - backend
+    environment:
+      - NEXT_PUBLIC_API_URL=http://localhost:8000/api
+    networks:
+      - rag-network
+
+volumes:
+  mongodb_data:
+  qdrant_data:
+  redis_data:
+  celery_beat_schedule:
+
+networks:
+  rag-network:
+    driver: bridge
+
