@@ -1,13 +1,21 @@
-try:
-    import dns.resolver
-    dns.resolver.default_resolver = dns.resolver.Resolver(configure=False)
-    dns.resolver.default_resolver.nameservers = ['8.8.8.8', '8.8.4.4', '1.1.1.1']
-except Exception:
-    pass
+import os
+import platform
+import logging
+
+# Only configure custom DNS resolver on Windows development machines if necessary.
+# In Linux Docker / Cloud (Render, AWS), keep the system /etc/resolv.conf to avoid DNS blackholing.
+if platform.system() == "Windows":
+    try:
+        import dns.resolver
+        dns.resolver.default_resolver = dns.resolver.Resolver(configure=False)
+        dns.resolver.default_resolver.nameservers = ['8.8.8.8', '8.8.4.4', '1.1.1.1']
+    except Exception:
+        pass
 
 from motor.motor_asyncio import AsyncIOMotorClient
 from app.core.config import get_settings
 
+logger = logging.getLogger(__name__)
 settings = get_settings()
 
 _client: AsyncIOMotorClient = None
@@ -23,10 +31,10 @@ def get_client() -> AsyncIOMotorClient:
             mongo_url,
             maxPoolSize=50,
             minPoolSize=5,
-            serverSelectionTimeoutMS=30000,   # 30s timeout for Atlas TLS replica set discovery
-            connectTimeoutMS=20000,           # 20s initial handshake timeout
-            socketTimeoutMS=45000,
-            waitQueueTimeoutMS=10000,
+            serverSelectionTimeoutMS=10000,   # 10s timeout to prevent hanging
+            connectTimeoutMS=10000,
+            socketTimeoutMS=20000,
+            waitQueueTimeoutMS=5000,
         )
     return _client
 
@@ -68,9 +76,9 @@ def nexus_memories_col():
 
 
 async def create_indexes():
-    """Run once at startup with automatic retry to handle Atlas cold handshakes."""
+    """Run asynchronously to handle Atlas handshakes with auto-retry."""
     import asyncio
-    for attempt in range(3):
+    for attempt in range(2):
         try:
             await users_col().create_index("email", unique=True)
             await documents_col().create_index([("user_id", 1), ("_id", 1)])
@@ -88,8 +96,7 @@ async def create_indexes():
             print("[MongoDB Atlas] Production indexes verified successfully.")
             return
         except Exception as e:
-            if attempt < 2:
-                print(f"[MongoDB Atlas] Replica set initializing (attempt {attempt+1}/3: {e}). Retrying in 2s...")
+            if attempt < 1:
                 await asyncio.sleep(2)
             else:
-                print(f"[MongoDB Atlas Warning] Index creation notice: {e}. App continuing normally.")
+                print(f"[MongoDB Atlas Notice] Index initialization deferred: {e}.")

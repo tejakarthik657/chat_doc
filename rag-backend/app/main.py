@@ -13,13 +13,15 @@ from typing import Optional, List, Dict, Any
 
 os.environ.setdefault("KMP_DUPLICATE_LIB_OK", "TRUE")
 
-try:
-    import dns.resolver
-    dns.resolver.default_resolver = dns.resolver.Resolver(configure=False)
-    dns.resolver.default_resolver.nameservers = ['8.8.8.8', '8.8.4.4', '1.1.1.1']
-    print("[DNS Bypass] Overrode default resolver to Google & Cloudflare DNS.")
-except Exception as dns_err:
-    print(f"[DNS Bypass] [WARNING] Failed to override DNS resolver: {dns_err}")
+# In Linux cloud environments (Render/Docker), preserve OS /etc/resolv.conf for container networking.
+import platform
+if platform.system() == "Windows":
+    try:
+        import dns.resolver
+        dns.resolver.default_resolver = dns.resolver.Resolver(configure=False)
+        dns.resolver.default_resolver.nameservers = ['8.8.8.8', '8.8.4.4', '1.1.1.1']
+    except Exception:
+        pass
 
 from contextlib import asynccontextmanager
 from fastapi import FastAPI, Request
@@ -125,11 +127,15 @@ async def lifespan(app: FastAPI):
     else:
         logger.info("[STARTUP] Cross-encoder reranker is disabled.")
 
-    # Create MongoDB indexes (non-fatal on startup to avoid halting on replica set negotiation)
-    try:
-        await create_indexes()
-    except Exception as e:
-        logger.warning(f"[STARTUP] Non-fatal: MongoDB index creation postponed/skipped on startup: {e}")
+    # Create MongoDB indexes in background so uvicorn binds to PORT instantly in <0.1s
+    async def _init_indexes():
+        try:
+            await create_indexes()
+            logger.info("[STARTUP] MongoDB indexes verified in background.")
+        except Exception as e:
+            logger.warning(f"[STARTUP] Non-fatal index initialization note: {e}")
+
+    asyncio.create_task(_init_indexes())
 
     elapsed = time.perf_counter() - startup_start
     logger.info(f"[STARTUP] Backend ready in {elapsed:.2f}s")
