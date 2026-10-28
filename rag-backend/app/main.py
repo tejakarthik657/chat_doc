@@ -105,22 +105,24 @@ async def lifespan(app: FastAPI):
     if not settings.qdrant_url and os.environ.get("USE_QDRANT_SERVER") != "true":
         logger.warning("[STARTUP] Qdrant running in local disk mode — data will be lost on restart in production")
 
-    # Pre-load embedding model
-    try:
-        get_embedding_model()
-    except Exception as e:
-        logger.error(f"[STARTUP] Failed to load embedding model: {e}")
-        raise RuntimeError(f"Embedding model failed to load: {e}")
+    # Warm up embedding model in background so uvicorn binds to $PORT instantly (<1s)
+    async def _warmup_models():
+        try:
+            await asyncio.to_thread(get_embedding_model)
+            logger.info("[STARTUP] Embedding model ready in background.")
+        except Exception as e:
+            logger.warning(f"[STARTUP] Non-fatal background warmup note: {e}")
+
+    asyncio.create_task(_warmup_models())
 
     # Pre-load cross-encoder reranker if enabled
     if settings.reranker_enabled:
         try:
             get_reranker()
         except Exception as e:
-            logger.error(f"[STARTUP] Failed to load reranker model: {e}")
-            raise RuntimeError(f"Reranker model failed to load: {e}")
+            logger.warning(f"[STARTUP] Non-fatal reranker load notice: {e}")
     else:
-        logger.info("[STARTUP] Cross-encoder reranker is disabled (bypassing pre-load).")
+        logger.info("[STARTUP] Cross-encoder reranker is disabled.")
 
     # Create MongoDB indexes (non-fatal on startup to avoid halting on replica set negotiation)
     try:

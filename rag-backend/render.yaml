@@ -9,7 +9,7 @@ services:
     healthCheckPath: /health
     envVars:
       - key: PORT
-        value: 8000
+        value: "10000"
       - key: KMP_DUPLICATE_LIB_OK
         value: "TRUE"
       - key: ENVIRONMENT

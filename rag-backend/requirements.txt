@@ -6,15 +6,16 @@ python-multipart==0.0.9
 # PDF Parsing
 pymupdf>=1.24.5
 
-# Embeddings + Vector Store (CPU-safe)
+# Embeddings + Vector Store (CPU-safe & Ultra-low RAM ONNX)
+fastembed>=0.3.1
 sentence-transformers==3.0.1
 faiss-cpu>=1.9.0
 langchain>=0.2.6
 langchain-community>=0.2.6
 langchain-huggingface>=0.0.3
 
-# Local LLM (CPU - GGUF) (Disabled since we use Groq API)
-# ctransformers==0.2.27
+# Cloud Media Hosting (Cloudinary Lifetime Free Tier)
+cloudinary>=1.40.0
 
 # Database
 motor==3.4.0              
@@ -30,7 +31,7 @@ python-dotenv==1.0.1
 pydantic>=2.7.4
 pydantic-settings>=2.3.3
 aiofiles==23.2.1
-numpy>=2.0.0
+numpy>=1.26.0,<2.1.0
 scikit-learn>=1.5.0       # KMeans for analytics clustering
 rank-bm25==0.2.2          # BM25 sparse retrieval for hybrid search
 
@@ -51,12 +52,8 @@ pytesseract==0.3.10
 # Dynamic Crawler
 playwright>=1.40.0
 
-# Layout-aware PDF Extraction
-docling>=2.0.0
-
 # Token counting for context limits
 tiktoken>=0.5.0
 
-# Redis & Celery (Decoupled Background Processing)
-celery==5.3.6
+# Redis & Upstash Cloud
 redis==5.0.1

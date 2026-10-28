@@ -1,25 +1,37 @@
 """
-EmbeddingEngine: singleton that loads the model ONCE at startup.
-All ingestion and query calls reuse the same in-memory model.
-CPU-safe: all-MiniLM-L6-v2 is ~80MB and runs in <100ms per batch.
+EmbeddingEngine: Ultra-low RAM embedding singleton.
+Supports FastEmbed (ONNX engine: ~70MB RAM, optimal for Render 512MB free tier)
+with graceful fallback to SentenceTransformers.
+CPU-safe: BAAI/bge-small-en-v1.5 produces 384-dimensional dense vectors.
 """
 import os
 import numpy as np
 import faiss
-from sentence_transformers import SentenceTransformer
 from app.core.config import get_settings
 
 settings = get_settings()
 
-_embedding_model: SentenceTransformer = None
+_embedding_model = None
+_fastembed_model = None
 
 
-def get_embedding_model() -> SentenceTransformer:
-    """Lazy singleton — loads only once. Prefers local cache to avoid HuggingFace network stalls."""
-    global _embedding_model
+def get_embedding_model():
+    """Ultra-low RAM singleton. Prefers FastEmbed (ONNX, ~70MB) over PyTorch (~550MB)."""
+    global _embedding_model, _fastembed_model
+    # 1. Try FastEmbed (ONNX engine: ideal for 512MB RAM cloud tiers like Render)
+    try:
+        if _fastembed_model is None:
+            from fastembed import TextEmbedding
+            _fastembed_model = TextEmbedding(model_name="BAAI/bge-small-en-v1.5")
+            print("[Embeddings] FastEmbed ONNX engine loaded (RAM < 80MB).")
+        return _fastembed_model
+    except Exception:
+        pass
+
+    # 2. Fallback to SentenceTransformer (PyTorch)
     if _embedding_model is None:
         try:
-            # Try loading directly from local cache first (instant, 0 network calls)
+            from sentence_transformers import SentenceTransformer
             _embedding_model = SentenceTransformer(
                 settings.embedding_model,
                 cache_folder=settings.model_cache_dir,
@@ -27,11 +39,10 @@ def get_embedding_model() -> SentenceTransformer:
                 trust_remote_code=True,
                 local_files_only=True,
             )
-            print(f"[Embeddings] Model loaded instantly from local cache: {settings.embedding_model}")
-        except Exception as local_err:
+            print(f"[Embeddings] Model loaded from local cache: {settings.embedding_model}")
+        except Exception:
             try:
-                # If local cache missing, attempt remote download
-                print(f"[Embeddings] Local cache miss ({local_err}), downloading: {settings.embedding_model}...")
+                from sentence_transformers import SentenceTransformer
                 _embedding_model = SentenceTransformer(
                     settings.embedding_model,
                     cache_folder=settings.model_cache_dir,
@@ -61,22 +72,23 @@ def _bge_prefix(texts: list[str], is_query: bool = False, model_name: str = "") 
 
 
 def embed_texts(texts: list[str], is_query: bool = False) -> np.ndarray:
-    """Batch embed a list of strings → float32 numpy array.
-    
-    Args:
-        texts: List of text strings to embed
-        is_query: If True and model is BGE, applies 'query: ' prefix.
-    """
+    """Batch embed a list of strings -> float32 numpy array. Supports FastEmbed and SentenceTransformers."""
     model = get_embedding_model()
     model_name = settings.embedding_model
     prefixed_texts = _bge_prefix(texts, is_query=is_query, model_name=model_name)
-    vectors = model.encode(
-        prefixed_texts,
-        batch_size=32,
-        show_progress_bar=False,
-        normalize_embeddings=True
-    )
-    return vectors.astype(np.float32)
+
+    if hasattr(model, "embed"):
+        # FastEmbed ONNX generator
+        embeddings = list(model.embed(prefixed_texts))
+        return np.array(embeddings, dtype=np.float32)
+    else:
+        vectors = model.encode(
+            prefixed_texts,
+            batch_size=32,
+            show_progress_bar=False,
+            normalize_embeddings=True
+        )
+        return vectors.astype(np.float32)
 
 
 # ── FAISS Index Management ────────────────────────────────────────────────────
@@ -119,7 +131,7 @@ def search_index(
     """
     Returns (embedding_ids, scores) filtered by threshold.
     If threshold is None, returns top_k results without filtering.
-    If nothing passes threshold → returns ([], []) → caller must refuse.
+    If nothing passes threshold -> returns ([], []) -> caller must refuse.
     """
     scores, indices = index.search(query_vector.reshape(1, -1), top_k)
     scores = scores[0].tolist()
