@@ -1,0 +1,190 @@
+services:
+  # ─────────────────────────────────────────────────────────────────────────────
+  # Reverse Proxy (Nginx + SSL / TLS)
+  # ─────────────────────────────────────────────────────────────────────────────
+  proxy:
+    image: nginx:alpine
+    container_name: rag-nginx-proxy
+    restart: always
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./nginx/nginx.conf:/etc/nginx/nginx.conf:ro
+      - certbot_data:/etc/letsencrypt
+      - certbot_www:/var/www/certbot
+    depends_on:
+      - frontend
+      - backend
+    networks:
+      - rag-network
+
+  # ─────────────────────────────────────────────────────────────────────────────
+  # Internal Data Infrastructure (No Public Exposed Ports)
+  # ─────────────────────────────────────────────────────────────────────────────
+
+  mongodb:
+    image: mongo:6.0
+    container_name: rag-mongodb-prod
+    restart: always
+    environment:
+      - MONGO_INITDB_ROOT_USERNAME=${MONGO_ROOT_USER:-admin}
+      - MONGO_INITDB_ROOT_PASSWORD=${MONGO_ROOT_PASSWORD:-secure_mongo_password}
+    volumes:
+      - mongodb_prod_data:/data/db
+    networks:
+      - rag-network
+
+  qdrant:
+    image: qdrant/qdrant:v1.9.0
+    container_name: rag-qdrant-prod
+    restart: always
+    volumes:
+      - qdrant_prod_data:/qdrant/storage
+    networks:
+      - rag-network
+
+  redis:
+    image: redis:7-alpine
+    container_name: rag-redis-prod
+    restart: always
+    command: redis-server --appendonly yes --requirepass ${REDIS_PASSWORD:-strong_redis_prod_password}
+    healthcheck:
+      test: ["CMD", "redis-cli", "-a", "${REDIS_PASSWORD:-strong_redis_prod_password}", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+    volumes:
+      - redis_prod_data:/data
+    networks:
+      - rag-network
+
+  # ─────────────────────────────────────────────────────────────────────────────
+  # API Server (FastAPI)
+  # ─────────────────────────────────────────────────────────────────────────────
+
+  backend:
+    build:
+      context: ./rag-backend
+      dockerfile: Dockerfile
+    container_name: rag-backend-prod
+    restart: always
+    depends_on:
+      mongodb:
+        condition: service_started
+      qdrant:
+        condition: service_started
+      redis:
+        condition: service_healthy
+    env_file:
+      - .env.production
+    environment:
+      - ENVIRONMENT=production
+      - MONGODB_URL=mongodb://${MONGO_ROOT_USER:-admin}:${MONGO_ROOT_PASSWORD:-secure_mongo_password}@mongodb:27017
+      - DB_NAME=${DB_NAME:-rag_production}
+      - USE_QDRANT_SERVER=true
+      - QDRANT_URL=http://qdrant:6333
+      - QDRANT_HOST=qdrant
+      - QDRANT_PORT=6333
+      - REDIS_URL=redis://:${REDIS_PASSWORD:-strong_redis_prod_password}@redis:6379/0
+      - CELERY_BROKER_URL=redis://:${REDIS_PASSWORD:-strong_redis_prod_password}@redis:6379/1
+      - CELERY_RESULT_BACKEND=redis://:${REDIS_PASSWORD:-strong_redis_prod_password}@redis:6379/2
+    volumes:
+      - backend_prod_storage:/app/storage
+      - backend_prod_models:/app/models
+    networks:
+      - rag-network
+
+  # ─────────────────────────────────────────────────────────────────────────────
+  # Background Celery Workers & Scheduler
+  # ─────────────────────────────────────────────────────────────────────────────
+
+  celery-worker:
+    build:
+      context: ./rag-backend
+      dockerfile: Dockerfile
+    container_name: rag-celery-worker-prod
+    restart: always
+    depends_on:
+      mongodb:
+        condition: service_started
+      qdrant:
+        condition: service_started
+      redis:
+        condition: service_healthy
+    env_file:
+      - .env.production
+    environment:
+      - ENVIRONMENT=production
+      - MONGODB_URL=mongodb://${MONGO_ROOT_USER:-admin}:${MONGO_ROOT_PASSWORD:-secure_mongo_password}@mongodb:27017
+      - DB_NAME=${DB_NAME:-rag_production}
+      - USE_QDRANT_SERVER=true
+      - QDRANT_URL=http://qdrant:6333
+      - REDIS_URL=redis://:${REDIS_PASSWORD:-strong_redis_prod_password}@redis:6379/0
+      - CELERY_BROKER_URL=redis://:${REDIS_PASSWORD:-strong_redis_prod_password}@redis:6379/1
+      - CELERY_RESULT_BACKEND=redis://:${REDIS_PASSWORD:-strong_redis_prod_password}@redis:6379/2
+    volumes:
+      - backend_prod_storage:/app/storage
+      - backend_prod_models:/app/models
+    command: celery -A app.celery_app worker --loglevel=info --concurrency=4
+    networks:
+      - rag-network
+
+  celery-beat:
+    build:
+      context: ./rag-backend
+      dockerfile: Dockerfile
+    container_name: rag-celery-beat-prod
+    restart: always
+    depends_on:
+      mongodb:
+        condition: service_started
+      redis:
+        condition: service_healthy
+    env_file:
+      - .env.production
+    environment:
+      - ENVIRONMENT=production
+      - MONGODB_URL=mongodb://${MONGO_ROOT_USER:-admin}:${MONGO_ROOT_PASSWORD:-secure_mongo_password}@mongodb:27017
+      - DB_NAME=${DB_NAME:-rag_production}
+      - REDIS_URL=redis://:${REDIS_PASSWORD:-strong_redis_prod_password}@redis:6379/0
+      - CELERY_BROKER_URL=redis://:${REDIS_PASSWORD:-strong_redis_prod_password}@redis:6379/1
+      - CELERY_RESULT_BACKEND=redis://:${REDIS_PASSWORD:-strong_redis_prod_password}@redis:6379/2
+    volumes:
+      - celery_beat_prod_schedule:/app/celery_beat_schedule
+    command: celery -A app.celery_app beat --loglevel=info
+    networks:
+      - rag-network
+
+  # ─────────────────────────────────────────────────────────────────────────────
+  # Frontend Application (Next.js)
+  # ─────────────────────────────────────────────────────────────────────────────
+
+  frontend:
+    build:
+      context: ./veridoc-frontend
+      dockerfile: Dockerfile
+      args:
+        NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL:-https://api.yourdomain.com/api}
+    container_name: veridoc-frontend-prod
+    restart: always
+    depends_on:
+      - backend
+    environment:
+      - NEXT_PUBLIC_API_URL=${NEXT_PUBLIC_API_URL:-https://api.yourdomain.com/api}
+    networks:
+      - rag-network
+
+volumes:
+  mongodb_prod_data:
+  qdrant_prod_data:
+  redis_prod_data:
+  celery_beat_prod_schedule:
+  backend_prod_storage:
+  backend_prod_models:
+  certbot_data:
+  certbot_www:
+
+networks:
+  rag-network:
+    driver: bridge

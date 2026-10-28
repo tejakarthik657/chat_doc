@@ -58,6 +58,25 @@ class QuestionRequest(BaseModel):
     question: str = Field(..., min_length=1, max_length=1000)
     strict_mode: bool = False
     scoped_sources: Optional[List[str]] = None
+    reasoning_level: Optional[str] = "balanced"  # fast | balanced | deep
+    scope: Optional[str] = "all"  # current | selected | all
+    mode: Optional[str] = "standard"  # standard | debate | decision_tree | brutal_review | builder
+
+
+class GeneralQuestionRequest(BaseModel):
+    question: str = Field(..., min_length=1, max_length=2000)
+    doc_id: Optional[str] = None
+    context_hint: Optional[str] = None
+
+
+class CanvasTransformRequest(BaseModel):
+    content: str = Field(..., min_length=2, max_length=25000)
+    action: str = "polish"  # polish | table | summary | quiz | simplify | expand
+
+
+class CanvasTransformResponse(BaseModel):
+    transformed_content: str
+    action: str
 
 
 class SourceCitation(BaseModel):
@@ -77,6 +96,11 @@ class ChatResponse(BaseModel):
     support_label: Optional[str] = None
     support_confidence: Optional[float] = None
     support_snippet: Optional[str] = None
+    evidence_trace: Optional[List[dict]] = None
+    variations: Optional[List[str]] = None
+    mode: Optional[str] = "standard"
+    artifact: Optional[dict] = None
+    mindspace_nodes: Optional[List[dict]] = None
 
 
 class ChatHistoryItem(BaseModel):

@@ -1,4 +1,4 @@
-import api from '@/lib/api';
+import api, { fastGet, invalidateApiCache } from '@/lib/api';
 
 export interface UserLogin {
     email: string;
@@ -41,12 +41,12 @@ export const authService = {
     },
 
     async getMe() {
-        const response = await api.get<UserOut>('/auth/me');
-        return response.data;
+        return await fastGet<UserOut>('/auth/me');
     },
 
     logout() {
         localStorage.removeItem('token');
+        invalidateApiCache();
         window.location.href = '/login';
     }
 };

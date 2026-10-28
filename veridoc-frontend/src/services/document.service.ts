@@ -1,4 +1,4 @@
-import api from '@/lib/api';
+import api, { fastGet, invalidateApiCache } from '@/lib/api';
 
 export interface DocumentOut {
     id: string;
@@ -18,20 +18,18 @@ export interface DocumentList {
 
 export const documentService = {
     async list() {
-        const response = await api.get<DocumentList>('/documents');
-        return response.data;
+        return await fastGet<DocumentList>('/documents', undefined, 6000);
     },
 
     async get(docId: string) {
-        const response = await api.get<DocumentOut>(`/documents/${docId}`);
-        return response.data;
+        return await fastGet<DocumentOut>(`/documents/${docId}`, undefined, 6000);
     },
 
     async upload(file: File) {
+        invalidateApiCache('/documents');
         const formData = new FormData();
         formData.append('file', file);
 
-        // Config for file upload
         const config = {
             headers: {
                 'Content-Type': 'multipart/form-data',
@@ -43,6 +41,7 @@ export const documentService = {
     },
 
     async delete(docId: string) {
+        invalidateApiCache('/documents');
         await api.delete(`/documents/${docId}`);
     }
 };

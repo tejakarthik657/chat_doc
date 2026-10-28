@@ -12,11 +12,20 @@ import asyncio
 
 os.environ.setdefault("KMP_DUPLICATE_LIB_OK", "TRUE")
 
+try:
+    import dns.resolver
+    dns.resolver.default_resolver = dns.resolver.Resolver(configure=False)
+    dns.resolver.default_resolver.nameservers = ['8.8.8.8', '8.8.4.4', '1.1.1.1']
+    print("[DNS Bypass] Overrode default resolver to Google & Cloudflare DNS.")
+except Exception as dns_err:
+    print(f"[DNS Bypass] [WARNING] Failed to override DNS resolver: {dns_err}")
+
 from contextlib import asynccontextmanager
 from fastapi import FastAPI, Request
 from fastapi.exceptions import HTTPException
 from fastapi.responses import JSONResponse
 from starlette.middleware.cors import CORSMiddleware
+from starlette.middleware.gzip import GZipMiddleware
 from starlette.middleware.base import BaseHTTPMiddleware
 
 from app.core.config import get_settings
@@ -113,12 +122,11 @@ async def lifespan(app: FastAPI):
     else:
         logger.info("[STARTUP] Cross-encoder reranker is disabled (bypassing pre-load).")
 
-    # Create MongoDB indexes
+    # Create MongoDB indexes (non-fatal on startup to avoid halting on replica set negotiation)
     try:
         await create_indexes()
     except Exception as e:
-        logger.error(f"[STARTUP] Failed to create MongoDB indexes: {e}")
-        raise
+        logger.warning(f"[STARTUP] Non-fatal: MongoDB index creation postponed/skipped on startup: {e}")
 
     elapsed = time.perf_counter() - startup_start
     logger.info(f"[STARTUP] Backend ready in {elapsed:.2f}s")
@@ -142,13 +150,45 @@ async def lifespan(app: FastAPI):
     except Exception as e:
         logger.error(f"[SHUTDOWN] Error closing Neo4j: {e}")
 
+    try:
+        from app.db.upstash import get_upstash_client
+        upstash_c = get_upstash_client()
+        await upstash_c.aclose()
+        upstash_c.close()
+        logger.info("[SHUTDOWN] Upstash Redis client connections closed")
+    except Exception as e:
+        logger.warning(f"[SHUTDOWN] Error closing Upstash client: {e}")
+
+
+# ── Observability & Monitoring Setup ──────────────────────────────────────────
+
+if settings.sentry_dsn:
+    try:
+        import sentry_sdk
+        sentry_sdk.init(
+            dsn=settings.sentry_dsn,
+            traces_sample_rate=1.0,
+            profiles_sample_rate=1.0,
+            environment=settings.environment,
+            send_default_pii=False,
+        )
+        print(f"[Sentry] Initialized cloud error monitoring & profiling (env={settings.environment}).")
+    except Exception as sentry_err:
+        print(f"[Sentry Warning] Failed to initialize Sentry: {sentry_err}")
+
+if settings.langfuse_public_key and settings.langfuse_secret_key:
+    os.environ["LANGFUSE_PUBLIC_KEY"] = settings.langfuse_public_key
+    os.environ["LANGFUSE_SECRET_KEY"] = settings.langfuse_secret_key
+    os.environ["LANGFUSE_HOST"] = settings.langfuse_base_url
+    print(f"[Langfuse] Initialized cloud LLM observability tracing via {settings.langfuse_base_url}.")
+
 
 # ── App ────────────────────────────────────────────────────────────────────────
 
 app = FastAPI(
-    title="RAG Document Assistant API",
-    description="Source-grounded document Q&A. No hallucinations.",
-    version="1.0.0",
+    title="NEXUS AI Enterprise RAG API",
+    description="Source-grounded autonomous intelligence & workspace platform.",
+    version="2.0.0",
     lifespan=lifespan,
     docs_url="/docs" if settings.access_token_expire_minutes > 0 else None,
     redoc_url="/redoc" if settings.access_token_expire_minutes > 0 else None,
@@ -170,20 +210,23 @@ if _env_origins:
         [o.strip() for o in _env_origins.split(",") if o.strip()]
     )
 
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=_ALLOWED_ORIGINS,
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
-    expose_headers=["X-Correlation-ID"],
-)
-
 # ── Middleware Stack ───────────────────────────────────────────────────────────
 
 app.add_middleware(SecurityHeadersMiddleware)
 app.add_middleware(CorrelationIdMiddleware)
 app.add_middleware(RequestSizeLimitMiddleware, max_size=50 * 1024 * 1024)
+app.add_middleware(GZipMiddleware, minimum_size=1000)
+
+# Add CORSMiddleware LAST so it runs FIRST as the outermost layer
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=_ALLOWED_ORIGINS,
+    allow_origin_regex=r"https?://.*",
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+    expose_headers=["X-Correlation-ID"],
+)
 
 
 # ── Exception Handlers ────────────────────────────────────────────────────────
@@ -231,12 +274,55 @@ app.include_router(project_router)
 app.include_router(intelligence_router)
 
 
+# ── Google OAuth Aliases (Handles /auth/google, /api/auth/google, and /api/api/auth/google) ──
+
+@app.get("/auth/google")
+@app.get("/api/api/auth/google")
+async def google_login_alias():
+    from app.api.routes.auth import login_google
+    return await login_google()
+
+
+@app.get("/auth/google/callback")
+@app.get("/api/api/auth/google/callback")
+async def google_callback_alias(code: str = None, error: str = None):
+    from app.api.routes.auth import google_callback
+    return await google_callback(code=code, error=error)
+
+
+
 # ── Health Endpoints ───────────────────────────────────────────────────────────
 
 @app.get("/health")
+@app.get("/api/health")
 async def health():
     """Liveness probe — basic service availability."""
     return {"status": "ok", "version": "1.0.0", "env": os.environ.get("ENVIRONMENT", "development")}
+
+
+@app.get("/models")
+@app.get("/v1/models")
+async def list_models():
+    """OpenAI-compatible models discovery endpoint."""
+    return {
+        "object": "list",
+        "data": [
+            {
+                "id": "groq-llama-3.3-70b",
+                "object": "model",
+                "created": 1700000000,
+                "owned_by": "groq",
+                "permission": [],
+            },
+            {
+                "id": "qwen2.5-coder:3b",
+                "object": "model",
+                "created": 1700000000,
+                "owned_by": "ollama",
+                "permission": [],
+            },
+        ],
+    }
 
 
 @app.get("/health/ready")

@@ -3,6 +3,7 @@ import re
 import httpx
 import asyncio
 import hashlib
+import urllib.robotparser
 from urllib.parse import urlparse, urljoin
 from bs4 import BeautifulSoup
 import trafilatura
@@ -14,6 +15,27 @@ from app.db.mongodb import projects_col, crawl_jobs_col, crawled_pages_col
 from app.core.config import get_settings
 
 settings = get_settings()
+
+
+def fetch_robots_parser(seed_url: str) -> urllib.robotparser.RobotFileParser:
+    """Fetch and parse robots.txt for domain compliance."""
+    rp = urllib.robotparser.RobotFileParser()
+    try:
+        parsed = urlparse(seed_url)
+        robots_url = f"{parsed.scheme}://{parsed.netloc}/robots.txt"
+        rp.set_url(robots_url)
+        rp.read()
+        print(f"[Crawler] Loaded robots.txt rules from: {robots_url}")
+    except Exception as e:
+        print(f"[Crawler] Notice: robots.txt for {seed_url} unreadable or unparseable: {e}")
+    return rp
+
+
+def normalize_url(url: str) -> str:
+    """Normalize URL by removing fragment and trimming whitespace."""
+    parsed = urlparse(url.strip())
+    clean_path = parsed.path.rstrip("/") if parsed.path and parsed.path != "/" else parsed.path
+    return parsed._replace(fragment="", path=clean_path).geturl()
 
 
 def parse_sitemap_urls(xml_content: str) -> list[str]:
@@ -133,6 +155,9 @@ async def crawl_website_task(project_id: str, job_id: str, user_id: str):
     login_password = project.get("login_password")
 
     print(f"[Crawler] Starting crawl for Project={project_id}, Seed={seed_url}, Limit={max_pages} pages")
+    
+    # 0. Robots.txt Parser Compliance
+    robots_parser = fetch_robots_parser(seed_url)
 
     # Update job status to running
     await crawl_jobs_col().update_one(
@@ -180,20 +205,19 @@ async def crawl_website_task(project_id: str, job_id: str, user_id: str):
     browser = None
     cookies_dict = {}
 
-    if use_dynamic_crawl:
-        try:
-            from playwright.async_api import async_playwright
-            playwright_available = True
-        except ImportError:
-            print("[Crawler] [WARNING] Playwright is not installed. Falling back to HTTPX.")
-            playwright_available = False
+    try:
+        from playwright.async_api import async_playwright
+        playwright_available = True
+    except ImportError:
+        print("[Crawler] [NOTICE] Playwright is not installed. Using standard HTTPX.")
+        playwright_available = False
 
-    if playwright_available and use_dynamic_crawl:
+    if playwright_available:
         try:
             playwright_instance = await async_playwright().start()
             browser = await playwright_instance.chromium.launch(headless=True)
             playwright_context = await browser.new_context(
-                user_agent="IDRSEnterpriseCrawler/1.0 (+https://github.com/idrs)",
+                user_agent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36",
                 viewport={"width": 1280, "height": 800}
             )
             async def block_assets(route):
@@ -202,9 +226,9 @@ async def crawl_website_task(project_id: str, job_id: str, user_id: str):
                 else:
                     await route.continue_()
             await playwright_context.route("**/*", block_assets)
-            print("[Crawler] Playwright Chromium launched with asset-blocking optimizer enabled.")
+            print("[Crawler] Playwright Chromium stealth engine ready for dynamic SPA rendering.")
         except Exception as pw_launch_err:
-            print(f"[Crawler] [WARNING] Failed to launch Playwright: {pw_launch_err}. Falling back to HTTPX.")
+            print(f"[Crawler] [NOTICE] Playwright launch deferred: {pw_launch_err}.")
             playwright_context = None
             if browser:
                 await browser.close()
@@ -350,6 +374,11 @@ async def crawl_website_task(project_id: str, job_id: str, user_id: str):
             if clean_url in visited or len(visited) >= max_pages:
                 queue.task_done()
                 continue
+
+            if robots_parser and not robots_parser.can_fetch("*", clean_url):
+                print(f"[Crawler Worker {worker_id}] Disallowed by robots.txt: {clean_url}")
+                queue.task_done()
+                continue
             
             visited.add(clean_url)
 
@@ -377,34 +406,40 @@ async def crawl_website_task(project_id: str, job_id: str, user_id: str):
             try:
                 path_lower = parsed_current.path.lower()
                 if path_lower.endswith(".pdf"):
-                    print(f"[Crawler Worker {worker_id}] Downloading PDF: {clean_url}")
+                    print(f"[Crawler Worker {worker_id}] Downloading PDF (Streamed Mode): {clean_url}")
                     try:
-                        response = await client.get(clean_url, cookies=cookies_dict, timeout=10.0)
-                        if response.status_code == 200:
-                            content = response.content
-                            file_hash = compute_hash(str(content))
-                            filename = os.path.basename(parsed_current.path)
-                            if not filename:
-                                filename = f"document_{hashlib.md5(clean_url.encode()).hexdigest()[:8]}.pdf"
-                            
-                            file_path = os.path.join(project_download_dir, f"{ObjectId()}_{filename}")
-                            with open(file_path, "wb") as f:
-                                f.write(content)
+                        filename = os.path.basename(parsed_current.path)
+                        if not filename:
+                            filename = f"document_{hashlib.md5(clean_url.encode()).hexdigest()[:8]}.pdf"
+                        
+                        file_path = os.path.join(project_download_dir, f"{ObjectId()}_{filename}")
+                        file_hash_obj = hashlib.sha256()
 
-                            await crawled_pages_col().update_one(
-                                {"project_id": project_id, "url": clean_url},
-                                {"$set": {
-                                    "title": filename,
-                                    "file_path": file_path,
-                                    "content_hash": file_hash,
-                                    "page_type": "pdf",
-                                    "status": "pending",
-                                    "crawled_at": datetime.utcnow()
-                                }},
-                                upsert=True
-                            )
-                            stats["docs_found"] += 1
-                            
+                        async with client.stream("GET", clean_url, cookies=cookies_dict, timeout=30.0) as response:
+                            if response.status_code == 200:
+                                with open(file_path, "wb") as f:
+                                    async for chunk in response.aiter_bytes(chunk_size=8192):
+                                        f.write(chunk)
+                                        file_hash_obj.update(chunk)
+                                file_hash = file_hash_obj.hexdigest()
+                                if os.path.exists(file_path) and os.path.getsize(file_path) > 500:
+                                    await crawled_pages_col().update_one(
+                                        {"project_id": project_id, "url": clean_url},
+                                        {"$set": {
+                                            "title": filename,
+                                            "file_path": file_path,
+                                            "content_hash": file_hash,
+                                            "page_type": "pdf",
+                                            "status": "pending",
+                                            "crawled_at": datetime.utcnow()
+                                        }},
+                                        upsert=True
+                                    )
+                                    stats["docs_found"] += 1
+                                    print(f"[Crawler Worker {worker_id}] Successfully saved PDF: {filename} ({os.path.getsize(file_path)} bytes)")
+                            elif response.status_code == 429:
+                                print(f"[Crawler Worker {worker_id}] Rate limited (429) downloading PDF {clean_url}. Backing off...")
+                                await asyncio.sleep(3.0)
                             # Extract links from PDF page to enqueue them
                             try:
                                 import fitz
@@ -438,8 +473,12 @@ async def crawl_website_task(project_id: str, job_id: str, user_id: str):
                 
                 # Fast-Path HTTPX
                 try:
-                    headers = {"User-Agent": "IDRSEnterpriseCrawler/1.0 (+https://github.com/idrs)"}
-                    response = await client.get(clean_url, headers=headers, cookies=cookies_dict, timeout=8.0)
+                    headers = {
+                        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36",
+                        "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8",
+                        "Accept-Language": "en-US,en;q=0.9"
+                    }
+                    response = await client.get(clean_url, headers=headers, cookies=cookies_dict, timeout=12.0)
                     if response.status_code == 200:
                         content_type = response.headers.get("content-type", "").lower()
                         if "text/html" in content_type:
@@ -545,6 +584,13 @@ async def crawl_website_task(project_id: str, job_id: str, user_id: str):
                     title = clean_url
                     if soup.title and soup.title.string:
                         title = soup.title.string.strip()
+                    
+                    if "429" in title or "too many requests" in title.lower():
+                        print(f"[Crawler Worker {worker_id}] Detected rate-limit page for {clean_url}. Backing off 3s without indexing.")
+                        await asyncio.sleep(3.0)
+                        visited.discard(clean_url)
+                        queue.task_done()
+                        continue
 
                     extracted_text = trafilatura.extract(html_content, include_comments=False, include_tables=True)
                     if not extracted_text or len(extracted_text.strip()) < 200:
@@ -552,6 +598,18 @@ async def crawl_website_task(project_id: str, job_id: str, user_id: str):
                         for tag in cleaner_soup(["script", "style", "iframe", "footer", "header", "nav"]):
                             tag.decompose()
                         extracted_text = cleaner_soup.get_text(separator="\n")
+
+                    # Self-Healing Fallback: If deterministic extraction yields insufficient content
+                    if not extracted_text or len(extracted_text.strip()) < 150 or is_navigation_text(extracted_text):
+                        print(f"[Crawler Worker {worker_id}] Triggering Self-Healing LLM Parser (Groq 10-Key Pool) for {clean_url}")
+                        try:
+                            from app.core.llm_local import generate_self_healing_extraction
+                            llm_extracted = generate_self_healing_extraction(html_content, clean_url)
+                            if llm_extracted and len(llm_extracted.strip()) > 100:
+                                extracted_text = llm_extracted
+                                print(f"[Crawler Worker {worker_id}] Self-Healing LLM Parser succeeded ({len(extracted_text)} chars)")
+                        except Exception as healing_err:
+                            print(f"[Crawler Worker {worker_id}] Self-Healing LLM Parser notice: {healing_err}")
                     
                     lines = (line.strip() for line in extracted_text.splitlines())
                     chunks = (phrase for line in lines for phrase in line.split("  "))
@@ -595,7 +653,10 @@ async def crawl_website_task(project_id: str, job_id: str, user_id: str):
                                     if not is_noise_url(clean_link):
                                         if clean_link not in enqueued:
                                             enqueued.add(clean_link)
-                                            queue.put_nowait((get_url_priority(clean_link, link.get_text() or ""), clean_link))
+                                            pri = get_url_priority(clean_link, link.get_text() or "")
+                                            if extension == ".pdf":
+                                                pri = -10
+                                            queue.put_nowait((pri, clean_link))
                                             stats["urls_found"] += 1
             except Exception as e:
                 print(f"[Crawler Worker {worker_id}] [ERROR] Failed to fetch {clean_url}: {e}")
@@ -604,7 +665,7 @@ async def crawl_website_task(project_id: str, job_id: str, user_id: str):
 
     # Determine worker pool count dynamically based on engine mode
     is_js_crawl = playwright_context and use_dynamic_crawl
-    num_workers = 5 if is_js_crawl else 12
+    num_workers = 3
     print(f"[Crawler] Spawning {num_workers} parallel workers (Mode: {'Playwright JS' if is_js_crawl else 'Standard HTTP'}).")
 
     limits = httpx.Limits(max_keepalive_connections=num_workers, max_connections=num_workers * 3)

@@ -1,0 +1,83 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128" fill="none">
+  <defs>
+    <!-- Background Radial Glow -->
+    <radialGradient id="bgGlow" cx="50%" cy="50%" r="65%">
+      <stop offset="0%" stop-color="#1E1B4B" />
+      <stop offset="60%" stop-color="#0F172A" />
+      <stop offset="100%" stop-color="#030712" />
+    </radialGradient>
+
+    <!-- Emerald / Cyan Truth Gradient -->
+    <linearGradient id="truthCyan" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#22D3EE" />
+      <stop offset="50%" stop-color="#06B6D4" />
+      <stop offset="100%" stop-color="#10B981" />
+    </linearGradient>
+
+    <!-- Indigo / Violet Neural Gradient -->
+    <linearGradient id="neuralIndigo" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#818CF8" />
+      <stop offset="50%" stop-color="#6366F1" />
+      <stop offset="100%" stop-color="#4F46E5" />
+    </linearGradient>
+
+    <!-- Fuchsia / Purple Energy Gradient -->
+    <linearGradient id="energyViolet" x1="0%" y1="100%" x2="100%" y2="0%">
+      <stop offset="0%" stop-color="#4F46E5" />
+      <stop offset="60%" stop-color="#A855F7" />
+      <stop offset="100%" stop-color="#EC4899" />
+    </linearGradient>
+
+    <!-- Core Star Glow -->
+    <radialGradient id="coreGlow" cx="50%" cy="50%" r="50%">
+      <stop offset="0%" stop-color="#FFFFFF" />
+      <stop offset="40%" stop-color="#E0E7FF" stop-opacity="0.9" />
+      <stop offset="100%" stop-color="#6366F1" stop-opacity="0" />
+    </radialGradient>
+
+    <!-- Drop Shadow for Dimensional Prism -->
+    <filter id="prismShadow" x="-20%" y="-20%" width="140%" height="140%">
+      <feDropShadow dx="0" dy="4" stdDeviation="6" flood-color="#000000" flood-opacity="0.6"/>
+    </filter>
+
+    <filter id="glow" x="-30%" y="-30%" width="160%" height="160%">
+      <feGaussianBlur stdDeviation="3" result="blur" />
+      <feComposite in="SourceGraphic" in2="blur" operator="over" />
+    </filter>
+  </defs>
+
+  <!-- Squircle Base Container -->
+  <rect width="128" height="128" rx="28" fill="url(#bgGlow)" />
+  <rect width="128" height="128" rx="28" stroke="#312E81" stroke-width="1.5" stroke-opacity="0.7" fill="none" />
+
+  <!-- Outer Orbiting Neural Ring -->
+  <circle cx="64" cy="64" r="44" stroke="url(#neuralIndigo)" stroke-width="1.5" stroke-dasharray="8 6" stroke-opacity="0.4" />
+  
+  <!-- Outer Orbit Nodes -->
+  <circle cx="64" cy="20" r="3" fill="#22D3EE" filter="url(#glow)" />
+  <circle cx="108" cy="64" r="2.5" fill="#818CF8" />
+  <circle cx="64" cy="108" r="3" fill="#EC4899" filter="url(#glow)" />
+  <circle cx="20" cy="64" r="2.5" fill="#10B981" />
+
+  <!-- Central NEXUS Isometric Prism (Truth & Intelligence Diamond) -->
+  <g filter="url(#prismShadow)">
+    <!-- Top-Left Facet -->
+    <path d="M64 26 L94 48 L64 64 L34 48 Z" fill="url(#truthCyan)" fill-opacity="0.95" />
+    
+    <!-- Bottom-Left Facet -->
+    <path d="M34 48 L64 64 L64 102 L34 82 Z" fill="url(#neuralIndigo)" fill-opacity="0.9" />
+    
+    <!-- Bottom-Right Facet -->
+    <path d="M64 64 L94 48 L94 82 L64 102 Z" fill="url(#energyViolet)" fill-opacity="0.95" />
+
+    <!-- Isometric Crystal Highlight Facet -->
+    <path d="M64 36 L84 50 L64 62 L44 50 Z" fill="#FFFFFF" fill-opacity="0.25" />
+  </g>
+
+  <!-- Glowing Core Nexus Node -->
+  <circle cx="64" cy="64" r="7" fill="url(#coreGlow)" filter="url(#glow)" />
+  <circle cx="64" cy="64" r="3" fill="#FFFFFF" />
+
+  <!-- High-Precision Center Crosshairs -->
+  <path d="M64 54 L64 59 M64 69 L64 74 M54 64 L59 64 M69 64 L74 64" stroke="#FFFFFF" stroke-width="1.2" stroke-linecap="round" stroke-opacity="0.9" />
+</svg>

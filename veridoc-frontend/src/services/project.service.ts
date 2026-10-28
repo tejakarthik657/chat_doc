@@ -1,4 +1,4 @@
-import api from '@/lib/api';
+import api, { fastGet, invalidateApiCache } from '@/lib/api';
 
 export interface ProjectOut {
     id: string;
@@ -13,6 +13,7 @@ export interface ProjectOut {
     login_url?: string;
     login_username?: string;
     login_password?: string;
+    error_message?: string;
 }
 
 export interface ProjectCreate {
@@ -45,8 +46,7 @@ export interface CrawlJobOut {
 
 export const projectService = {
     async list() {
-        const response = await api.get<ProjectList>('/projects');
-        return response.data;
+        return await fastGet<ProjectList>('/projects', undefined, 6000);
     },
 
     async get(projectId: string) {
@@ -55,11 +55,13 @@ export const projectService = {
     },
 
     async create(project: ProjectCreate) {
+        invalidateApiCache('/projects');
         const response = await api.post<ProjectOut>('/projects/create', project);
         return response.data;
     },
 
     async delete(projectId: string) {
+        invalidateApiCache('/projects');
         await api.delete(`/projects/${projectId}`);
     },
 

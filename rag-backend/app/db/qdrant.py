@@ -1,4 +1,5 @@
 import os
+import shutil
 from qdrant_client import QdrantClient
 from qdrant_client.http import models as qdrant_models
 from app.core.config import get_settings
@@ -11,34 +12,49 @@ _qdrant_client: QdrantClient = None
 def get_qdrant_client() -> QdrantClient:
     """Lazy singleton for QdrantClient.
     Priority:
-      1. QDRANT_URL (Qdrant Cloud or remote) - uses API key if provided
-      2. USE_QDRANT_SERVER=true with host/port (self-hosted)
-      3. Local disk storage (development only)
+      1. QDRANT_URL or USE_QDRANT_SERVER=true (Remote/Docker Qdrant Server)
+      2. Local disk storage (with automatic metadata error recovery)
+      3. In-memory storage (fallback if disk storage is inaccessible)
     """
     global _qdrant_client
     if _qdrant_client is None:
-        try:
-            if settings.qdrant_url:
-                client_kwargs = {"url": settings.qdrant_url}
-                if os.environ.get("QDRANT_API_KEY"):
-                    client_kwargs["api_key"] = os.environ.get("QDRANT_API_KEY")
-                print(f"[Qdrant] Connecting to server via URL: {settings.qdrant_url}")
-                _qdrant_client = QdrantClient(**client_kwargs)
-            elif settings.qdrant_host and os.environ.get("USE_QDRANT_SERVER") == "true":
-                print(f"[Qdrant] Connecting to server: {settings.qdrant_host}:{settings.qdrant_port}")
-                _qdrant_client = QdrantClient(
-                    host=settings.qdrant_host,
-                    port=settings.qdrant_port,
-                )
-            else:
-                os.makedirs(settings.qdrant_path, exist_ok=True)
-                print(f"[Qdrant] Using local disk storage at: {settings.qdrant_path}")
-                _qdrant_client = QdrantClient(path=settings.qdrant_path)
+        use_server = os.environ.get("USE_QDRANT_SERVER", "false").lower() == "true" or bool(settings.qdrant_url)
+        
+        if use_server:
+            q_url = settings.qdrant_url or f"http://{settings.qdrant_host}:{settings.qdrant_port}"
+            try:
+                client_kwargs = {"url": q_url, "timeout": 3.0}
+                api_key = settings.qdrant_api_key or os.environ.get("QDRANT_API_KEY")
+                if api_key:
+                    client_kwargs["api_key"] = api_key
+                print(f"[Qdrant] Connecting to Qdrant Cloud/Server at {q_url}...")
+                temp_client = QdrantClient(**client_kwargs)
+                temp_client.get_collections()
+                _qdrant_client = temp_client
+                print("[Qdrant] Connected to Qdrant Server successfully.")
+                return _qdrant_client
+            except Exception as remote_err:
+                print(f"[Qdrant] [WARNING] Could not connect to Qdrant Server at {q_url}: {remote_err}")
+                if os.environ.get("ENVIRONMENT") == "production":
+                    raise remote_err
 
-            print("[Qdrant] Client initialized successfully.")
-        except Exception as e:
-            print(f"[Qdrant] [ERROR] Failed to initialize client: {e}")
-            raise e
+        # Local disk storage initialization with self-healing recovery
+        try:
+            os.makedirs(settings.qdrant_path, exist_ok=True)
+            print(f"[Qdrant] Initializing local disk storage at: {settings.qdrant_path}")
+            temp_client = QdrantClient(path=settings.qdrant_path)
+            temp_client.get_collections()
+            _qdrant_client = temp_client
+            print("[Qdrant] Local disk client initialized.")
+        except Exception as local_err:
+            err_str = str(local_err).lower()
+            if "already accessed" in err_str or "lock" in err_str:
+                print(f"[Qdrant] Local directory is locked by another running process. Using in-memory client for this process.")
+                _qdrant_client = QdrantClient(":memory:")
+            else:
+                print(f"[Qdrant] [WARNING] Local disk metadata issue ({local_err}). Falling back to in-memory mode...")
+                _qdrant_client = QdrantClient(":memory:")
+
     return _qdrant_client
 
 

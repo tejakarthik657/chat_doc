@@ -15,23 +15,34 @@ _embedding_model: SentenceTransformer = None
 
 
 def get_embedding_model() -> SentenceTransformer:
-    """Lazy singleton — loads only once."""
+    """Lazy singleton — loads only once. Prefers local cache to avoid HuggingFace network stalls."""
     global _embedding_model
     if _embedding_model is None:
         try:
-            # We use local_files_only=False by default to allow first-time download
-            # but device="cpu" for stability on this env.
+            # Try loading directly from local cache first (instant, 0 network calls)
             _embedding_model = SentenceTransformer(
                 settings.embedding_model,
                 cache_folder=settings.model_cache_dir,
                 device="cpu",
-                trust_remote_code=True
+                trust_remote_code=True,
+                local_files_only=True,
             )
-            print(f"[Embeddings] Model loaded: {settings.embedding_model}")
-        except Exception as e:
-            print(f"[Embeddings] [ERROR] Failed to load embedding model: {e}")
-            # Fallback or re-raise
-            raise RuntimeError(f"Embedding model failed to load: {e}")
+            print(f"[Embeddings] Model loaded instantly from local cache: {settings.embedding_model}")
+        except Exception as local_err:
+            try:
+                # If local cache missing, attempt remote download
+                print(f"[Embeddings] Local cache miss ({local_err}), downloading: {settings.embedding_model}...")
+                _embedding_model = SentenceTransformer(
+                    settings.embedding_model,
+                    cache_folder=settings.model_cache_dir,
+                    device="cpu",
+                    trust_remote_code=True,
+                    local_files_only=False,
+                )
+                print(f"[Embeddings] Model downloaded and loaded: {settings.embedding_model}")
+            except Exception as e:
+                print(f"[Embeddings] [ERROR] Failed to load embedding model: {e}")
+                raise RuntimeError(f"Embedding model failed to load: {e}")
     return _embedding_model
 
 

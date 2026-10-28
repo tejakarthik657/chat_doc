@@ -1,0 +1,90 @@
+services:
+  # ── 1. Web Service (FastAPI REST API & WebSocket Server) ────────────────────────
+  - type: web
+    name: veridoc-backend
+    runtime: docker
+    dockerfilePath: Dockerfile
+    plan: starter
+    region: oregon
+    healthCheckPath: /health
+    envVars:
+      - key: PORT
+        value: 8000
+      - key: KMP_DUPLICATE_LIB_OK
+        value: "TRUE"
+      - key: ENVIRONMENT
+        value: "production"
+      - key: MONGODB_URL
+        sync: false
+      - key: MONGODB_URI
+        sync: false
+      - key: CLOUDINARY_URL
+        sync: false
+      - key: QDRANT_URL
+        sync: false
+      - key: QDRANT_API_KEY
+        sync: false
+      - key: NEO4J_URI
+        sync: false
+      - key: NEO4J_USERNAME
+        sync: false
+      - key: NEO4J_PASSWORD
+        sync: false
+      - key: NEO4J_DATABASE
+        value: "neo4j"
+      - key: UPSTASH_REDIS_REST_URL
+        sync: false
+      - key: UPSTASH_REDIS_REST_TOKEN
+        sync: false
+      - key: GROQ_API_KEYS
+        sync: false
+      - key: GOOGLE_CLIENT_ID
+        sync: false
+      - key: GOOGLE_CLIENT_SECRET
+        sync: false
+      - key: GOOGLE_REDIRECT_URI
+        sync: false
+      - key: FRONTEND_URL
+        sync: false
+      - key: SECRET_KEY
+        generateValue: true
+
+  # ── 2. Background Ingestion Worker (Autonomous Queue Consumer) ──────────────────
+  - type: worker
+    name: veridoc-worker
+    runtime: docker
+    dockerfilePath: Dockerfile
+    dockerCommand: python -m app.worker
+    plan: starter
+    region: oregon
+    envVars:
+      - key: KMP_DUPLICATE_LIB_OK
+        value: "TRUE"
+      - key: ENVIRONMENT
+        value: "production"
+      - key: MONGODB_URL
+        sync: false
+      - key: MONGODB_URI
+        sync: false
+      - key: CLOUDINARY_URL
+        sync: false
+      - key: QDRANT_URL
+        sync: false
+      - key: QDRANT_API_KEY
+        sync: false
+      - key: NEO4J_URI
+        sync: false
+      - key: NEO4J_USERNAME
+        sync: false
+      - key: NEO4J_PASSWORD
+        sync: false
+      - key: NEO4J_DATABASE
+        value: "neo4j"
+      - key: UPSTASH_REDIS_REST_URL
+        sync: false
+      - key: UPSTASH_REDIS_REST_TOKEN
+        sync: false
+      - key: GROQ_API_KEYS
+        sync: false
+      - key: SECRET_KEY
+        sync: false

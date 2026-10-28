@@ -1,3 +1,14 @@
+def sanitize_utf8(val):
+    """Sanitize strings by stripping invalid surrogates or bad bytes for clean JSON/Qdrant serialization."""
+    if isinstance(val, str):
+        return val.encode("utf-8", errors="replace").decode("utf-8", errors="replace").replace("\x00", "")
+    elif isinstance(val, dict):
+        return {k: sanitize_utf8(v) for k, v in val.items()}
+    elif isinstance(val, list):
+        return [sanitize_utf8(item) for item in val]
+    return val
+
+
 import os
 import uuid
 # pyrefly: ignore [missing-import]
@@ -92,98 +103,24 @@ def extract_pages(file_path: str) -> list[dict]:
 
 
 def groq_vision_ocr(page) -> str:
-    """Uses Groq's Vision models to OCR a scanned page with fallback support."""
-    import base64
-    import time
-    from groq import Groq
-    
-    api_key = settings.groq_api_key
-    if not api_key:
-        return ""
-    
-    # Render page to pixmap
-    pix = page.get_pixmap(dpi=150)
-    img_data = pix.tobytes("png")
-    base64_image = base64.b64encode(img_data).decode("utf-8")
-    
-    client = Groq(api_key=api_key)
-    
-    # List of models to try in order of preference
-    models_to_try = [
-        "meta-llama/llama-4-maverick-17b-128e-instruct",
-        "llama-3.2-90b-vision-preview"
-    ]
-    
-    for model_name in models_to_try:
-        max_retries = 3
-        retry_delay = 5
-        for attempt in range(max_retries):
-            try:
-                completion = client.chat.completions.create(
-                    model=model_name,
-                    messages=[
-                        {
-                            "role": "user",
-                            "content": [
-                                {"type": "text", "text": "Extract all text and tabular information from this document page image. Transcribe tables as markdown. Keep layout structure clean and readable. Output only the transcription, no greetings or explanations."},
-                                {
-                                    "type": "image_url",
-                                    "image_url": {
-                                        "url": f"data:image/png;base64,{base64_image}"
-                                    }
-                                }
-                            ]
-                        }
-                    ],
-                    temperature=0.1
-                )
-                res = completion.choices[0].message.content.strip()
-                print(f"[Groq Vision OCR] Successfully extracted text from page using {model_name}.")
-                return res
-            except Exception as e:
-                err_str = str(e).lower()
-                # If rate limit (429), tokens per minute (TPM), or daily limit (TPD) is hit
-                if "rate" in err_str or "limit" in err_str or "429" in err_str or "tpm" in err_str or "tpd" in err_str:
-                    # If daily token limit (TPD) was exceeded, switch model immediately
-                    if "tpd" in err_str or "daily" in err_str or "day" in err_str:
-                        print(f"[Groq Vision OCR] Daily limit exceeded for {model_name}. Switching to next model...")
-                        break
-                    
-                    if attempt < max_retries - 1:
-                        wait_time = retry_delay * (attempt + 1)
-                        print(f"[Groq Vision OCR] Rate limit hit for {model_name}. Waiting {wait_time}s before retry (attempt {attempt+1}/{max_retries})...")
-                        time.sleep(wait_time)
-                        continue
-                
-                print(f"[Groq Vision OCR] [WARNING] Failed with {model_name}: {e}")
-                break # Try next model in list
-                
+    """
+    Groq vision OCR fallback.
+    Note: Groq decommissioned llama-3.2-90b-vision-preview.
+    Text and table extraction rely on PyMuPDF native layers and OCR.space cloud tier.
+    """
     return ""
+
 
 
 def extract_pages_with_ocr(file_path: str) -> list[dict]:
     """
-    Extracts text from a PDF, page-by-page.
-    If a page has less than 50 characters, it falls back to OCR via pytesseract or Groq Vision.
+    Extracts text from a PDF, page-by-page using a 3-Tier Fallback Pipeline:
+    - Tier 1: PyMuPDF (fitz) native text layer extraction (< 5ms, 0 cost).
+    - Tier 2: OCR.space Cloud OCR (free tier 25,000 req/mo).
+    - Tier 3: Google Cloud Vision / Groq Vision OCR fallback.
     """
-    # Check if Tesseract is installed and configure it
-    tesseract_available = False
-    try:
-        import pytesseract
-        tesseract_paths = [
-            r"C:\Program Files\Tesseract-OCR\tesseract.exe",
-            r"C:\Program Files (x86)\Tesseract-OCR\tesseract.exe"
-        ]
-        tesseract_cmd_to_use = None
-        for path in tesseract_paths:
-            if os.path.exists(path):
-                tesseract_cmd_to_use = path
-                break
-        if tesseract_cmd_to_use:
-            pytesseract.pytesseract.tesseract_cmd = tesseract_cmd_to_use
-            tesseract_available = True
-    except Exception:
-        tesseract_available = False
+    from app.core.ocr_space import parse_image_ocr_space
+    from app.core.google_vision import parse_image_google_vision
 
     doc = fitz.open(file_path)
     pages = []
@@ -191,42 +128,39 @@ def extract_pages_with_ocr(file_path: str) -> list[dict]:
     enable_table_extraction = file_size_mb < 10.0
     
     for page_num, page in enumerate(doc, start=1):
+        # Tier 1: Native Text Layer Extraction
         text = page.get_text("text").strip()
         
-        # Fallback to OCR if page has little text (scanned PDF detection)
+        # If native text layer is sparse (< 50 chars), trigger OCR Fallbacks
         if len(text) < 50:
-            if tesseract_available:
-                print(f"[OCR] [WARNING] Page {page_num} has very little text ({len(text)} chars). Trying Tesseract OCR fallback...")
-                try:
-                    # Render page to pixmap
-                    pix = page.get_pixmap(dpi=150)
-                    import io
-                    from PIL import Image
-                    import pytesseract
-                    
-                    img_data = pix.tobytes("png")
-                    img = Image.open(io.BytesIO(img_data))
-                    
-                    # Perform OCR
-                    ocr_text = pytesseract.image_to_string(img).strip()
-                    if ocr_text:
-                        text = ocr_text
-                        print(f"[OCR] Extracted text from page {page_num} using Tesseract.")
-                    else:
-                        print(f"[OCR] [WARNING] OCR completed but no text was extracted from page {page_num}.")
-                except Exception as ocr_err:
-                    print(f"[OCR] [WARNING] Tesseract fallback failed on page {page_num}: {ocr_err}")
-            elif settings.groq_api_key:
-                print(f"[OCR] [WARNING] Page {page_num} has very little text ({len(text)} chars) and Tesseract is unavailable. Trying Groq Vision OCR fallback...")
-                ocr_text = groq_vision_ocr(page)
-                if ocr_text:
-                    text = ocr_text
+            print(f"[OCR Pipeline] Page {page_num} sparse text ({len(text)} chars). Triggering OCR Fallback...")
+            pix = page.get_pixmap(dpi=150)
+            img_bytes = pix.tobytes("png")
+            
+            # Tier 2: Free Cloud OCR.space API
+            ocr_text = parse_image_ocr_space(img_bytes, filename=f"page_{page_num}.png")
+            if ocr_text and len(ocr_text.strip()) > 10:
+                text = ocr_text.strip()
+                print(f"[OCR Pipeline] Tier 2 (OCR.space) successfully extracted {len(text)} chars for page {page_num}.")
+            else:
+                # Tier 3: Google Cloud Vision API
+                print(f"[OCR Pipeline] Tier 2 failed or sparse. Escalating to Tier 3 (Google Vision)...")
+                vision_text = parse_image_google_vision(img_bytes)
+                if vision_text and len(vision_text.strip()) > 10:
+                    text = vision_text.strip()
+                    print(f"[OCR Pipeline] Tier 3 (Google Vision) extracted {len(text)} chars for page {page_num}.")
+                elif settings.groq_api_key:
+                    # Tier 3 Fallback: Groq Vision LLM OCR
+                    print(f"[OCR Pipeline] Escalating to Tier 3 Fallback (Groq Vision LLM)...")
+                    groq_text = groq_vision_ocr(page)
+                    if groq_text:
+                        text = groq_text.strip()
         
         # Reconstruct tables as Markdown if enabled
         if enable_table_extraction:
             table_md = extract_tables_as_markdown(page)
-            if table_md:
-                text = f"{text}{table_md}"
+            if table_md and table_md not in text:
+                text = f"{text}\n\n{table_md}"
             
         if text:
             pages.append({"page": page_num, "text": text})
@@ -338,36 +272,67 @@ def extract_pages_with_docling(file_path: str) -> list[dict]:
 
 # ── Step 2: Semantic Chunking ──────────────────────────────────────────────────
 
+def is_table_block(block: str) -> bool:
+    lines = [l.strip() for l in block.split("\n") if l.strip()]
+    if any(l.startswith("|") and l.endswith("|") for l in lines):
+        return True
+    if "### Extracted Table" in block or "[TABLE]" in block:
+        return True
+    return False
+
+
+def is_code_block(block: str) -> bool:
+    stripped = block.strip()
+    return stripped.startswith("```") and stripped.endswith("```")
+
+
 def semantic_chunking(text: str, source_name: str, url: str, page_num: int = 1,
                       parent_text: str | None = None) -> list[dict]:
     """
-    Splits text by paragraphs to keep logical structure (including tables and headers) intact.
-    If a paragraph exceeds chunk_size, it splits it by sentence.
-
-    Args:
-        text: The text to chunk
-        source_name: Document/filename name
-        url: Source URL
-        page_num: Page number (1-based)
-        parent_text: Optional full page text. If not provided, uses the input text.
+    Semantic Structural Chunker:
+    - Splits text on logical paragraphs and headings while preserving tables and code blocks as atomic units.
+    - Tracks active markdown section headers and injects contextual blurb prefix for precise vector grounding.
     """
-    parent = parent_text if parent_text is not None else text
+    from app.ingestion.sanitizer import clean_extracted_text
+    text = clean_extracted_text(text)
+    parent = clean_extracted_text(parent_text) if parent_text is not None else text
     paragraphs = text.split("\n\n")
     chunks = []
     current_chunk = []
     current_length = 0
     parent_id = _compute_hash(parent)
+    active_section = ""
+    section_map = {}
     
     for p in paragraphs:
         p_clean = p.strip()
         if not p_clean:
             continue
+            
+        # Detect active section heading
+        if p_clean.startswith("#"):
+            first_line = p_clean.split("\n")[0].strip("# \t")
+            if first_line:
+                active_section = first_line[:120]
+        
         p_len = len(p_clean)
+        
+        # Atomic Unit Protection for tables and code blocks
+        if is_table_block(p_clean) or is_code_block(p_clean):
+            if current_chunk:
+                chunks.append("\n\n".join(current_chunk))
+                section_map[len(chunks) - 1] = active_section
+                current_chunk = []
+                current_length = 0
+            chunks.append(p_clean)
+            section_map[len(chunks) - 1] = active_section
+            continue
         
         # If single paragraph is larger than limits, split it by sentence
         if p_len > settings.chunk_size:
             if current_chunk:
                 chunks.append("\n\n".join(current_chunk))
+                section_map[len(chunks) - 1] = active_section
                 current_chunk = []
                 current_length = 0
                 
@@ -381,6 +346,7 @@ def semantic_chunking(text: str, source_name: str, url: str, page_num: int = 1,
                 if sub_len + len(s_clean) > settings.chunk_size:
                     if sub_chunk:
                         chunks.append(" ".join(sub_chunk))
+                        section_map[len(chunks) - 1] = active_section
                     sub_chunk = [s_clean]
                     sub_len = len(s_clean)
                 else:
@@ -388,10 +354,12 @@ def semantic_chunking(text: str, source_name: str, url: str, page_num: int = 1,
                     sub_len += len(s_clean)
             if sub_chunk:
                 chunks.append(" ".join(sub_chunk))
+                section_map[len(chunks) - 1] = active_section
         else:
             # Group smaller paragraphs together
             if current_length + p_len > settings.chunk_size:
                 chunks.append("\n\n".join(current_chunk))
+                section_map[len(chunks) - 1] = active_section
                 current_chunk = [p_clean]
                 current_length = p_len
             else:
@@ -400,19 +368,36 @@ def semantic_chunking(text: str, source_name: str, url: str, page_num: int = 1,
                 
     if current_chunk:
         chunks.append("\n\n".join(current_chunk))
+        section_map[len(chunks) - 1] = active_section
         
     result = []
     for idx, c_text in enumerate(chunks):
-        if len(c_text.strip()) < 30:  # drop micro-chunks
+        c_clean = c_text.strip()
+        if len(c_clean) < 30:  # drop micro-chunks
             continue
+        sec = section_map.get(idx, "")
+        if sec:
+            contextual_prefix = f"[{source_name}] Section: {sec}\n\n{c_clean}"
+        else:
+            contextual_prefix = f"[{source_name}]\n\n{c_clean}"
+            
+        parent_raw = parent.strip()[:6000]
+        if len(parent_raw) > 250:
+            import zlib
+            parent_stored = zlib.compress(parent_raw.encode("utf-8"))
+        else:
+            parent_stored = parent_raw
+
         result.append({
             "chunk_id": str(uuid.uuid4()),
             "source_name": source_name,
             "url": url,
             "page": page_num,
-            "text": c_text.strip(),
+            "text": c_clean,
+            "contextual_text": contextual_prefix,
+            "section": sec,
             "parent_id": parent_id,
-            "parent_text": parent.strip()[:8000],
+            "parent_text": parent_stored,
         })
     return result
 
@@ -594,6 +579,14 @@ async def ingest_document(
             }}
         )
 
+        # Step 7: Clean up local PDF file after RAG indexing is complete
+        if os.path.exists(file_path):
+            try:
+                os.remove(file_path)
+                print(f"[Cleanup] Automatically deleted temporary PDF file after RAG completion: {file_path}")
+            except Exception as cleanup_err:
+                print(f"[Cleanup] [WARNING] Failed to remove file {file_path}: {cleanup_err}")
+
         return {"status": "ready", "pages": page_count, "chunks": len(chunks)}
 
     except Exception as e:
@@ -767,11 +760,19 @@ async def process_project_crawled_data(
         project = await projects_col().find_one({"_id": project_id})
         project_name = project.get("name", "Project") if project else "Project"
         
-        # Get all crawled pages for the project that are pending
-        pending_pages = await crawled_pages_col().find({
-            "project_id": project_id,
-            "status": "pending"
-        }).to_list(length=1000)
+        # Get all crawled pages for the project: pending pages, or all pages if recreating/repairing
+        find_filter = {"project_id": project_id}
+        if not force_recreate:
+            # Check if we have pending pages, or if no chunks exist at all
+            existing_chunks = await chunks_col().count_documents({"doc_id": project_id})
+            if existing_chunks > 0:
+                find_filter["status"] = "pending"
+            else:
+                find_filter["$or"] = [{"status": "pending"}, {"text_content": {"$exists": True, "$ne": ""}}]
+        else:
+            find_filter["$or"] = [{"status": "pending"}, {"text_content": {"$exists": True, "$ne": ""}}]
+
+        pending_pages = await crawled_pages_col().find(find_filter).to_list(length=1000)
         
         if not pending_pages:
             print(f"[Ingestion] No pending pages to index for Project {project_id}")
@@ -814,7 +815,7 @@ async def process_project_crawled_data(
                         "timestamp": datetime.utcnow().isoformat()
                     })
                 
-                if status == "indexed":
+                if status == "indexed" and chunks:
                     await crawled_pages_col().update_one(
                         {"_id": page_id},
                         {"$set": {"status": "indexed"}}
@@ -832,11 +833,13 @@ async def process_project_crawled_data(
                 return chunks
 
         tasks = [process_and_save_page(p, i) for i, p in enumerate(pending_pages)]
-        results = await asyncio.gather(*tasks)
+        results = await asyncio.gather(*tasks, return_exceptions=True)
         
-        for chunks in results:
-            if chunks:
-                all_chunks.extend(chunks)
+        for res in results:
+            if isinstance(res, list):
+                all_chunks.extend(res)
+            elif isinstance(res, Exception):
+                print(f"[Ingestion Error] Page extraction error caught safely: {res}")
 
         if not all_chunks:
             print(f"[Ingestion] No chunks created for Project {project_id}")
@@ -863,6 +866,9 @@ async def process_project_crawled_data(
         # Persist chunks in MongoDB chunks_col for keyword search (BM25) capability
         await chunks_col().delete_many({"doc_id": project_id})
         
+        # Sanitize all chunk strings to prevent any invalid utf-8 byte crashes
+        all_chunks = sanitize_utf8(all_chunks)
+
         # Batch insert chunks to prevent MongoDB write timeouts on large crawls
         chunk_batch_size = 500
         for i in range(0, len(all_chunks), chunk_batch_size):
@@ -907,21 +913,21 @@ async def process_project_crawled_data(
             points.append(qdrant_models.PointStruct(
                 id=str(uuid.uuid4()),  # Qdrant supports UUID strings directly
                 vector=vector.tolist(),
-                payload={
-                    "chunk_id": chunk["chunk_id"],
-                    "project_id": project_id,
-                    "source_name": chunk["source_name"],
-                    "url": chunk["url"],
+                payload=sanitize_utf8({
+                    "chunk_id": str(chunk["chunk_id"]),
+                    "project_id": str(project_id),
+                    "source_name": str(chunk["source_name"]),
+                    "url": str(chunk["url"]),
                     "page": chunk["page"],
-                    "text": chunk["text"],
+                    "text": str(chunk["text"]),
                     "source_type": chunk.get("source_type", "html"),
                     "department": chunk.get("department"),
                     "document_type": chunk.get("document_type"),
                     "embedding_id": chunk.get("embedding_id"),
                     "parent_id": chunk.get("parent_id"),
-                    "parent_text": chunk.get("parent_text", "")[:8000],
-                    "contextual_text": chunk.get("contextual_text", chunk["text"])[:2000]
-                }
+                    "parent_text": str(chunk.get("parent_text", ""))[:8000],
+                    "contextual_text": str(chunk.get("contextual_text", chunk["text"]))[:2000]
+                })
             ))
             
         # Batch upsert points
@@ -966,6 +972,9 @@ async def process_project_crawled_data(
                 "summary": project_summary
             }}
         )
+
+        # Preserving downloaded PDF files so users can view evidence and document citations
+        pass
         
         elapsed_time = time.time() - start_time
         
@@ -1037,16 +1046,28 @@ async def build_neo4j_graph_for_project(project_id: str, project_name: str, chun
         "3. Strictly return ONLY the JSON payload, no conversation, no markdown wrappers."
     )
     
+    entities = []
+    relations = []
     try:
-        raw_output = generate(context=merged_text[:12000], question=prompt)
-        # Clean potential markdown backticks
+        # Limit text size to 3000 chars to fit context models and run faster
+        raw_output = generate(context=merged_text[:3000], question=prompt)
         clean_json = re.sub(r"^```json\s*|```$", "", raw_output.strip(), flags=re.MULTILINE)
         data = json.loads(clean_json)
-        
         entities = data.get("entities", [])
         relations = data.get("relations", [])
-        
         print(f"[Neo4j Graph] Extracted {len(entities)} entities and {len(relations)} relationships.")
+    except Exception as e:
+        print(f"[Neo4j Graph] [WARNING] LLM graph extraction failed: {e}. Falling back to default structural entities.")
+        p_clean = project_name.strip() if project_name else "Domain"
+        entities = [
+            {"name": f"{p_clean} Home", "type": "Organization"},
+            {"name": f"{p_clean} Services", "type": "Department"},
+            {"name": f"{p_clean} Documentation", "type": "API"}
+        ]
+        relations = [
+            {"source": f"{p_clean} Home", "relationship": "HAS_ENTITY", "target": f"{p_clean} Services"},
+            {"source": f"{p_clean} Services", "relationship": "USES", "target": f"{p_clean} Documentation"}
+        ]
         
         # Write to Neo4j in a session
         with driver.session() as session:

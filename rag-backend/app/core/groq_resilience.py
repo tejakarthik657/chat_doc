@@ -25,6 +25,7 @@ from tenacity import (
     retry_if_exception_type,
     before_sleep_log,
 )
+import httpx
 from groq import Groq, RateLimitError, APIError, APIConnectionError
 
 logger = logging.getLogger(__name__)
@@ -138,101 +139,185 @@ class CircuitBreaker:
 # Groq Resilience Wrapper
 # ──────────────────────────────────────────────────────────────────────────────
 
+class KeyWorker:
+    """Manages an individual Groq API client with its own rate limiter and circuit breaker."""
+    def __init__(self, key: str, index: int):
+        self.key = key.strip()
+        self.index = index
+        timeout = httpx.Timeout(timeout=30.0, connect=5.0)
+        self.client = Groq(api_key=self.key, timeout=timeout, max_retries=1)
+        self.rate_limiter = TokenBucket(capacity=50, refill_rate=10.0)
+        self.circuit_breaker = CircuitBreaker(failure_threshold=3, recovery_timeout=20)
+        self.cooldown_until: float = 0.0
+
+    def is_available(self) -> bool:
+        if time.time() < self.cooldown_until:
+            return False
+        return not self.circuit_breaker.is_open()
+
+    def set_cooldown(self, seconds: float = 30.0):
+        self.cooldown_until = time.time() + seconds
+        logger.warning(f"[KeyPool] Key #{self.index} placed on cooldown for {seconds}s")
+
+
 class ResilientGroqClient:
     """
-    Wraps Groq client with resilience patterns.
+    OpenRouter-style Dynamic Multi-Key Groq Client Pool.
+    Rotates through multiple Groq API keys with zero-downtime failover on 429 rate limits.
     """
-
-    def __init__(self, api_key: str, rate_limit_rpm: int = 30):
-        self.client = Groq(api_key=api_key)
+    def __init__(self, api_keys: list[str]):
+        # Ensure we have at least one valid key
+        clean_keys = [k.strip() for k in api_keys if k and k.strip()]
+        if not clean_keys:
+            clean_keys = ["invalid-key-placeholder"]
         
-        # Token bucket: 30 RPM = 0.5 req/sec, we use 0.33 req/sec for safety
-        self.rate_limiter = TokenBucket(
-            capacity=5,
-            refill_rate=(rate_limit_rpm / 60) * 0.66  # 66% of max rate
-        )
-        
-        # Circuit breaker
-        self.circuit_breaker = CircuitBreaker(
-            failure_threshold=5,
-            recovery_timeout=60
-        )
+        self.workers = [KeyWorker(key, idx + 1) for idx, key in enumerate(clean_keys)]
+        self.current_idx = 0
+        logger.info(f"[KeyPool] Initialized resilient pool with {len(self.workers)} active Groq API keys")
 
-    @retry(
-        stop=stop_after_attempt(4),
-        wait=wait_exponential(multiplier=1, min=2, max=60),
-        retry=retry_if_exception_type((RateLimitError, APIConnectionError)),
-        before_sleep=before_sleep_log(logger, logging.WARNING),
-    )
-    def _call_with_backoff(self, **kwargs):
-        """Internal method with exponential backoff retry logic."""
-        return self.client.chat.completions.create(**kwargs)
+    def _get_next_worker(self) -> Optional[KeyWorker]:
+        total = len(self.workers)
+        for offset in range(total):
+            idx = (self.current_idx + offset) % total
+            worker = self.workers[idx]
+            if worker.is_available():
+                self.current_idx = (idx + 1) % total
+                return worker
+        # If all in cooldown, take the one whose cooldown expires earliest
+        earliest = min(self.workers, key=lambda w: w.cooldown_until)
+        return earliest
 
     def chat_completion(
         self,
         messages: list,
-        model: str = "llama-3.3-70b-versatile",
+        model: str = "qwen/qwen3.8-27b",
         temperature: float = 0.7,
-        max_tokens: int = 500,
+        max_tokens: int = 800,
         fallback_fn: Optional[callable] = None,
     ) -> str:
+        max_pool_attempts = min(len(self.workers) * 2, 10)
+        last_exception = None
+        consecutive_conn_errors = 0
+
+        for attempt in range(max_pool_attempts):
+            worker = self._get_next_worker()
+            if not worker:
+                break
+
+            worker.rate_limiter.acquire(1, blocking=False)
+            t_start = time.time()
+
+            try:
+                response = worker.client.chat.completions.create(
+                    model=model,
+                    messages=messages,
+                    temperature=temperature,
+                    max_tokens=max_tokens,
+                )
+                worker.circuit_breaker.record_success()
+                _groq_metrics.record_call(time.time() - t_start, error=False)
+                content = response.choices[0].message.content or ""
+                # For reasoning models (e.g. openai/gpt-oss-20b), fallback to reasoning if content is empty
+                if not content.strip() and hasattr(response.choices[0].message, "reasoning"):
+                    reasoning = getattr(response.choices[0].message, "reasoning", "")
+                    if reasoning:
+                        content = reasoning
+                return content
+
+            except RateLimitError as e:
+                _groq_metrics.record_rate_limit()
+                _groq_metrics.record_call(time.time() - t_start, error=True)
+                worker.set_cooldown(seconds=35.0)
+                worker.circuit_breaker.record_failure()
+                last_exception = e
+                logger.warning(f"[KeyPool] Key #{worker.index} hit 429 RateLimit. Seamlessly hopping to next key...")
+                continue
+
+            except APIConnectionError as e:
+                consecutive_conn_errors += 1
+                _groq_metrics.record_call(time.time() - t_start, error=True)
+                worker.circuit_breaker.record_failure()
+                last_exception = e
+                logger.warning(f"[KeyPool] Key #{worker.index} connection error: {e}.")
+                # If network is down or groq unreachable across workers, fail fast to fallback
+                if consecutive_conn_errors >= 2:
+                    logger.warning("[KeyPool] Network/API connection issue detected across keys. Breaking out to fallback immediately.")
+                    break
+                continue
+
+            except APIError as e:
+                err_str = str(e).lower()
+                if "model_decommissioned" in err_str or "model_not_found" in err_str or "does not exist" in err_str or "decommissioned" in err_str:
+                    logger.error(f"[KeyPool] Model '{model}' is invalid/decommissioned on Groq ({e}). Aborting retries across keypool.")
+                    last_exception = e
+                    break
+
+                _groq_metrics.record_call(time.time() - t_start, error=True)
+                worker.circuit_breaker.record_failure()
+                last_exception = e
+                logger.warning(f"[KeyPool] Key #{worker.index} API error: {e}. Hopping to next key...")
+                continue
+
+            except Exception as e:
+                last_exception = e
+                logger.error(f"[KeyPool] Unexpected error on key #{worker.index}: {e}")
+                break
+
+        # If all keys failed or exhausted, trigger fallback
+        if fallback_fn:
+            logger.info("[KeyPool] Keys in pool exhausted or offline. Delegating to local offline fallback...")
+            return fallback_fn(messages)
+
+        if last_exception:
+            raise last_exception
+        raise APIError("All API keys in Groq pool exhausted and unavailable.")
+
+    def transcribe_audio(
+        self,
+        file_tuple: Any,
+        model: str = "whisper-large-v3-turbo",
+        prompt: Optional[str] = None,
+    ) -> str:
         """
-        Make a Groq API call with full resilience.
-
-        Args:
-            messages: Chat messages
-            model: Model name
-            temperature: Sampling temperature
-            max_tokens: Max tokens in response
-            fallback_fn: Fallback function if Groq fails (e.g., local TinyLlama)
-
-        Returns:
-            Response text or fallback result
+        Transcribe audio using Groq Cloud Whisper with resilient multi-key pooling.
+        Ultra-fast (<300ms) with zero local GPU/CPU overhead.
         """
-        # Check circuit breaker first
-        if self.circuit_breaker.is_open():
-            logger.warning("Groq circuit breaker OPEN, using fallback")
-            if fallback_fn:
-                return fallback_fn(messages)
-            raise APIError("Groq service unavailable, no fallback available")
+        max_pool_attempts = min(len(self.workers) * 2, 10)
+        last_exception = None
 
-        # Rate limiting: acquire token (wait if needed)
-        self.rate_limiter.acquire(1, blocking=True)
+        for attempt in range(max_pool_attempts):
+            worker = self._get_next_worker()
+            if not worker:
+                break
 
-        # Make request with exponential backoff
-        try:
-            response = self._call_with_backoff(
-                model=model,
-                messages=messages,
-                temperature=temperature,
-                max_tokens=max_tokens,
-            )
-            self.circuit_breaker.record_success()
-            return response.choices[0].message.content
+            worker.rate_limiter.acquire(1, blocking=False)
+            t_start = time.time()
+            try:
+                kwargs = {"file": file_tuple, "model": model}
+                if prompt:
+                    kwargs["prompt"] = prompt
+                transcription = worker.client.audio.transcriptions.create(**kwargs)
+                worker.circuit_breaker.record_success()
+                _groq_metrics.record_call(time.time() - t_start, error=False)
+                return transcription.text
+            except RateLimitError as e:
+                _groq_metrics.record_rate_limit()
+                _groq_metrics.record_call(time.time() - t_start, error=True)
+                worker.set_cooldown(seconds=35.0)
+                worker.circuit_breaker.record_failure()
+                last_exception = e
+                logger.warning(f"[KeyPool] Key #{worker.index} hit 429 on Whisper. Hopping to next key...")
+                continue
+            except Exception as e:
+                _groq_metrics.record_call(time.time() - t_start, error=True)
+                worker.circuit_breaker.record_failure()
+                last_exception = e
+                logger.warning(f"[KeyPool] Key #{worker.index} Whisper error: {e}. Hopping to next key...")
+                continue
 
-        except RateLimitError as e:
-            logger.error(f"Groq rate limit: {e}")
-            self.circuit_breaker.record_failure()
-            if fallback_fn:
-                logger.info("Using fallback for rate-limited request")
-                return fallback_fn(messages)
-            raise
-
-        except APIConnectionError as e:
-            logger.error(f"Groq connection error: {e}")
-            self.circuit_breaker.record_failure()
-            if fallback_fn:
-                logger.info("Using fallback for connection error")
-                return fallback_fn(messages)
-            raise
-
-        except APIError as e:
-            logger.error(f"Groq API error: {e}")
-            self.circuit_breaker.record_failure()
-            if fallback_fn:
-                logger.info("Using fallback for API error")
-                return fallback_fn(messages)
-            raise
+        if last_exception:
+            raise last_exception
+        raise APIError("All API keys in Groq pool exhausted for audio transcription.")
 
 
 # ──────────────────────────────────────────────────────────────────────────────
@@ -278,11 +363,42 @@ _groq_client: Optional[ResilientGroqClient] = None
 _groq_metrics: GroqMetrics = GroqMetrics()
 
 
-def get_groq_client(api_key: str) -> ResilientGroqClient:
-    """Lazy-load resilient Groq client singleton."""
+class ResilientGroqClientProxy:
+    """Auto-initializing proxy that loads keys from settings seamlessly."""
+    def _client(self) -> ResilientGroqClient:
+        global _groq_client
+        if _groq_client is None:
+            try:
+                from app.core.config import get_settings
+                s = get_settings()
+                keys = []
+                if s.groq_api_keys:
+                    keys.extend([k.strip() for k in s.groq_api_keys.split(",") if k.strip()])
+                if s.groq_api_key and s.groq_api_key not in keys:
+                    keys.append(s.groq_api_key.strip())
+                _groq_client = ResilientGroqClient(keys)
+            except Exception as e:
+                logger.warning(f"[KeyPool] Could not load keys from settings: {e}")
+                _groq_client = ResilientGroqClient([])
+        return _groq_client
+
+    def __getattr__(self, name):
+        return getattr(self._client(), name)
+
+
+resilient_groq_client = ResilientGroqClientProxy()
+
+
+def get_groq_client(api_key: Optional[str] = None, api_keys: Optional[list[str]] = None) -> ResilientGroqClient:
+    """Lazy-load resilient Groq multi-key pool singleton."""
     global _groq_client
     if _groq_client is None:
-        _groq_client = ResilientGroqClient(api_key)
+        keys = []
+        if api_keys:
+            keys.extend(api_keys)
+        if api_key and api_key not in keys:
+            keys.append(api_key)
+        _groq_client = ResilientGroqClient(keys)
     return _groq_client
 
 

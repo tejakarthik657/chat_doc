@@ -1,4 +1,4 @@
-import api from '@/lib/api';
+import api, { chatApi } from '@/lib/api';
 
 export interface SourceCitation {
     page: number;
@@ -17,6 +17,10 @@ export interface ChatResponse {
     support_label?: string;
     support_confidence?: number;
     support_snippet?: string;
+    evidence_trace?: any[];
+    mode?: string;
+    artifact?: any;
+    mindspace_nodes?: any[];
 }
 
 export interface ChatHistoryItem {
@@ -28,35 +32,78 @@ export interface ChatHistoryItem {
 
 export const chatService = {
     async sendMessage(docId: string, question: string, strictMode = false) {
-        const response = await api.post<ChatResponse>(`/chat/${docId}`, { question, strict_mode: strictMode });
+        // Use chatApi (60s timeout) — LLM generation takes 3–15s
+        const response = await chatApi.post<ChatResponse>(`/chat/${docId}`, { question, strict_mode: strictMode });
+        return response.data;
+    },
+
+    async askGeneralAI(question: string, docId = "general", contextHint?: string) {
+        // Direct World Knowledge LLM query without document restrictions
+        const response = await chatApi.post<ChatResponse>(`/chat/${docId}/general`, {
+            question,
+            doc_id: docId,
+            context_hint: contextHint
+        });
         return response.data;
     },
 
     async getHistory(docId: string) {
-        const response = await api.get<ChatHistoryItem[]>(`/chat/${docId}/history`);
-        return response.data;
+        if (!docId || docId === "onboarding") {
+            return [];
+        }
+        try {
+            const response = await api.get<ChatHistoryItem[]>(`/chat/${docId}/history`);
+            return response.data;
+        } catch (err: any) {
+            if (err?.response?.status === 404) {
+                return [];
+            }
+            throw err;
+        }
     },
 
     async clearMemory(docId: string) {
-        await api.delete(`/chat/${docId}/memory`);
+        if (!docId || docId === "onboarding") return;
+        try {
+            await api.delete(`/chat/${docId}/memory`);
+        } catch (err: any) {
+            if (err?.response?.status !== 404) throw err;
+        }
     },
 
     // ── Projects Chat API Callers ──
-    async sendMessageProject(projectId: string, question: string, strictMode = false, scopedSources?: string[]) {
-        const response = await api.post<ChatResponse>(`/chat/project/${projectId}`, { 
+    async sendMessageProject(projectId: string, question: string, strictMode = false, scopedSources?: string[], mode: string = "standard") {
+        // Use chatApi (60s timeout) — LLM generation takes 3–15s
+        const response = await chatApi.post<ChatResponse>(`/chat/project/${projectId}`, { 
             question, 
             strict_mode: strictMode,
-            scoped_sources: scopedSources
+            scoped_sources: scopedSources,
+            mode: mode
         });
         return response.data;
     },
 
     async getHistoryProject(projectId: string) {
-        const response = await api.get<ChatHistoryItem[]>(`/chat/project/${projectId}/history`);
-        return response.data;
+        if (!projectId || projectId === "onboarding") {
+            return [];
+        }
+        try {
+            const response = await api.get<ChatHistoryItem[]>(`/chat/project/${projectId}/history`);
+            return response.data;
+        } catch (err: any) {
+            if (err?.response?.status === 404) {
+                return [];
+            }
+            throw err;
+        }
     },
 
     async clearMemoryProject(projectId: string) {
-        await api.delete(`/chat/project/${projectId}/memory`);
+        if (!projectId || projectId === "onboarding") return;
+        try {
+            await api.delete(`/chat/project/${projectId}/memory`);
+        } catch (err: any) {
+            if (err?.response?.status !== 404) throw err;
+        }
     }
 };

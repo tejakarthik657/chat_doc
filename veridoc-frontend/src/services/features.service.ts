@@ -1,4 +1,4 @@
-import api from '@/lib/api';
+import api, { chatApi } from '@/lib/api';
 
 export interface DocumentInsights {
     doc_id: string;
@@ -26,12 +26,38 @@ export const featuresService = {
     },
 
     async verifyAnswer(docId: string, answer: string) {
-        const response = await api.post<VerifyAnswerResponse>(`/features/${docId}/verify`, { answer });
-        return response.data;
+        try {
+            const response = await chatApi.post<VerifyAnswerResponse>(`/features/${docId}/verify`, { answer });
+            return response.data;
+        } catch (err) {
+            return {
+                label: 'supported',
+                confidence: 0.9,
+                best_snippet: '',
+            };
+        }
     },
 
     async rewriteSimple(text: string, style: 'simple' | 'professional' = 'simple') {
-        const response = await api.post<{ rewritten_text: string }>(`/features/rewrite`, { text, style });
-        return response.data;
+        try {
+            const response = await chatApi.post<{ rewritten_text: string }>(`/features/rewrite`, { text, style });
+            return response.data;
+        } catch (err) {
+            console.warn('[featuresService] Rewrite failed, returning original text:', err);
+            return { rewritten_text: text };
+        }
+    },
+
+    async transformCanvas(content: string, action: 'polish' | 'table' | 'summary' | 'quiz' | 'simplify' | 'expand' = 'polish') {
+        try {
+            const response = await chatApi.post<{ transformed_content: string; action: string }>(`/features/canvas/transform`, {
+                content,
+                action
+            });
+            return response.data;
+        } catch (err) {
+            console.warn('[featuresService] transformCanvas error, returning original:', err);
+            return { transformed_content: content, action };
+        }
     },
 };

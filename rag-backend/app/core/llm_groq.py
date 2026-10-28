@@ -34,16 +34,22 @@ _groq_client = None
 
 
 def _get_or_init_groq_client():
-    """Lazy-load Groq client with resilience."""
+    """Lazy-load Groq multi-key pool client with resilience."""
     global _groq_client
     settings = get_settings()
     
-    if not settings.groq_api_key:
-        logger.warning("[Groq] GROQ_API_KEY not set — local LLM will be used")
+    keys = []
+    if settings.groq_api_keys:
+        keys.extend([k.strip() for k in settings.groq_api_keys.split(",") if k.strip()])
+    if settings.groq_api_key and settings.groq_api_key not in keys:
+        keys.append(settings.groq_api_key.strip())
+        
+    if not keys:
+        logger.warning("[Groq] No GROQ_API_KEY or GROQ_API_KEYS set — local LLM will be used")
         return None
     
     if _groq_client is None:
-        _groq_client = get_groq_client(settings.groq_api_key)
+        _groq_client = get_groq_client(api_keys=keys)
     
     return _groq_client
 
@@ -82,24 +88,46 @@ def generate(context: str, question: str, memory: str = "") -> str:
         }
     ]
     
+    def fast_clean_fallback():
+        try:
+            from app.core.llm_local import generate_ollama
+            prompt = f"Document Context:\n{context[:3000]}\n{memory_block}\nQuestion: {question}"
+            ollama_ans = generate_ollama(prompt=prompt, system_prompt=SYSTEM_PROMPT, temperature=0.2)
+            if ollama_ans:
+                return ollama_ans
+        except Exception as ollama_err:
+            logger.warning(f"[Ollama Fallback Notice] {ollama_err}")
+            
+        try:
+            return local_generate(context=context[:1500], question=question, memory=memory)
+        except Exception as err:
+            logger.error(f"[LLM Fallback Error] {err}")
+            return "Based on the indexed document context, the requested information could not be determined."
+
     try:
-        # Call with full resilience (rate limiting + backoff + circuit breaker)
+        # Primary: qwen/qwen3.8-27b on Groq resilient pool
         answer = client.chat_completion(
             messages=messages,
             model="qwen/qwen3.8-27b",
-            temperature=0.7,
-            max_tokens=500,
-            fallback_fn=lambda msgs: local_generate(
-                context=context,
-                question=question,
-                memory=memory
-            ),
+            temperature=0.3,
+            max_tokens=800,
+            fallback_fn=None,
         )
         return answer.strip()
-    
-    except Exception as e:
-        logger.error(f"[Groq] Fatal error: {e}. Falling back to local LLM.")
-        return local_generate(context=context, question=question, memory=memory)
+    except Exception as primary_err:
+        logger.warning(f"[Groq] qwen/qwen3.8-27b error: {primary_err}. Trying openai/gpt-oss-120b...")
+        try:
+            answer = client.chat_completion(
+                messages=messages,
+                model="openai/gpt-oss-120b",
+                temperature=0.3,
+                max_tokens=800,
+                fallback_fn=None,
+            )
+            return answer.strip()
+        except Exception as fallback_err:
+            logger.error(f"[Groq] All cloud models failed: {fallback_err}.")
+            return fast_clean_fallback()
 
 
 def get_groq_stats() -> dict:

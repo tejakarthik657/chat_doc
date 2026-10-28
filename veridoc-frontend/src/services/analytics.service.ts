@@ -1,4 +1,4 @@
-import api from '@/lib/api';
+import api, { fastGet } from '@/lib/api';
 
 export interface ClusterSummary {
     cluster_id: number;
@@ -29,7 +29,6 @@ export interface AnalyticsSummary {
 
 export const analyticsService = {
     async getSummary() {
-        const response = await api.get<AnalyticsSummary>('/analytics/summary');
-        return response.data;
+        return await fastGet<AnalyticsSummary>('/analytics/summary', undefined, 10000);
     }
 };

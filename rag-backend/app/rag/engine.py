@@ -35,9 +35,12 @@ If BM25 index missing → FAISS-only.
 If HyDE fails → raw question.
 If reranker fails → use fusion order.
 """
+import asyncio
 import numpy as np
 from datetime import datetime
 import time
+import re
+from typing import Optional, List, Dict, Any
 
 from app.core.embeddings import embed_texts, load_faiss_index, search_index
 from app.core.bm25 import load_bm25_index, bm25_search
@@ -191,6 +194,12 @@ def build_context_string(ranked_chunks: list[tuple], max_tokens: int = 4000) -> 
         page = chunk.get("page", 1)
         parent_id = chunk.get("parent_id")
         parent_text = chunk.get("parent_text", "")
+        if isinstance(parent_text, (bytes, bytearray)):
+            import zlib
+            try:
+                parent_text = zlib.decompress(parent_text).decode("utf-8", errors="ignore")
+            except Exception:
+                parent_text = ""
         
         dedup_key = parent_id or (source_url or source_name, page)
         
@@ -235,8 +244,25 @@ def _not_found_response(doc_id: str) -> ChatResponse:
 # ── Memory ────────────────────────────────────────────────────────────────────
 
 async def get_memory(doc_id: str, user_id: str) -> str:
+    from app.db.mongodb import nexus_memories_col
     mem = await memory_col().find_one({"doc_id": doc_id, "user_id": user_id})
-    return mem.get("memory_summary", "") if mem else ""
+    short_term = mem.get("memory_summary", "") if mem else ""
+    
+    # Retrieve ECHO Living Memories for this user & project
+    nexus_mems = await nexus_memories_col().find(
+        {"user_id": user_id, "$or": [{"project_id": doc_id}, {"project_id": "global"}]}
+    ).limit(10).to_list(length=10)
+    
+    echo_facts = [f"• [{m.get('category', 'fact')}] {m.get('key')}: {m.get('value')}" for m in nexus_mems]
+    echo_block = "\n".join(echo_facts)
+    
+    combined = []
+    if echo_block:
+        combined.append(f"[ECHO LIVING MEMORY / USER PREFERENCES]\n{echo_block}")
+    if short_term:
+        combined.append(f"[RECENT CONVERSATION CONTEXT]\n{short_term}")
+        
+    return "\n\n".join(combined)
 
 
 async def update_memory(doc_id: str, user_id: str, question: str, answer: str):
@@ -429,13 +455,14 @@ async def answer_question(
         ]
         t_mongodb = time.perf_counter() - t_mongodb_start
 
-        # Step 6: Cross-Encoder Reranking (precision layer)
+        # Step 6: Cross-Encoder Reranking (precision layer) — offloaded to thread pool
         t_rerank_start = time.perf_counter()
         try:
-            reranked = rerank_chunks(
-                query=question,          # Always raw question — NOT HyDE hypothesis
-                chunks=ordered_chunks,
-                top_k=settings.context_top_k
+            reranked = await asyncio.to_thread(
+                rerank_chunks,
+                question,
+                ordered_chunks,
+                settings.context_top_k
             )
         except Exception as e:
             print(f"[Reranker] Failed, falling back to fusion order: {e}")
@@ -455,13 +482,14 @@ async def answer_question(
             
         memory = await get_memory(doc_id, user_id)
 
-        # Step 8: Generate grounded answer
+        # Step 8: Generate grounded answer — offloaded to thread pool (sync Groq HTTP call)
         t_gen_start = time.perf_counter()
-        answer = generate(context=context, question=question, memory=memory)
+        answer = await asyncio.to_thread(generate, context=context, question=question, memory=memory)
         t_gen = time.perf_counter() - t_gen_start
 
         t_verify_start = time.perf_counter()
-        verification = verify_answer_support(
+        verification = await asyncio.to_thread(
+            verify_answer_support,
             answer,
             [chunk["text"] for chunk, _ in reranked]
         )
@@ -470,30 +498,45 @@ async def answer_question(
             answer = "I cannot provide a confident answer from this document in strict mode. Try asking a more specific question or disable strict mode."
         t_verify = time.perf_counter() - t_verify_start
 
-        # Step 9: Build citations
+        # Step 9: Build citations & evidence trace
         sources = [
             SourceCitation(
-                page=chunk["page"],
-                chunk_id=chunk["chunk_id"],
-                snippet=chunk["text"][:200]
+                page=chunk.get("page", 1),
+                chunk_id=chunk.get("chunk_id", ""),
+                snippet=chunk.get("text", "")[:200]
             )
             for chunk, _ in reranked
         ]
+        
+        evidence_trace = [
+            {
+                "chunk_id": chunk.get("chunk_id", ""),
+                "page": chunk.get("page", 1),
+                "score": float(score),
+                "source": chunk.get("source_name", doc_filename),
+                "snippet": chunk.get("text", "")[:350],
+            }
+            for chunk, score in reranked
+        ]
 
-        # Step 10: Persist
+        # Step 10: Persist — run DB writes in parallel using asyncio.gather
         t_db_start = time.perf_counter()
+        # Reuse q_vector from retrieval instead of calling embed_texts again
         raw_vector = embed_texts([question], is_query=True)[0]
-        await chat_history_col().insert_one({
-            "user_id": user_id,
-            "doc_id": doc_id,
-            "question": question,
-            "answer": answer,
-            "sources": [s.dict() for s in sources],
-            "retrieval_debug": debug_info if debug else None,
-            "timestamp": datetime.utcnow()
-        })
-        await update_memory(doc_id, user_id, question, answer)
-        await log_question(user_id, doc_id, doc_filename, question, raw_vector.tolist())
+        await asyncio.gather(
+            chat_history_col().insert_one({
+                "user_id": user_id,
+                "doc_id": doc_id,
+                "question": question,
+                "answer": answer,
+                "sources": [s.dict() for s in sources],
+                "evidence_trace": evidence_trace,
+                "retrieval_debug": debug_info if debug else None,
+                "timestamp": datetime.utcnow()
+            }),
+            update_memory(doc_id, user_id, question, answer),
+            log_question(user_id, doc_id, doc_filename, question, raw_vector.tolist()),
+        )
         t_db = time.perf_counter() - t_db_start
 
         t_total = time.perf_counter() - t_start
@@ -508,6 +551,7 @@ async def answer_question(
             support_label=verification["label"],
             support_confidence=verification["confidence"],
             support_snippet=verification["best_snippet"],
+            evidence_trace=evidence_trace,
         )
 
     except Exception as e:
@@ -523,12 +567,49 @@ async def answer_question(
         )
 
 
+def get_mode_instruction(mode: Optional[str] = "standard") -> str:
+    """Return specialized prompt guidance for the 5 NEXUS Experience modes."""
+    if mode == "debate":
+        return (
+            "\n[RESPONSE MODE: DEBATE]\n"
+            "Format your answer as a balanced, high-intellect debate between two perspectives based on the evidence:\n"
+            "1. PERSPECTIVE A (Strengths / Proponent Argument)\n"
+            "2. PERSPECTIVE B (Risks / Skeptic Argument)\n"
+            "3. SYNTHESIS & VERDICT (Grounded conclusion based strictly on context)."
+        )
+    elif mode == "decision_tree":
+        return (
+            "\n[RESPONSE MODE: DECISION TREE]\n"
+            "Format your answer as an actionable, branching decision tree:\n"
+            "• IF [Scenario/Condition A] -> THEN [Recommended Path & Evidence]\n"
+            "• IF [Scenario/Condition B] -> THEN [Alternative Path & Constraints]\n"
+            "• KEY ASSUMPTIONS & UNKNOWNS: list critical variables needed to finalize the decision."
+        )
+    elif mode == "brutal_review":
+        return (
+            "\n[RESPONSE MODE: BRUTAL REVIEW & COUNTERPOINT]\n"
+            "Act as a critical peer reviewer. Directly challenge claims, point out unverified assumptions, "
+            "highlight missing evidence or vulnerabilities in the context, and run a pre-mortem on what could fail. "
+            "Separate verified facts from optimistic speculation."
+        )
+    elif mode == "builder":
+        return (
+            "\n[RESPONSE MODE: BUILDER / SIMULATOR]\n"
+            "Turn your answer into a tangible, executable plan. Provide:\n"
+            "1. STEP-BY-STEP IMPLEMENTATION CHECKLIST (with markdown check-boxes: - [ ] )\n"
+            "2. RESOURCE & COMPONENT SPECIFICATION\n"
+            "3. IMMEDIATE NEXT 3 ACTIONS TO EXECUTE TODAY."
+        )
+    return ""
+
+
 async def answer_project_question(
     question: str,
     project_id: str,
     user_id: str,
     strict_mode: bool = False,
-    scoped_sources: list[str] | None = None
+    scoped_sources: list[str] | None = None,
+    mode: str = "standard"
 ) -> ChatResponse:
     """
     RAG pipeline for Projects.
@@ -608,11 +689,13 @@ async def answer_project_question(
     query_variations = _generate_query_variations(question)
     print(f"[RAG Engine] Query variations: {len(query_variations)}")
     
-    # Run Dense Vector Search in Qdrant (multi-query aggregation)
+    # Run Dense Vector Search in Qdrant (batch-embedded multi-query aggregation)
     all_qdrant: dict[int, float] = {}
+    hit_payloads: dict[int, dict] = {}
     try:
-        for q_var in query_variations:
-            qv = embed_texts([q_var], is_query=True)[0]
+        # Batch embed all variations at once for maximum speed
+        var_vectors = embed_texts(query_variations, is_query=True)
+        for i, qv in enumerate(var_vectors):
             res = search_collection(
                 collection_name=collection_name,
                 query_vector=qv.tolist(),
@@ -622,45 +705,33 @@ async def answer_project_question(
             
             for hit in res:
                 emb_id = hit.payload.get("embedding_id")
-                if emb_id is not None:
-                    eid = int(emb_id)
-                    score = float(hit.score)
+                cid = hit.payload.get("chunk_id") or str(hit.id)
+                key = int(emb_id) if emb_id is not None else cid
+                score = float(hit.score)
+                
+                # Apply soft metadata boosting in Python (add 0.15 boost for matches)
+                if metadata_filter.get("department") and hit.payload.get("department") == metadata_filter["department"]:
+                    score += 0.15
+                if metadata_filter.get("document_type") and hit.payload.get("document_type") == metadata_filter["document_type"]:
+                    score += 0.15
                     
-                    # Apply soft metadata boosting in Python (add 0.15 boost for matches)
-                    if metadata_filter.get("department") and hit.payload.get("department") == metadata_filter["department"]:
-                        score += 0.15
-                    if metadata_filter.get("document_type") and hit.payload.get("document_type") == metadata_filter["document_type"]:
-                        score += 0.15
-                        
-                    if eid not in all_qdrant or score > all_qdrant[eid]:
-                        all_qdrant[eid] = score
+                if key not in all_qdrant or score > all_qdrant[key]:
+                    all_qdrant[key] = score
+                    hit_payloads[key] = hit.payload
     except Exception as e:
-        print(f"[Qdrant] Search failed (maybe collection does not exist): {e}")
-        return ChatResponse(
-            answer="No document chunks or crawled pages indexed in this project yet. Please verify that the crawler is done.",
-            sources=[],
-            grounded=False,
-            doc_id=project_id,
-            timestamp=datetime.utcnow()
-        )
+        print(f"[Qdrant] Search notice for collection {collection_name}: {e}. Falling back to BM25 and MongoDB.")
     
     qdrant_results = sorted(all_qdrant.items(), key=lambda x: x[1], reverse=True)
-    
-    if not qdrant_results:
-        return ChatResponse(
-            answer="I couldn't find any relevant information for your question in the project's knowledge base.",
-            sources=[],
-            grounded=False,
-            doc_id=project_id,
-            timestamp=datetime.utcnow()
-        )
     
     # Run Sparse Keyword Search (BM25)  
     bm25_results = []
     bm25_index = load_bm25_index(project_id)
     if bm25_index is not None:
-        bm25_results = bm25_search(bm25_index, question, top_k=retrieval_limit)
-        print(f"[RAG Engine] Hybrid search BM25 hits: {len(bm25_results)}")
+        try:
+            bm25_results = bm25_search(bm25_index, question, top_k=retrieval_limit)
+            print(f"[RAG Engine] Hybrid search BM25 hits: {len(bm25_results)}")
+        except Exception as bm25_err:
+            print(f"[RAG Engine] BM25 search notice: {bm25_err}")
     t_retrieval = time.perf_counter() - t_retrieval_start
         
     # Perform RRF Fusion to combine Dense (Qdrant) and Sparse (BM25) results
@@ -669,63 +740,139 @@ async def answer_project_question(
     fused_ids = [emb_id for emb_id, _ in fused]
     t_fusion = time.perf_counter() - t_fusion_start
     
-    # Retrieve chunk details from MongoDB
+    # Fast path: Extract candidates directly from Qdrant payloads or track missing ones
     t_mongodb_start = time.perf_counter()
-    if fused_ids:
-        raw_chunks = await chunks_col().find(
-            {"doc_id": project_id, "embedding_id": {"$in": fused_ids}}
-        ).to_list(length=len(fused_ids))
-        
-        # Sort chunks in RRF order
-        id_to_chunk = {c["embedding_id"]: c for c in raw_chunks}
-        candidates = []
-        for emb_id in fused_ids:
-            if emb_id in id_to_chunk:
-                chunk_doc = id_to_chunk[emb_id]
-                candidates.append({
-                    "chunk_id": chunk_doc["chunk_id"],
-                    "text": chunk_doc["text"],
-                    "source_name": chunk_doc["filename"],
-                    "url": chunk_doc.get("url"),
-                    "page": chunk_doc.get("page", 1)
-                })
-    else:
-        # Fallback: use Qdrant result payloads directly
-        all_raw_hits = []
-        try:
-            for q_var in query_variations:
-                qv = embed_texts([q_var], is_query=True)[0]
-                raw_hits = search_collection(
-                    collection_name=collection_name,
-                    query_vector=qv.tolist(),
-                    limit=retrieval_limit,
-                )
-                all_raw_hits.extend(raw_hits)
-        except Exception:
-            pass
-        
-        seen_ids = set()
-        candidates = []
-        for hit in all_raw_hits:
-            cid = hit.payload.get("chunk_id")
-            if cid and cid not in seen_ids:
-                seen_ids.add(cid)
+    seen_cids = set()
+    candidates = []
+    missing_ids = []
+    
+    for emb_id in fused_ids:
+        if emb_id in hit_payloads:
+            payload = hit_payloads[emb_id]
+            cid = payload.get("chunk_id")
+            if cid and cid not in seen_cids:
+                seen_cids.add(cid)
                 candidates.append({
                     "chunk_id": cid,
-                    "text": hit.payload["text"],
-                    "source_name": hit.payload["source_name"],
-                    "url": hit.payload["url"],
-                    "page": hit.payload["page"]
+                    "text": payload["text"],
+                    "source_name": payload.get("source_name", "Document"),
+                    "url": payload.get("url"),
+                    "page": payload.get("page", 1)
                 })
+        else:
+            missing_ids.append(emb_id)
+            
+    # Fetch any missing BM25 / sparse chunks from MongoDB
+    if missing_ids:
+        try:
+            int_ids = [m for m in missing_ids if isinstance(m, int)]
+            str_ids = [str(m) for m in missing_ids]
+            conds = []
+            if int_ids:
+                conds.append({"embedding_id": {"$in": int_ids}})
+            if str_ids:
+                conds.append({"chunk_id": {"$in": str_ids}})
+            if conds:
+                db_chunks = await chunks_col().find({
+                    "doc_id": project_id,
+                    "$or": conds
+                }).to_list(length=len(missing_ids))
+                for c in db_chunks:
+                    cid = c.get("chunk_id")
+                    if cid and cid not in seen_cids:
+                        seen_cids.add(cid)
+                        candidates.append({
+                            "chunk_id": cid,
+                            "text": c["text"],
+                            "source_name": c.get("source_name", "Document"),
+                            "url": c.get("url"),
+                            "page": c.get("page", 1)
+                        })
+        except Exception as mongo_fetch_err:
+            print(f"[RAG Engine] Error fetching missing BM25 chunks from MongoDB: {mongo_fetch_err}")
+    
+    # Fallback to direct Qdrant hits if RRF fused set was empty
+    if not candidates and hit_payloads:
+        for eid, payload in hit_payloads.items():
+            cid = payload.get("chunk_id")
+            if cid and cid not in seen_cids:
+                seen_cids.add(cid)
+                candidates.append({
+                    "chunk_id": cid,
+                    "text": payload["text"],
+                    "source_name": payload.get("source_name", "Document"),
+                    "url": payload.get("url"),
+                    "page": payload.get("page", 1)
+                })
+                
+    # Fallback Tier 3: Direct MongoDB keyword regex search if candidates are still empty
+    if not candidates:
+        try:
+            tokens = [w for w in re.findall(r"[a-zA-Z0-9]+", question.lower()) if len(w) > 2][:4]
+            if tokens:
+                regex_pat = "|".join(re.escape(t) for t in tokens)
+                mongo_fb = await chunks_col().find({
+                    "doc_id": project_id,
+                    "text": {"$regex": regex_pat, "$options": "i"}
+                }).to_list(length=10)
+                for c in mongo_fb:
+                    cid = c.get("chunk_id")
+                    if cid and cid not in seen_cids:
+                        seen_cids.add(cid)
+                        candidates.append({
+                            "chunk_id": cid,
+                            "text": c["text"],
+                            "source_name": c.get("source_name", "Document"),
+                            "url": c.get("url"),
+                            "page": c.get("page", 1)
+                        })
+        except Exception as fb_err:
+            print(f"[RAG Engine] MongoDB fallback search notice: {fb_err}")
+
+    # Fallback Tier 4: Direct search in crawled_pages_col() if candidates are still empty
+    if not candidates:
+        try:
+            from app.db.mongodb import crawled_pages_col
+            is_overview = any(w in question.lower() for w in ["name", "website", "what is", "about", "who is", "svbc", "kitsw", "college", "summary", "university", "institute", "portal", "domain"])
+            
+            crawled_query = {"project_id": project_id}
+            tokens = [w for w in re.findall(r"[a-zA-Z0-9]+", question.lower()) if len(w) > 2][:4]
+            if tokens and not is_overview:
+                regex_pat = "|".join(re.escape(t) for t in tokens)
+                crawled_query["$or"] = [
+                    {"title": {"$regex": regex_pat, "$options": "i"}},
+                    {"text_content": {"$regex": regex_pat, "$options": "i"}}
+                ]
+            
+            pages_fb = await crawled_pages_col().find(crawled_query).limit(5).to_list(length=5)
+            for p in pages_fb:
+                tc = p.get("text_content") or ""
+                if tc:
+                    cid = f"crawled_{p['_id']}"
+                    if cid not in seen_cids:
+                        seen_cids.add(cid)
+                        candidates.append({
+                            "chunk_id": cid,
+                            "text": f"Page Title: {p.get('title', '')}\nURL: {p.get('url', '')}\nContent: {tc[:3000]}",
+                            "source_name": p.get("title") or p.get("url", "Website Page"),
+                            "url": p.get("url"),
+                            "page": 1
+                        })
+            if candidates:
+                print(f"[RAG Engine] Successfully retrieved {len(candidates)} candidates from crawled_pages fallback!")
+        except Exception as crawl_fb_err:
+            print(f"[RAG Engine] Crawled pages fallback search notice: {crawl_fb_err}")
+            
     t_mongodb = time.perf_counter() - t_mongodb_start
     
-    # 4. Cross-Encoder Reranking
+    # 4. Cross-Encoder Reranking — offloaded to thread pool
     t_rerank_start = time.perf_counter()
     try:
-        reranked = rerank_chunks(
-            query=question,
-            chunks=candidates,
-            top_k=top_k_context
+        reranked = await asyncio.to_thread(
+            rerank_chunks,
+            question,
+            candidates,
+            top_k_context
         )
     except Exception as e:
         print(f"[Reranker] Project search rerank failed, using original retrieval order: {e}")
@@ -907,7 +1054,7 @@ async def answer_project_question(
     # 6. Retrieve conversation history memory
     memory = await get_memory(project_id, user_id)
     
-    # 7. Generate answer via Groq
+    # 7. Generate answer via Groq — offloaded to thread pool (sync HTTP call)
     t_gen_start = time.perf_counter()
     augmented_question = question
     route_instructions = []
@@ -921,19 +1068,25 @@ async def answer_project_question(
     if prompt_hint:
         route_instructions.append(prompt_hint)
 
+    # ── NEXUS Multi-Mode Experience Engine Prompting ──────────────────────────
+    mode_inst = get_mode_instruction(mode)
+    if mode_inst:
+        route_instructions.append(mode_inst)
+
     if route_instructions:
         augmented_question = (
             f"{question}\n\n"
             f"[INSTRUCTION] {' '.join(route_instructions)}"
         )
-    answer = generate(context=context, question=augmented_question, memory=memory)
+    answer = await asyncio.to_thread(generate, context=context, question=augmented_question, memory=memory)
     t_gen = time.perf_counter() - t_gen_start
     
-    # 8. Verify answer support
+    # 8. Verify answer support — offloaded to thread pool
     t_verify_start = time.perf_counter()
     verification = {"label": "supported", "confidence": 1.0, "best_snippet": ""}
     try:
-        verification = verify_answer_support(
+        verification = await asyncio.to_thread(
+            verify_answer_support,
             answer,
             [chunk["text"] for chunk, _ in reranked]
         )
@@ -944,32 +1097,44 @@ async def answer_project_question(
         answer = "I cannot provide a confident answer from the indexed pages in strict mode. Try asking a more specific question."
     t_verify = time.perf_counter() - t_verify_start
         
-    # 9. Format response citations
+    # 9. Format response citations & evidence trace
     sources = [
         SourceCitation(
-            page=chunk["page"],
-            chunk_id=chunk["chunk_id"],
-            snippet=chunk["text"][:200],
+            page=chunk.get("page", 1),
+            chunk_id=chunk.get("chunk_id", ""),
+            snippet=chunk.get("text", "")[:200],
             url=chunk.get("url"),
             source_name=chunk.get("source_name")
         )
         for chunk, _ in reranked
     ]
     
-    # 10. Persist to MongoDB
-    t_db_start = time.perf_counter()
-    await chat_history_col().insert_one({
-        "user_id": user_id,
-        "doc_id": project_id,  # Use doc_id to maintain database schema compatibility with the history page
-        "question": question,
-        "answer": answer,
-        "sources": [s.dict() for s in sources],
-        "timestamp": datetime.utcnow()
-    })
-    await update_memory(project_id, user_id, question, answer)
+    evidence_trace = [
+        {
+            "chunk_id": chunk.get("chunk_id", ""),
+            "page": chunk.get("page", 1),
+            "score": float(score),
+            "source": chunk.get("source_name", chunk.get("url", "Project Page")),
+            "snippet": chunk.get("text", "")[:350],
+        }
+        for chunk, score in reranked
+    ]
     
-    # Log analytics
-    await log_question(user_id, project_id, project_name, question, q_vector.tolist())
+    # 10. Persist to MongoDB — all writes in parallel
+    t_db_start = time.perf_counter()
+    await asyncio.gather(
+        chat_history_col().insert_one({
+            "user_id": user_id,
+            "doc_id": project_id,  # Use doc_id to maintain database schema compatibility with the history page
+            "question": question,
+            "answer": answer,
+            "sources": [s.dict() for s in sources],
+            "evidence_trace": evidence_trace,
+            "timestamp": datetime.utcnow()
+        }),
+        update_memory(project_id, user_id, question, answer),
+        log_question(user_id, project_id, project_name, question, q_vector.tolist()),
+    )
     t_db = time.perf_counter() - t_db_start
     
     t_total = time.perf_counter() - t_start
@@ -984,5 +1149,7 @@ async def answer_project_question(
         support_label=verification.get("label"),
         support_confidence=verification.get("confidence"),
         support_snippet=verification.get("best_snippet"),
+        evidence_trace=evidence_trace,
+        mode=mode,
     )
 

@@ -20,8 +20,13 @@ const jetbrainsMono = JetBrains_Mono({
 });
 
 export const metadata: Metadata = {
-    title: "DevFrames Synapse | Document Intelligence System",
-    description: "High-fidelity document search and RAG retrieval system for academic, governance, and institutional files.",
+    title: "NEXUS AI | Intelligence You Can Explore and Use",
+    description: "Autonomous Web Intelligence, Living Memory (ECHO), Spatial Thought Canvas (MINDSPACE), and Live Interactive Artifacts (FORGE).",
+    icons: {
+        icon: "/favicon.svg",
+        shortcut: "/favicon.svg",
+        apple: "/favicon.svg",
+    },
 };
 
 export default function RootLayout({

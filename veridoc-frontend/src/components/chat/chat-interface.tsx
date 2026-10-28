@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useState, useRef, useEffect } from "react";
-import { Send, User, Bot, RotateCcw, AlertTriangle } from "lucide-react";
+import { Send, User, Bot, RotateCcw, AlertTriangle, LayoutGrid, Eye, Globe, Sparkles, BookOpen } from "lucide-react";
 import axios from "axios";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -10,6 +10,9 @@ import { motion } from "framer-motion";
 import { cn } from "@/lib/utils";
 import { chatService, ChatHistoryItem } from "@/services/chat.service";
 import { featuresService } from "@/services/features.service";
+import { VoiceInput } from "@/components/chat/VoiceInput";
+import { EvidencePanel } from "@/components/chat/EvidencePanel";
+import { CanvasWorkspace } from "@/components/canvas/CanvasWorkspace";
 
 interface Message {
     id: string;
@@ -19,6 +22,9 @@ interface Message {
     isGrounded?: boolean;
     verificationLabel?: string;
     verificationConfidence?: number;
+    evidence_trace?: any[];
+    questionRef?: string;
+    isGeneralAI?: boolean;
 }
 
 function formatErrorDetail(detail: unknown): string | undefined {
@@ -44,8 +50,18 @@ export function ChatInterface({ docId, onCitationClick }: { docId: string, onCit
     const [input, setInput] = useState("");
     const [isLoading, setIsLoading] = useState(false);
     const [strictMode, setStrictMode] = useState(true);
-    const scrollRef = useRef<HTMLDivElement>(null);
+    const [chatMode, setChatMode] = useState<"document" | "general">("document");
+    const [reasoningLevel, setReasoningLevel] = useState<"fast" | "balanced" | "deep">("balanced");
     const [messages, setMessages] = useState<Message[]>([]);
+    
+    // Drawers State
+    const [evidenceOpen, setEvidenceOpen] = useState(false);
+    const [activeEvidenceTrace, setActiveEvidenceTrace] = useState<any[]>([]);
+    const [activeQuestion, setActiveQuestion] = useState<string>("");
+    const [canvasOpen, setCanvasOpen] = useState(false);
+    const [canvasContent, setCanvasContent] = useState("");
+    
+    const scrollRef = useRef<HTMLDivElement>(null);
 
     // Load history on mount
     useEffect(() => {
@@ -60,8 +76,9 @@ export function ChatInterface({ docId, onCitationClick }: { docId: string, onCit
                         id: `a-${i}`,
                         role: "assistant",
                         content: item.answer,
-                        citations: item.sources.map(s => s.page), // Simplify for now
-                        isGrounded: true
+                        citations: item.sources.map(s => s.page),
+                        isGrounded: true,
+                        questionRef: item.question
                     }
                 ]);
 
@@ -82,7 +99,6 @@ export function ChatInterface({ docId, onCitationClick }: { docId: string, onCit
         loadHistory();
     }, [docId]);
 
-
     const simulateStreaming = async (fullText: string, aiMsgId: string) => {
         const words = fullText.split(" ");
         let currentText = "";
@@ -92,42 +108,94 @@ export function ChatInterface({ docId, onCitationClick }: { docId: string, onCit
             setMessages(prev => prev.map(m =>
                 m.id === aiMsgId ? { ...m, content: currentText } : m
             ));
-            // Type faster for longer responses
             const delay = Math.max(10, 50 - words.length / 5);
             await new Promise(resolve => setTimeout(resolve, delay));
         }
     };
 
-    const handleSend = async () => {
-        if (!input.trim()) return;
+    const handleAskGeneralAI = async (question: string) => {
+        if (!question.trim() || isLoading) return;
 
-        const userMsg: Message = { id: Date.now().toString(), role: "user", content: input };
-        setMessages(prev => [...prev, userMsg]);
-        setInput("");
         setIsLoading(true);
-
-        // Add placeholder AI message for "streaming"
         const aiMsgId = (Date.now() + 1).toString();
         const placeholderAiMsg: Message = {
             id: aiMsgId,
             role: "assistant",
             content: "",
-            isGrounded: true
+            isGrounded: true,
+            isGeneralAI: true,
+            questionRef: question
+        };
+        setMessages(prev => [...prev, placeholderAiMsg]);
+
+        try {
+            const response = await chatService.askGeneralAI(question, docId);
+            setIsLoading(false);
+
+            setMessages(prev => prev.map(m =>
+                m.id === aiMsgId ? {
+                    ...m,
+                    isGrounded: true,
+                    isGeneralAI: true,
+                    questionRef: question,
+                    verificationLabel: "World Knowledge Base (Groq)",
+                    verificationConfidence: 1.0,
+                    evidence_trace: response.evidence_trace || []
+                } : m
+            ));
+
+            await simulateStreaming(response.answer, aiMsgId);
+        } catch (err) {
+            console.error("[General AI Error]", err);
+            setIsLoading(false);
+            setMessages(prev => prev.map(m =>
+                m.id === aiMsgId ? {
+                    ...m,
+                    content: "Unable to query General AI at this moment. Please try again.",
+                    isGrounded: false
+                } : m
+            ));
+        }
+    };
+
+    const handleSend = async () => {
+        if (!input.trim() || isLoading) return;
+
+        const currentInput = input.trim();
+        const userMsg: Message = { id: Date.now().toString(), role: "user", content: currentInput };
+        setMessages(prev => [...prev, userMsg]);
+        setInput("");
+
+        if (chatMode === "general") {
+            await handleAskGeneralAI(currentInput);
+            return;
+        }
+
+        setIsLoading(true);
+
+        const aiMsgId = (Date.now() + 1).toString();
+        const placeholderAiMsg: Message = {
+            id: aiMsgId,
+            role: "assistant",
+            content: "",
+            isGrounded: true,
+            questionRef: currentInput
         };
         setMessages(prev => [...prev, placeholderAiMsg]);
 
         try {
             const response = await chatService.sendMessage(docId, userMsg.content, strictMode);
-            setIsLoading(false); // Stop thinking indicator before starting to type
+            setIsLoading(false);
 
-            // Update AI message with metadata but keep content empty for streaming
             setMessages(prev => prev.map(m =>
                 m.id === aiMsgId ? {
                     ...m,
                     citations: response.sources.map(s => s.page),
                     isGrounded: response.grounded,
                     verificationLabel: response.support_label,
-                    verificationConfidence: response.support_confidence
+                    verificationConfidence: response.support_confidence,
+                    evidence_trace: response.evidence_trace || [],
+                    questionRef: currentInput
                 } : m
             ));
 
@@ -144,7 +212,7 @@ export function ChatInterface({ docId, onCitationClick }: { docId: string, onCit
                 }
             }
             setMessages(prev => prev.map(m =>
-                m.id === aiMsgId ? { ...m, content: errorText, isGrounded: false } : m
+                m.id === aiMsgId ? { ...m, content: errorText, isGrounded: false, questionRef: currentInput } : m
             ));
         }
     };
@@ -179,22 +247,51 @@ export function ChatInterface({ docId, onCitationClick }: { docId: string, onCit
     };
 
     return (
-        <div className="flex flex-col h-full">
+        <div className="flex flex-col h-full relative">
             {/* Top Bar */}
             <div className="h-14 border-b border-border flex items-center justify-between px-6 bg-surface/50 backdrop-blur">
                 <div className="flex items-center gap-3">
                     <div className="h-2 w-2 rounded-full bg-accent animate-pulse" />
                     <span className="font-mono text-xs text-text-secondary uppercase">Active Session</span>
                 </div>
-                <div className="flex gap-2">
+
+                <div className="flex items-center gap-3">
+                    {/* Reasoning Selector */}
+                    <div className="hidden md:flex items-center gap-1 p-0.5 bg-slate-100 rounded-lg border border-slate-200 text-[10px] font-mono">
+                        {(["fast", "balanced", "deep"] as const).map((level) => (
+                            <button
+                                key={level}
+                                onClick={() => setReasoningLevel(level)}
+                                className={`px-2 py-0.5 rounded capitalize transition-all ${
+                                    reasoningLevel === level
+                                        ? "bg-indigo-600 text-white font-semibold shadow-xs"
+                                        : "text-slate-500 hover:text-slate-900"
+                                }`}
+                            >
+                                {level}
+                            </button>
+                        ))}
+                    </div>
+
+                    {/* Canvas Workspace Button */}
+                    <button
+                        onClick={() => setCanvasOpen(true)}
+                        className="flex items-center gap-1.5 text-[11px] font-mono px-2.5 py-1 transition-all border border-purple-200 bg-purple-50 text-purple-700 hover:bg-purple-100/80 rounded"
+                        title="Open side-by-side interactive Canvas Workspace"
+                    >
+                        <LayoutGrid size={12} />
+                        Canvas Workspace
+                    </button>
+
                     <Button
                         variant="ghost"
                         size="sm"
                         className={`h-8 text-xs ${strictMode ? 'text-accent' : 'text-text-muted'} hover:text-text-primary`}
                         onClick={() => setStrictMode((v) => !v)}
                     >
-                        Trust Mode: {strictMode ? "ON" : "OFF"}
+                        STRICT: {strictMode ? "ON" : "OFF"}
                     </Button>
+
                     <Button variant="ghost" size="sm" className="h-8 text-xs text-text-muted hover:text-text-primary" onClick={handleClearMemory}>
                         <RotateCcw size={14} className="mr-1" /> Clear Memory
                     </Button>
@@ -225,9 +322,15 @@ export function ChatInterface({ docId, onCitationClick }: { docId: string, onCit
                             msg.role === "user" ? "items-end" : "items-start"
                         )}>
                             <div className="flex items-center gap-2">
-                                <span className="text-xs font-mono text-text-muted uppercase">{msg.role === "user" ? "You" : "DevFrames Synapse"}</span>
+                                <span className="text-xs font-mono text-text-muted uppercase">
+                                    {msg.role === "user" ? "You" : (msg.isGeneralAI ? "Global AI Assistant" : "Document Assistant")}
+                                </span>
                                 {msg.role === "assistant" && (
-                                    msg.isGrounded ? (
+                                    msg.isGeneralAI ? (
+                                        <span className="text-[10px] bg-indigo-50 text-indigo-700 px-1.5 py-0.5 rounded border border-indigo-200 flex items-center gap-1 font-mono font-medium">
+                                            <Globe size={10} /> GLOBAL WORLD KNOWLEDGE
+                                        </span>
+                                    ) : msg.isGrounded ? (
                                         <span className="text-[10px] bg-accent/10 text-accent px-1.5 py-0.5 rounded border border-accent/20">GROUNDED</span>
                                     ) : (
                                         <span className="text-[10px] bg-red-500/10 text-red-500 px-1.5 py-0.5 rounded border border-red-500/20 flex items-center gap-1">
@@ -250,6 +353,28 @@ export function ChatInterface({ docId, onCitationClick }: { docId: string, onCit
                                     <MarkdownText content={msg.content} />
                                 )}
 
+                                {/* "Not Found in Document" Banner with 1-Click General AI Action */}
+                                {msg.role === "assistant" && !msg.isGeneralAI && (msg.content.toLowerCase().includes("could not find this information") || msg.content.toLowerCase().includes("not found")) && msg.questionRef && !isLoading && (
+                                    <div className="mt-3 p-3.5 rounded-xl bg-gradient-to-r from-indigo-50/90 via-purple-50/70 to-slate-50 border border-indigo-200 shadow-xs flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
+                                        <div className="space-y-0.5">
+                                            <div className="flex items-center gap-1.5 text-xs font-semibold text-indigo-950">
+                                                <Globe size={14} className="text-indigo-600" />
+                                                <span>Not In Uploaded Document</span>
+                                            </div>
+                                            <p className="text-[11px] text-slate-600 leading-normal">
+                                                Would you like General AI to explain <strong className="text-slate-900 font-semibold">"{msg.questionRef}"</strong> using open world knowledge?
+                                            </p>
+                                        </div>
+                                        <button
+                                            onClick={() => handleAskGeneralAI(msg.questionRef!)}
+                                            className="px-3.5 py-1.5 rounded-lg bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-medium shadow-xs flex items-center gap-1.5 shrink-0 transition-all active:scale-95"
+                                        >
+                                            <Sparkles size={12} />
+                                            Ask General AI Directly
+                                        </button>
+                                    </div>
+                                )}
+
                                 {msg.role === "assistant" && msg.verificationLabel && (
                                     <div className="mt-2 text-[11px] text-text-muted">
                                         Evidence check: {msg.verificationLabel} ({((msg.verificationConfidence || 0) * 100).toFixed(1)}%)
@@ -257,7 +382,7 @@ export function ChatInterface({ docId, onCitationClick }: { docId: string, onCit
                                 )}
 
                                 {msg.role === "assistant" && msg.content && !isLoading && (
-                                    <div className="mt-2">
+                                    <div className="mt-2 flex items-center gap-2 flex-wrap">
                                         <Button
                                             variant="ghost"
                                             size="sm"
@@ -266,6 +391,40 @@ export function ChatInterface({ docId, onCitationClick }: { docId: string, onCit
                                         >
                                             Simplify language
                                         </Button>
+
+                                        <button
+                                            onClick={() => {
+                                                setCanvasContent(msg.content);
+                                                setCanvasOpen(true);
+                                            }}
+                                            className="flex items-center gap-1 px-2 py-1 border border-purple-300/60 bg-purple-50/50 text-[10px] font-mono text-purple-800 hover:bg-purple-100 transition-colors rounded"
+                                            title="Send this response to Canvas for live editing & export"
+                                        >
+                                            <LayoutGrid size={10} />
+                                            Edit in Canvas
+                                        </button>
+
+                                        <button
+                                            onClick={() => {
+                                                setActiveEvidenceTrace(msg.evidence_trace || []);
+                                                setActiveQuestion(msg.questionRef || msg.content);
+                                                setEvidenceOpen(true);
+                                            }}
+                                            className="flex items-center gap-1 px-2 py-1 border border-cyan-300/60 bg-cyan-50/50 text-[10px] font-mono text-cyan-800 hover:bg-cyan-100 transition-colors rounded"
+                                            title="Inspect raw RAG evidence chunks and scores"
+                                        >
+                                            <Eye size={10} />
+                                            Why this answer?
+                                        </button>
+
+                                        <button
+                                            onClick={() => handleAskGeneralAI(msg.questionRef || msg.content)}
+                                            className="flex items-center gap-1 px-2 py-1 border border-indigo-300/60 bg-indigo-50/60 text-[10px] font-mono text-indigo-800 hover:bg-indigo-100 transition-colors rounded"
+                                            title="Ask General AI directly on this topic"
+                                        >
+                                            <Globe size={10} />
+                                            Ask General AI
+                                        </button>
                                     </div>
                                 )}
 
@@ -290,7 +449,7 @@ export function ChatInterface({ docId, onCitationClick }: { docId: string, onCit
                         </div>
                         <div className="flex flex-col gap-2">
                             <div className="flex items-center gap-2">
-                                <span className="text-xs font-mono text-text-muted uppercase">DevFrames Synapse</span>
+                                <span className="text-xs font-mono text-text-muted uppercase">Document Assistant</span>
                                 <span className="text-[10px] text-text-muted">Thinking...</span>
                             </div>
                             <div className="flex items-center gap-2 h-8">
@@ -298,7 +457,7 @@ export function ChatInterface({ docId, onCitationClick }: { docId: string, onCit
                                 <motion.div animate={{ opacity: [0.4, 1, 0.4] }} transition={{ repeat: Infinity, duration: 1.5, delay: 0.2 }} className="w-2 h-2 bg-accent rounded-full" />
                                 <motion.div animate={{ opacity: [0.4, 1, 0.4] }} transition={{ repeat: Infinity, duration: 1.5, delay: 0.4 }} className="w-2 h-2 bg-accent rounded-full" />
                             </div>
-                            <div className="text-xs font-mono text-accent">Searching vectors...</div>
+                            <div className="text-xs font-mono text-accent">Searching document vectors...</div>
                         </div>
                     </div>
                 )}
@@ -306,13 +465,62 @@ export function ChatInterface({ docId, onCitationClick }: { docId: string, onCit
 
             {/* Input Area */}
             <div className="p-6 bg-background max-w-5xl mx-auto w-full">
-                <div className="relative">
+                {/* Knowledge Scope Selector */}
+                <div className="flex items-center justify-between mb-2">
+                    <div className="flex items-center gap-1 p-0.5 bg-slate-100 rounded-lg border border-slate-200">
+                        <button
+                            type="button"
+                            onClick={() => setChatMode("document")}
+                            className={cn(
+                                "px-2.5 py-1 text-xs font-medium rounded-md flex items-center gap-1.5 transition-all",
+                                chatMode === "document"
+                                    ? "bg-white text-slate-900 shadow-xs border border-slate-200"
+                                    : "text-slate-500 hover:text-slate-800"
+                            )}
+                        >
+                            <BookOpen size={12} className={chatMode === "document" ? "text-accent" : ""} />
+                            Document Scope (RAG)
+                        </button>
+                        <button
+                            type="button"
+                            onClick={() => setChatMode("general")}
+                            className={cn(
+                                "px-2.5 py-1 text-xs font-medium rounded-md flex items-center gap-1.5 transition-all",
+                                chatMode === "general"
+                                    ? "bg-indigo-600 text-white shadow-xs"
+                                    : "text-slate-500 hover:text-indigo-600"
+                            )}
+                        >
+                            <Globe size={12} />
+                            General AI (World Knowledge)
+                        </button>
+                    </div>
+
+                    {chatMode === "general" ? (
+                        <span className="text-[11px] font-mono text-indigo-700 bg-indigo-50 px-2 py-0.5 rounded border border-indigo-200">
+                            🌐 Open LLM active — ask anything freely
+                        </span>
+                    ) : (
+                        <div className="flex gap-2 items-center">
+                            <span className="h-1.5 w-1.5 rounded-full bg-accent" />
+                            <span className="text-[10px] font-mono text-text-muted">VECTOR RAG</span>
+                            <span className="h-1.5 w-1.5 rounded-full bg-accent ml-1" />
+                            <span className="text-[10px] font-mono text-text-muted">RERANKING</span>
+                        </div>
+                    )}
+                </div>
+
+                <div className="relative flex items-center bg-surface border border-border rounded-lg px-3 gap-2">
+                    <VoiceInput
+                        onTranscript={(txt) => setInput(prev => prev ? `${prev} ${txt}` : txt)}
+                        isGenerating={isLoading}
+                    />
                     <Input
                         value={input}
                         onChange={(e) => setInput(e.target.value)}
                         onKeyDown={(e) => e.key === "Enter" && handleSend()}
-                        placeholder="Ask anything about this document..."
-                        className="pr-24 h-14 bg-surface text-base"
+                        placeholder={chatMode === "general" ? "Ask any general question (e.g. Who is Swami Vivekananda?)..." : "Ask anything about this document..."}
+                        className="pr-24 h-14 border-0 focus-visible:ring-0 focus-visible:ring-offset-0 bg-transparent text-base"
                     />
                     <div className="absolute right-2 top-1/2 -translate-y-1/2">
                         <Button
@@ -327,21 +535,39 @@ export function ChatInterface({ docId, onCitationClick }: { docId: string, onCit
                     </div>
                 </div>
                 <div className="flex justify-between mt-2 px-1">
-                    <div className="flex gap-2 items-center">
-                        <span className="h-1.5 w-1.5 rounded-full bg-accent" />
-                        <span className="text-[10px] font-mono text-text-muted">HYBRID SEARCH</span>
-                        <span className="h-1.5 w-1.5 rounded-full bg-accent ml-2" />
-                        <span className="text-[10px] font-mono text-text-muted">RERANKING</span>
+                    <div className="text-[10px] font-mono text-text-muted">
+                        {chatMode === "general" ? "Prompting Groq Cloud LLM with full world knowledge" : "Prompting Document vector chunks & hybrid search"}
                     </div>
                     <div className="text-[10px] font-mono text-text-muted">{input.length} / 1000</div>
                 </div>
             </div>
+
+            {/* Evidence Inspector Drawer */}
+            <EvidencePanel
+                isOpen={evidenceOpen}
+                onClose={() => setEvidenceOpen(false)}
+                evidenceItems={activeEvidenceTrace}
+                question={activeQuestion}
+                onAskGeneralAI={handleAskGeneralAI}
+                onJumpToPage={onCitationClick}
+            />
+
+            {/* Canvas Workspace Drawer */}
+            <CanvasWorkspace
+                isOpen={canvasOpen}
+                onClose={() => setCanvasOpen(false)}
+                initialContent={canvasContent || "# Document Notes & Canvas Workspace\n\nType, edit, or format markdown reports and extracted tables here."}
+                onSave={(val) => setCanvasContent(val)}
+                onInsertToChat={(text) => {
+                    setInput(text);
+                    setCanvasOpen(false);
+                }}
+            />
         </div>
     );
 }
 
 function MarkdownText({ content }: { content: string }) {
-    // Split by lines to process block structures
     const lines = content.split('\n');
     const elements: React.ReactNode[] = [];
     
@@ -378,7 +604,7 @@ function MarkdownText({ content }: { content: string }) {
     const flushTable = (key: number) => {
         if (tableRows.length > 0) {
             const headers = tableRows[0];
-            const rows = tableRows.slice(2); // Skip divider row (index 1)
+            const rows = tableRows.slice(2);
             
             elements.push(
                 <div key={`table-wrapper-${key}`} className="overflow-x-auto my-3 border border-slate-200/60 shadow-sm max-w-full">
@@ -413,10 +639,8 @@ function MarkdownText({ content }: { content: string }) {
     for (let i = 0; i < lines.length; i++) {
         const line = lines[i];
         
-        // 1. Table Detection
         if (line.trim().startsWith('|')) {
             flushList(i);
-            // Parse table row cells
             const cells = line.split('|').map(c => c.trim()).filter((_, idx, arr) => idx > 0 && idx < arr.length - 1);
             tableRows.push(cells);
             continue;
@@ -424,7 +648,6 @@ function MarkdownText({ content }: { content: string }) {
             flushTable(i);
         }
 
-        // 2. List Item Detection
         if (line.trim().startsWith('- ') || line.trim().startsWith('* ')) {
             const contentText = line.trim().substring(2);
             listItems.push(
@@ -437,7 +660,6 @@ function MarkdownText({ content }: { content: string }) {
             flushList(i);
         }
 
-        // 3. Headers
         if (line.trim().startsWith('### ')) {
             elements.push(<h3 key={i} className="text-sm font-bold text-slate-900 mt-4 mb-1.5 tracking-tight">{renderTextWithInlineFormatting(line.trim().substring(4))}</h3>);
         } else if (line.trim().startsWith('## ')) {
@@ -455,7 +677,6 @@ function MarkdownText({ content }: { content: string }) {
         }
     }
 
-    // Flush remaining
     flushList(lines.length);
     flushTable(lines.length);
 

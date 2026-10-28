@@ -1,0 +1,11 @@
+.env
+.env.*
+.venv/
+.venv*/
+venv/
+__pycache__/
+*.py[cod]
+storage/
+models/
+*.log
+*.txt
