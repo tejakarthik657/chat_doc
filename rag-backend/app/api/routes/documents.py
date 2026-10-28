@@ -10,7 +10,10 @@ from app.core.config import get_settings
 from app.core.embeddings import delete_faiss_index
 from app.db.mongodb import documents_col, chunks_col, users_col
 from app.models.schemas import DocumentOut, DocumentList
-from app.tasks import ingest_document_task  # Use Celery task instead
+try:
+    from app.tasks import ingest_document_task  # Use Celery task instead
+except Exception:
+    ingest_document_task = None
 
 router = APIRouter(prefix="/api/documents", tags=["documents"])
 settings = get_settings()
@@ -116,7 +119,7 @@ async def upload_document(
             print(f"[Upstash Queue Warning] {q_err}")
 
     from app.celery_app import is_celery_worker_active
-    if is_celery_worker_active():
+    if is_celery_worker_active() and ingest_document_task:
         try:
             ingest_document_task.delay(doc_id, file_path, user_id)
             print("[Celery] Successfully enqueued document ingestion task.")

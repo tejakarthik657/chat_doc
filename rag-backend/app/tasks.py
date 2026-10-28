@@ -19,8 +19,22 @@ from pathlib import Path
 from datetime import datetime
 from typing import Optional
 
-from celery import shared_task
-from app.celery_app import celery_app
+try:
+    from celery import shared_task
+    from app.celery_app import celery_app
+except ImportError:
+    def shared_task(*args, **kwargs):
+        def decorator(f):
+            f.delay = f
+            return f
+        return decorator
+    class DummyCelery:
+        def task(self, *args, **kwargs):
+            def decorator(f):
+                f.delay = f
+                return f
+            return decorator
+    celery_app = DummyCelery()
 from app.core.config import get_settings
 from app.db.mongodb import (
     documents_col,
