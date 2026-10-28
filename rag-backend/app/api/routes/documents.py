@@ -125,12 +125,11 @@ async def upload_document(
             print("[Celery] Successfully enqueued document ingestion task.")
         except Exception as celery_err:
             print(f"[Celery] Connection failed, falling back to BackgroundTasks: {celery_err}")
-            if not enqueued_cloud:
-                from app.ingestion.pipeline import ingest_document
-                if background_tasks:
-                    background_tasks.add_task(ingest_document, file_path, file.filename, doc_id, user_id)
-    elif not enqueued_cloud:
-        print("[In-Process Fallback] No external worker detected, running via FastAPI BackgroundTasks.")
+            from app.ingestion.pipeline import ingest_document
+            if background_tasks:
+                background_tasks.add_task(ingest_document, file_path, file.filename, doc_id, user_id)
+    else:
+        print("[In-Process Worker] Running PDF ingestion via FastAPI BackgroundTasks.")
         from app.ingestion.pipeline import ingest_document
         if background_tasks:
             background_tasks.add_task(ingest_document, file_path, file.filename, doc_id, user_id)

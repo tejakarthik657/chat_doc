@@ -90,11 +90,10 @@ async def create_project(
             print("[Celery] Successfully enqueued crawl task.")
         except Exception as celery_err:
             print(f"[Celery] Connection failed, falling back to BackgroundTasks: {celery_err}")
-            if not enqueued_cloud:
-                from app.ingestion.crawler import crawl_website_task as run_crawler
-                background_tasks.add_task(run_crawler, project_id, job_id, user_id)
-    elif not enqueued_cloud:
-        print("[In-Process Fallback] No external worker detected, running via FastAPI BackgroundTasks.")
+            from app.ingestion.crawler import crawl_website_task as run_crawler
+            background_tasks.add_task(run_crawler, project_id, job_id, user_id)
+    else:
+        print("[In-Process Worker] Running crawl via FastAPI BackgroundTasks.")
         from app.ingestion.crawler import crawl_website_task as run_crawler
         background_tasks.add_task(run_crawler, project_id, job_id, user_id)
 

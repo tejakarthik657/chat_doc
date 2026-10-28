@@ -502,6 +502,22 @@ async def ingest_document(
             {"$set": {"status": "processing"}}
         )
 
+        # Step 0: Ensure file exists locally; if missing (e.g. container restart), restore from Cloudinary
+        if not os.path.exists(file_path):
+            doc = await documents_col().find_one({"_id": doc_id})
+            if doc and doc.get("file_url") and str(doc["file_url"]).startswith("http"):
+                try:
+                    import httpx
+                    os.makedirs(os.path.dirname(file_path), exist_ok=True)
+                    async with httpx.AsyncClient(timeout=30.0) as dl_client:
+                        r = await dl_client.get(doc["file_url"])
+                        if r.status_code == 200:
+                            with open(file_path, "wb") as f:
+                                f.write(r.content)
+                            print(f"[Ingestion] Restored {file_path} from Cloudinary CDN.")
+                except Exception as dl_err:
+                    print(f"[Ingestion] Warning: Could not restore from Cloudinary: {dl_err}")
+
         # Step 1: Extract. Fast-path PyMuPDF + Tesseract/Vision OCR first!
         # Only fall back to Docling singleton if PyMuPDF yields almost no text.
         pages = []
