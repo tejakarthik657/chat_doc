@@ -117,7 +117,8 @@ export default function LoginPage() {
                         onClick={() => {
                             const rawApiUrl = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000/api";
                             const baseUrl = rawApiUrl.replace(/\/api\/?$/, "");
-                            window.location.href = `${baseUrl}/api/auth/google`;
+                            const returnUrl = encodeURIComponent(window.location.origin);
+                            window.location.href = `${baseUrl}/api/auth/google?state=${returnUrl}`;
                         }}
                         className="w-full flex items-center justify-center gap-2 border border-slate-200 hover:bg-slate-50 font-medium py-2.5 transition-colors shadow-sm"
                     >

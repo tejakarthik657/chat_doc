@@ -280,16 +280,16 @@ app.include_router(intelligence_router)
 
 @app.get("/auth/google")
 @app.get("/api/api/auth/google")
-async def google_login_alias():
+async def google_login_alias(request: Request, state: Optional[str] = None):
     from app.api.routes.auth import login_google
-    return await login_google()
+    return await login_google(request, state=state)
 
 
 @app.get("/auth/google/callback")
 @app.get("/api/api/auth/google/callback")
-async def google_callback_alias(code: str = None, error: str = None):
+async def google_callback_alias(request: Request, code: Optional[str] = None, error: Optional[str] = None, state: Optional[str] = None):
     from app.api.routes.auth import google_callback
-    return await google_callback(code=code, error=error)
+    return await google_callback(request, code=code, error=error, state=state)
 
 
 
