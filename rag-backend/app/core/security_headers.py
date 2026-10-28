@@ -9,6 +9,15 @@ from starlette.responses import Response
 import os
 
 
+def _remove_header(headers, key: str):
+    """Safely remove a header from Starlette MutableHeaders."""
+    if key in headers:
+        try:
+            del headers[key]
+        except KeyError:
+            pass
+
+
 class SecurityHeadersMiddleware(BaseHTTPMiddleware):
     """Add production security headers to every response."""
 
@@ -31,7 +40,7 @@ class SecurityHeadersMiddleware(BaseHTTPMiddleware):
             response.headers["X-Frame-Options"] = "SAMEORIGIN"
         else:
             # Allow OAuth popups and redirects without frame blockage
-            response.headers.pop("X-Frame-Options", None)
+            _remove_header(response.headers, "X-Frame-Options")
 
         # XSS protection
         response.headers["X-XSS-Protection"] = "1; mode=block"
@@ -60,9 +69,9 @@ class SecurityHeadersMiddleware(BaseHTTPMiddleware):
                 )
             else:
                 # Completely omit CSP on OAuth redirects so browser / Google handles authentication natively
-                response.headers.pop("Content-Security-Policy", None)
+                _remove_header(response.headers, "Content-Security-Policy")
 
             # Remove server header
-            response.headers.pop("server", None)
+            _remove_header(response.headers, "server")
 
         return response
