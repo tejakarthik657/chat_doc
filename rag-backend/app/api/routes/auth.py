@@ -115,35 +115,40 @@ async def login_google(request: Request, state: Optional[str] = None):
     Initiates Google OAuth 2.0 authentication flow.
     Preserves calling frontend origin via state parameter to guarantee return redirect.
     """
-    if not settings.google_client_id:
-        raise HTTPException(
-            status_code=500,
-            detail="Google OAuth is not configured on the server. Please set GOOGLE_CLIENT_ID.",
+    try:
+        client_id = (
+            settings.google_client_id
+            or os.environ.get("GOOGLE_CLIENT_ID")
+            or "158940752809-98knfef1g4rdv808p46ob0l1726i6eij.apps.googleusercontent.com"
         )
 
-    redirect_uri = resolve_redirect_uri(request)
-    
-    # If state not explicitly passed, auto-detect frontend origin from referer
-    if not state:
-        referer = request.headers.get("referer") or request.headers.get("origin")
-        if referer and "google.com" not in referer:
-            from urllib.parse import urlparse
-            p = urlparse(referer)
-            state = f"{p.scheme}://{p.netloc}"
-        else:
-            state = settings.frontend_url
+        redirect_uri = resolve_redirect_uri(request)
+        
+        # If state not explicitly passed, auto-detect frontend origin from referer
+        if not state:
+            referer = request.headers.get("referer") or request.headers.get("origin")
+            if referer and "google.com" not in referer:
+                from urllib.parse import urlparse
+                p = urlparse(referer)
+                state = f"{p.scheme}://{p.netloc}"
+            else:
+                state = settings.frontend_url or "http://localhost:3000"
 
-    params = {
-        "client_id": settings.google_client_id,
-        "redirect_uri": redirect_uri,
-        "response_type": "code",
-        "scope": "openid email profile",
-        "access_type": "offline",
-        "prompt": "select_account",
-        "state": state,
-    }
-    google_auth_url = f"https://accounts.google.com/o/oauth2/v2/auth?{urlencode(params)}"
-    return RedirectResponse(url=google_auth_url)
+        params = {
+            "client_id": client_id,
+            "redirect_uri": redirect_uri,
+            "response_type": "code",
+            "scope": "openid email profile",
+            "access_type": "offline",
+            "prompt": "select_account",
+            "state": state,
+        }
+        google_auth_url = f"https://accounts.google.com/o/oauth2/v2/auth?{urlencode(params)}"
+        return RedirectResponse(url=google_auth_url, status_code=307)
+    except Exception as exc:
+        logger.error(f"[Google OAuth Login Init Error] {exc}", exc_info=True)
+        from fastapi.responses import JSONResponse
+        return JSONResponse(status_code=500, content={"detail": f"OAuth initialization error: {exc}"})
 
 
 @router.get("/google/callback")

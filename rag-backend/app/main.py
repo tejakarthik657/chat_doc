@@ -265,7 +265,7 @@ async def global_exception_handler(request: Request, exc: Exception):
     return JSONResponse(
         status_code=500,
         content={
-            "detail": "Internal server error. Please try again.",
+            "detail": f"Internal server error: {exc}",
             "correlation_id": get_correlation_id(),
         },
         headers={"Access-Control-Allow-Origin": request.headers.get("origin", "*")},
@@ -286,6 +286,7 @@ app.include_router(intelligence_router)
 # ── Google OAuth Aliases (Handles /auth/google, /api/auth/google, and /api/api/auth/google) ──
 
 @app.get("/auth/google")
+@app.get("/api/auth/google")
 @app.get("/api/api/auth/google")
 async def google_login_alias(request: Request, state: Optional[str] = None):
     from app.api.routes.auth import login_google
@@ -293,6 +294,7 @@ async def google_login_alias(request: Request, state: Optional[str] = None):
 
 
 @app.get("/auth/google/callback")
+@app.get("/api/auth/google/callback")
 @app.get("/api/api/auth/google/callback")
 async def google_callback_alias(request: Request, code: Optional[str] = None, error: Optional[str] = None, state: Optional[str] = None):
     from app.api.routes.auth import google_callback
