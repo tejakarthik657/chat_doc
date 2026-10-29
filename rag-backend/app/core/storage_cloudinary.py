@@ -84,3 +84,24 @@ def delete_pdf_from_cloudinary(public_id: str) -> bool:
     except Exception as delete_err:
         logger.error(f"[Cloudinary Delete Error] {delete_err}", exc_info=True)
         return False
+
+
+def get_pdf_download_url(public_id: str) -> Optional[str]:
+    """Create a signed URL for downloading a raw PDF from Cloudinary."""
+    init_cloudinary()
+    if not _configured or _cloudinary is None or not public_id:
+        return None
+
+    try:
+        from cloudinary.utils import private_download_url
+
+        return private_download_url(
+            public_id,
+            format="pdf",
+            resource_type="raw",
+            type="upload",
+            attachment=False,
+        )
+    except Exception as download_err:
+        logger.error(f"[Cloudinary URL Error] {download_err}", exc_info=True)
+        return None

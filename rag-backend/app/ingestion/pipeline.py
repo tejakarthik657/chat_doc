@@ -20,6 +20,7 @@ from langchain_text_splitters import RecursiveCharacterTextSplitter
 from qdrant_client.http import models as qdrant_models
 
 from app.core.config import get_settings
+from app.core.storage_cloudinary import get_pdf_download_url
 from app.core.embeddings import embed_texts, build_faiss_index
 from app.core.bm25 import build_bm25_index
 from app.db.mongodb import documents_col, chunks_col, projects_col, crawled_pages_col
@@ -524,7 +525,7 @@ async def ingest_document(
         # Step 0: Ensure file exists locally; if missing (e.g. container restart), restore from MongoDB backup or Cloudinary
         if not os.path.exists(file_path):
             doc = await documents_col().find_one({"_id": doc_id})
-            if doc and doc.get("file_url") and str(doc["file_url"]).startswith("http"):
+            if doc and (doc.get("file_url") or doc.get("storage_public_id")):
                 try:
                     import httpx
                     import tempfile
@@ -533,8 +534,11 @@ async def ingest_document(
                     temp_file.close()
                     file_path = temp_file.name
                     temporary_file = True
-                    async with httpx.AsyncClient(timeout=15.0) as dl_client:
-                        r = await dl_client.get(doc["file_url"])
+                    download_url = get_pdf_download_url(doc.get("storage_public_id", "")) or doc.get("file_url")
+                    if not download_url or not str(download_url).startswith("http"):
+                        raise RuntimeError("No valid durable document download URL is available")
+                    async with httpx.AsyncClient(timeout=30.0, follow_redirects=True) as dl_client:
+                        r = await dl_client.get(download_url)
                         r.raise_for_status()
                         if r.status_code == 200:
                             with open(file_path, "wb") as f:
@@ -635,14 +639,17 @@ async def process_single_page(page) -> tuple[list[dict], str, str, str | None]:
         if page_type == "pdf":
             file_path = page.get("file_path", "")
             temporary_file = False
-            if not os.path.exists(file_path) and page.get("file_url"):
+            if not os.path.exists(file_path) and (page.get("file_url") or page.get("storage_public_id")):
                 temp_file = tempfile.NamedTemporaryFile(prefix=f"crawl_{page['_id']}_", suffix=".pdf", delete=False)
                 file_path = temp_file.name
                 temp_file.close()
                 temporary_file = True
                 try:
+                    download_url = get_pdf_download_url(page.get("storage_public_id", "")) or page.get("file_url")
+                    if not download_url or not str(download_url).startswith("http"):
+                        raise RuntimeError("No valid durable PDF download URL is available")
                     async with httpx.AsyncClient(timeout=30.0, follow_redirects=True) as client:
-                        response = await client.get(page["file_url"])
+                        response = await client.get(download_url)
                         response.raise_for_status()
                     with open(file_path, "wb") as downloaded:
                         downloaded.write(response.content)
