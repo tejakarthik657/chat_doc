@@ -1,3 +1,4 @@
+import asyncio
 import logging
 from typing import Optional
 from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, Form
@@ -43,18 +44,13 @@ async def _load_document_text(doc_id: str, user_id: str) -> tuple[dict, list[dic
     return doc, chunks, full_text
 
 
-@router.get("/{doc_id}/insights", response_model=DocumentInsightsResponse)
-async def get_document_insights(doc_id: str, user_id: str = Depends(get_current_user)):
-    doc, chunks, full_text = await _load_document_text(doc_id, user_id)
-    text_for_analysis = full_text[:40000]
-
+def _compute_insights_sync(text_for_analysis: str, filename: str, doc_id: str) -> dict:
     summary = summarize_document(text_for_analysis, max_sentences=5)
     keyphrases = extract_keyphrases(text_for_analysis, top_k=12)
     entities = extract_entities(text_for_analysis)
     doc_type = classify_document_type(text_for_analysis)
     outliers = detect_outlier_sections(text_for_analysis, top_k=3)
 
-    # Simple readability estimate from average sentence length.
     words = text_for_analysis.split()
     sentences = max(1, len([s for s in summary.split(".") if s.strip()]))
     avg_sentence_len = len(words) / max(1, sentences)
@@ -69,18 +65,41 @@ async def get_document_insights(doc_id: str, user_id: str = Depends(get_current_
         f"Can you summarize the key idea behind '{k}'?" for k in keyphrases[:3]
     ]
 
-    return DocumentInsightsResponse(
-        doc_id=doc_id,
-        filename=doc.get("filename", "Unknown"),
-        document_type=doc_type["label"],
-        document_type_confidence=doc_type["confidence"],
-        summary=summary,
-        keyphrases=keyphrases,
-        entities=entities,
-        readability_band=readability_band,
-        outlier_sections=outliers,
-        suggested_questions=suggested_questions,
-    )
+    return {
+        "doc_id": doc_id,
+        "filename": filename,
+        "document_type": doc_type["label"],
+        "document_type_confidence": doc_type["confidence"],
+        "summary": summary,
+        "keyphrases": keyphrases,
+        "entities": entities,
+        "readability_band": readability_band,
+        "outlier_sections": outliers,
+        "suggested_questions": suggested_questions,
+    }
+
+
+@router.get("/{doc_id}/insights", response_model=DocumentInsightsResponse)
+async def get_document_insights(doc_id: str, user_id: str = Depends(get_current_user)):
+    doc, chunks, full_text = await _load_document_text(doc_id, user_id)
+    
+    # 1. Fast-path: return cached insights from MongoDB immediately (sub-5ms)
+    if doc.get("insights"):
+        return DocumentInsightsResponse(**doc["insights"])
+
+    text_for_analysis = full_text[:40000]
+    filename = doc.get("filename", "Unknown")
+
+    # 2. Compute non-blocking in background thread pool to protect FastAPI uvicorn event loop
+    insights_data = await asyncio.to_thread(_compute_insights_sync, text_for_analysis, filename, doc_id)
+
+    # 3. Cache in MongoDB Atlas for instant subsequent page renders
+    try:
+        await documents_col().update_one({"_id": doc_id}, {"$set": {"insights": insights_data}})
+    except Exception as e:
+        logger.warning(f"Failed to cache insights in MongoDB: {e}")
+
+    return DocumentInsightsResponse(**insights_data)
 
 
 @router.post("/{doc_id}/verify", response_model=VerifyAnswerResponse)

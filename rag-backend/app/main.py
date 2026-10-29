@@ -309,7 +309,7 @@ async def google_callback_alias(request: Request, code: Optional[str] = None, er
 @app.get("/api/health")
 async def health():
     """Liveness probe — basic service availability."""
-    return {"status": "ok", "version": "2.3.0", "env": os.environ.get("ENVIRONMENT", "development")}
+    return {"status": "ok", "version": "2.3.1", "env": os.environ.get("ENVIRONMENT", "development")}
 
 @app.get("/api/debug/test-step/{step}")
 async def test_step(step: str):
