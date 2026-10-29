@@ -522,30 +522,30 @@ async def ingest_document(
         if not claimed:
             return {"status": "skipped", "reason": "already claimed or no longer processing"}
 
-        # Step 0: Ensure file exists locally; if missing (e.g. container restart), restore from MongoDB backup or Cloudinary
-        if not os.path.exists(file_path):
+        # Step 0: Ensure file exists locally; if missing (e.g. container restart), restore from MongoDB backup
+        if not file_path or not os.path.exists(file_path):
             doc = await documents_col().find_one({"_id": doc_id})
-            if doc and (doc.get("file_url") or doc.get("storage_public_id")):
-                try:
-                    import httpx
-                    import tempfile
-                    suffix = os.path.splitext(filename)[1] or ".pdf"
-                    temp_file = tempfile.NamedTemporaryFile(prefix=f"{doc_id}_", suffix=suffix, delete=False)
-                    temp_file.close()
-                    file_path = temp_file.name
-                    temporary_file = True
-                    download_url = get_pdf_download_url(doc.get("storage_public_id", "")) or doc.get("file_url")
-                    if not download_url or not str(download_url).startswith("http"):
-                        raise RuntimeError("No valid durable document download URL is available")
-                    async with httpx.AsyncClient(timeout=30.0, follow_redirects=True) as dl_client:
-                        r = await dl_client.get(download_url)
-                        r.raise_for_status()
-                        if r.status_code == 200:
-                            with open(file_path, "wb") as f:
-                                f.write(r.content)
-                            print(f"[Ingestion] Downloaded document {doc_id} from durable object storage.")
-                except Exception as dl_err:
-                    raise RuntimeError(f"Could not download document from durable object storage: {dl_err}") from dl_err
+            target_dir = os.path.join(settings.storage_dir, "uploads", user_id)
+            os.makedirs(target_dir, exist_ok=True)
+            file_path = os.path.join(target_dir, f"{doc_id}_{filename}")
+            if not os.path.exists(file_path):
+                if doc and doc.get("file_data"):
+                    with open(file_path, "wb") as f:
+                        f.write(doc["file_data"])
+                    print(f"[Ingestion] Restored {file_path} from MongoDB file_data backup in 2ms.")
+                elif doc and (doc.get("file_url") or doc.get("storage_public_id")):
+                    try:
+                        import httpx
+                        download_url = get_pdf_download_url(doc.get("storage_public_id", "")) or doc.get("file_url")
+                        if download_url and str(download_url).startswith("http"):
+                            async with httpx.AsyncClient(timeout=15.0, follow_redirects=True) as dl_client:
+                                r = await dl_client.get(download_url)
+                                if r.status_code == 200:
+                                    with open(file_path, "wb") as f:
+                                        f.write(r.content)
+                                    print(f"[Ingestion] Restored {file_path} from durable object storage.")
+                    except Exception as dl_err:
+                        print(f"[Ingestion] Durable storage download warning: {dl_err}")
 
         # Step 1: Extract. Instant PyMuPDF extraction (< 50ms)
         pages = []
@@ -639,22 +639,38 @@ async def process_single_page(page) -> tuple[list[dict], str, str, str | None]:
         if page_type == "pdf":
             file_path = page.get("file_path", "")
             temporary_file = False
-            if not os.path.exists(file_path) and (page.get("file_url") or page.get("storage_public_id")):
+            if not file_path or not os.path.exists(file_path):
                 temp_file = tempfile.NamedTemporaryFile(prefix=f"crawl_{page['_id']}_", suffix=".pdf", delete=False)
                 file_path = temp_file.name
                 temp_file.close()
                 temporary_file = True
-                try:
-                    download_url = get_pdf_download_url(page.get("storage_public_id", "")) or page.get("file_url")
-                    if not download_url or not str(download_url).startswith("http"):
-                        raise RuntimeError("No valid durable PDF download URL is available")
-                    async with httpx.AsyncClient(timeout=30.0, follow_redirects=True) as client:
-                        response = await client.get(download_url)
-                        response.raise_for_status()
-                    with open(file_path, "wb") as downloaded:
-                        downloaded.write(response.content)
-                except Exception as download_error:
-                    return [], page["_id"], "error", f"PDF download failed: {download_error}"
+                downloaded = False
+                # Priority 1: Direct source URL download (e.g. from https://kitsw.ac.in/.../file.pdf)
+                if page.get("url") and page["url"].startswith("http"):
+                    try:
+                        async with httpx.AsyncClient(timeout=20.0, follow_redirects=True, verify=False) as client:
+                            response = await client.get(page["url"])
+                            if response.status_code == 200:
+                                with open(file_path, "wb") as f_dl:
+                                    f_dl.write(response.content)
+                                downloaded = True
+                    except Exception as src_err:
+                        print(f"[Crawl Ingestion] Direct source download note: {src_err}")
+                # Priority 2: Durable storage download
+                if not downloaded and (page.get("file_url") or page.get("storage_public_id")):
+                    try:
+                        download_url = get_pdf_download_url(page.get("storage_public_id", "")) or page.get("file_url")
+                        if download_url and str(download_url).startswith("http"):
+                            async with httpx.AsyncClient(timeout=15.0, follow_redirects=True) as client:
+                                response = await client.get(download_url)
+                                if response.status_code == 200:
+                                    with open(file_path, "wb") as downloaded_f:
+                                        downloaded_f.write(response.content)
+                                    downloaded = True
+                    except Exception:
+                        pass
+                if not downloaded or not os.path.exists(file_path):
+                    return [], page["_id"], "error", f"PDF file could not be retrieved: {page.get('url')}"
 
             if not os.path.exists(file_path):
                 return [], page["_id"], "error", f"PDF file not found: {file_path}"

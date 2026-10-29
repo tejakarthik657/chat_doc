@@ -96,8 +96,9 @@ def get_pdf_download_url(public_id: str) -> Optional[str]:
     try:
         from cloudinary.utils import private_download_url
 
+        normalized_public_id = public_id[:-4] if public_id.lower().endswith(".pdf") else public_id
         url = private_download_url(
-            public_id,
+            normalized_public_id,
             "pdf",
             resource_type="raw",
             type="private",

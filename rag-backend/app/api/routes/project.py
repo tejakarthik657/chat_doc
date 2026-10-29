@@ -84,19 +84,14 @@ async def create_project(
         except Exception as q_err:
             print(f"[Upstash Queue Warning] {q_err}")
 
-    from app.celery_app import is_celery_worker_active
-    if is_celery_worker_active():
+    from app.ingestion.crawler import crawl_website_task as run_crawler
+    # Launch in-process crawler task immediately
+    asyncio.create_task(run_crawler(project_id, job_id, user_id))
+    if background_tasks:
         try:
-            crawl_task.delay(project_id, job_id, user_id)
-            print("[Celery] Successfully enqueued crawl task.")
-        except Exception as celery_err:
-            print(f"[Celery] Connection failed, falling back to BackgroundTasks: {celery_err}")
-            from app.ingestion.crawler import crawl_website_task as run_crawler
             background_tasks.add_task(run_crawler, project_id, job_id, user_id)
-    else:
-        print("[In-Process Worker] Running crawl via FastAPI BackgroundTasks.")
-        from app.ingestion.crawler import crawl_website_task as run_crawler
-        background_tasks.add_task(run_crawler, project_id, job_id, user_id)
+        except Exception:
+            pass
 
     return ProjectOut(
         id=project_id,
