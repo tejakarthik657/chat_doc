@@ -42,8 +42,8 @@ import time
 import re
 from typing import Optional, List, Dict, Any
 
-from app.core.embeddings import embed_texts, load_faiss_index, search_index
-from app.core.bm25 import load_bm25_index, bm25_search
+from app.core.embeddings import embed_texts, load_faiss_index, search_index, build_faiss_index
+from app.core.bm25 import load_bm25_index, bm25_search, build_bm25_index
 from app.core.fusion import reciprocal_rank_fusion, explain_fusion
 from app.core.reranker import rerank_chunks
 from app.core.feature_models import verify_answer_support
@@ -404,11 +404,26 @@ async def answer_question(
     """
     t_start = time.perf_counter()
     try:
-        # Load FAISS index
+        # Load FAISS index (with resilient auto-rebuild from MongoDB chunks if disk index was cleared)
         try:
             faiss_index = load_faiss_index(doc_id)
-        except FileNotFoundError:
-            return _not_found_response(doc_id)
+        except Exception:
+            faiss_index = None
+
+        if faiss_index is None:
+            raw_all_chunks = await chunks_col().find({"doc_id": doc_id}).sort("embedding_id", 1).to_list(length=2000)
+            if raw_all_chunks:
+                try:
+                    texts = [c["text"] for c in raw_all_chunks]
+                    vectors = await asyncio.to_thread(embed_texts, texts)
+                    faiss_index = await asyncio.to_thread(build_faiss_index, vectors, doc_id)
+                    await asyncio.to_thread(build_bm25_index, raw_all_chunks, doc_id)
+                    print(f"[RAG Engine] Rebuilt FAISS and BM25 index on the fly for {doc_id} ({len(raw_all_chunks)} chunks).")
+                except Exception as rebuild_err:
+                    print(f"[RAG Engine] Failed to rebuild index: {rebuild_err}")
+                    return _not_found_response(doc_id)
+            else:
+                return _not_found_response(doc_id)
 
         doc = await documents_col().find_one({"_id": doc_id, "user_id": user_id}, {"filename": 1, "summary": 1})
         doc_filename = doc.get("filename", "Unknown") if doc else "Unknown"

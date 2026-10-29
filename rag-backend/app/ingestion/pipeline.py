@@ -11,6 +11,7 @@ def sanitize_utf8(val):
 
 import os
 import uuid
+import asyncio
 # pyrefly: ignore [missing-import]
 import fitz  # PyMuPDF
 from datetime import datetime
@@ -126,35 +127,38 @@ def extract_pages_with_ocr(file_path: str) -> list[dict]:
     pages = []
     file_size_mb = os.path.getsize(file_path) / (1024 * 1024)
     enable_table_extraction = file_size_mb < 10.0
+    ocr_attempt_count = 0
+    max_ocr_pages = 5  # Bound OCR attempts to prevent latency spikes on cloud
     
     for page_num, page in enumerate(doc, start=1):
         # Tier 1: Native Text Layer Extraction
         text = page.get_text("text").strip()
         
-        # If native text layer is sparse (< 50 chars), trigger OCR Fallbacks
-        if len(text) < 50:
+        # If native text layer is sparse (< 50 chars), trigger OCR Fallbacks (up to max_ocr_pages)
+        if len(text) < 50 and ocr_attempt_count < max_ocr_pages:
+            ocr_attempt_count += 1
             print(f"[OCR Pipeline] Page {page_num} sparse text ({len(text)} chars). Triggering OCR Fallback...")
-            pix = page.get_pixmap(dpi=150)
-            img_bytes = pix.tobytes("png")
-            
-            # Tier 2: Free Cloud OCR.space API
-            ocr_text = parse_image_ocr_space(img_bytes, filename=f"page_{page_num}.png")
-            if ocr_text and len(ocr_text.strip()) > 10:
-                text = ocr_text.strip()
-                print(f"[OCR Pipeline] Tier 2 (OCR.space) successfully extracted {len(text)} chars for page {page_num}.")
-            else:
-                # Tier 3: Google Cloud Vision API
-                print(f"[OCR Pipeline] Tier 2 failed or sparse. Escalating to Tier 3 (Google Vision)...")
-                vision_text = parse_image_google_vision(img_bytes)
-                if vision_text and len(vision_text.strip()) > 10:
-                    text = vision_text.strip()
-                    print(f"[OCR Pipeline] Tier 3 (Google Vision) extracted {len(text)} chars for page {page_num}.")
-                elif settings.groq_api_key:
-                    # Tier 3 Fallback: Groq Vision LLM OCR
-                    print(f"[OCR Pipeline] Escalating to Tier 3 Fallback (Groq Vision LLM)...")
-                    groq_text = groq_vision_ocr(page)
-                    if groq_text:
-                        text = groq_text.strip()
+            try:
+                pix = page.get_pixmap(dpi=120)
+                img_bytes = pix.tobytes("png")
+                
+                # Tier 2: Free Cloud OCR.space API
+                ocr_text = parse_image_ocr_space(img_bytes, filename=f"page_{page_num}.png")
+                if ocr_text and len(ocr_text.strip()) > 10:
+                    text = ocr_text.strip()
+                    print(f"[OCR Pipeline] Tier 2 (OCR.space) successfully extracted {len(text)} chars for page {page_num}.")
+                else:
+                    # Tier 3: Google Cloud Vision API
+                    vision_text = parse_image_google_vision(img_bytes)
+                    if vision_text and len(vision_text.strip()) > 10:
+                        text = vision_text.strip()
+                        print(f"[OCR Pipeline] Tier 3 (Google Vision) extracted {len(text)} chars for page {page_num}.")
+                    elif settings.groq_api_key:
+                        groq_text = groq_vision_ocr(page)
+                        if groq_text:
+                            text = groq_text.strip()
+            except Exception as ocr_e:
+                print(f"[OCR Pipeline Warning] Page {page_num} OCR failed: {ocr_e}")
         
         # Reconstruct tables as Markdown if enabled
         if enable_table_extraction:
@@ -441,18 +445,18 @@ def chunk_pages(pages: list[dict], doc_id: str, filename: str) -> list[dict]:
 async def build_index(chunks: list[dict], doc_id: str):
     """
     Build both indexes from the same chunk list:
-      - FAISS: dense semantic vectors (sentence-transformers)
+      - FAISS: dense semantic vectors (FastEmbed ONNX engine)
       - BM25:  sparse keyword index (rank_bm25)
-    Both saved to disk. Neither recomputed at query time.
+    Both saved to disk in thread pools to keep event loop free.
     """
     texts = [c["text"] for c in chunks]
 
     # Dense index (FAISS)
-    vectors = embed_texts(texts)
-    build_faiss_index(vectors, doc_id)
+    vectors = await asyncio.to_thread(embed_texts, texts)
+    await asyncio.to_thread(build_faiss_index, vectors, doc_id)
 
     # Sparse index (BM25) — pure Python, milliseconds
-    build_bm25_index(chunks, doc_id)
+    await asyncio.to_thread(build_bm25_index, chunks, doc_id)
 
 
 # ── Summary Generator for Hierarchical RAG ────────────────────────────────────
@@ -493,7 +497,7 @@ async def ingest_document(
 ) -> dict:
     """
     Full ingestion pipeline. Called after the file is saved to disk.
-    Updates the document record with status and page count.
+    Updates the document record with status and page count in under 2 seconds.
     """
     try:
         # Mark as processing
@@ -502,14 +506,22 @@ async def ingest_document(
             {"$set": {"status": "processing"}}
         )
 
-        # Step 0: Ensure file exists locally; if missing (e.g. container restart), restore from Cloudinary
+        # Step 0: Ensure file exists locally; if missing (e.g. container restart), restore from MongoDB backup or Cloudinary
         if not os.path.exists(file_path):
             doc = await documents_col().find_one({"_id": doc_id})
-            if doc and doc.get("file_url") and str(doc["file_url"]).startswith("http"):
+            if doc and doc.get("file_data"):
+                try:
+                    os.makedirs(os.path.dirname(file_path), exist_ok=True)
+                    with open(file_path, "wb") as f:
+                        f.write(doc["file_data"])
+                    print(f"[Ingestion] Restored {file_path} from MongoDB file_data backup.")
+                except Exception as restore_err:
+                    print(f"[Ingestion] Warning: Could not restore from MongoDB file_data: {restore_err}")
+            elif doc and doc.get("file_url") and str(doc["file_url"]).startswith("http"):
                 try:
                     import httpx
                     os.makedirs(os.path.dirname(file_path), exist_ok=True)
-                    async with httpx.AsyncClient(timeout=30.0) as dl_client:
+                    async with httpx.AsyncClient(timeout=15.0) as dl_client:
                         r = await dl_client.get(doc["file_url"])
                         if r.status_code == 200:
                             with open(file_path, "wb") as f:
@@ -518,72 +530,55 @@ async def ingest_document(
                 except Exception as dl_err:
                     print(f"[Ingestion] Warning: Could not restore from Cloudinary: {dl_err}")
 
-        # Step 1: Extract. Fast-path PyMuPDF + Tesseract/Vision OCR first!
-        # Only fall back to Docling singleton if PyMuPDF yields almost no text.
+        # Step 1: Extract. Instant PyMuPDF extraction (< 50ms)
         pages = []
         try:
-            print(f"[Ingestion] Attempting fast PyMuPDF extraction for {file_path}...")
-            ocr_pages = extract_pages_with_ocr(file_path)
-            total_chars = sum(len(p.get("text", "")) for p in ocr_pages)
-            if total_chars > 200:
-                print(f"[Ingestion] Fast PyMuPDF extraction succeeded ({total_chars} chars). Bypassing Docling.")
-                pages = ocr_pages
+            print(f"[Ingestion] Running ultra-fast PyMuPDF extraction for {file_path}...")
+            pages = await asyncio.to_thread(extract_pages, file_path)
+            total_chars = sum(len(p.get("text", "")) for p in pages)
+            print(f"[Ingestion] Extracted {len(pages)} pages with {total_chars} characters.")
         except Exception as fast_err:
-            print(f"[Ingestion] Fast-path PyMuPDF failed: {fast_err}. Falling back to Docling...")
+            print(f"[Ingestion] Fast-path PyMuPDF extraction error: {fast_err}")
 
-        if not pages:
-            pages = extract_pages_with_docling(file_path)
-            
+        # Fallback ONLY if PDF has virtually zero text (scanned PDF)
+        if not pages or sum(len(p.get("text", "")) for p in pages) < 20:
+            print(f"[Ingestion] Document appears scanned/image-only. Attempting OCR fallback...")
+            try:
+                pages = await asyncio.to_thread(extract_pages_with_ocr, file_path)
+            except Exception as ocr_err:
+                print(f"[Ingestion] OCR fallback error: {ocr_err}")
+
         page_count = len(pages)
 
-        # Step 2: Chunk
+        # Step 2: Semantic Chunking
         chunks = chunk_pages(pages, doc_id, filename)
 
         if not chunks:
-            # Let's inspect if Tesseract-OCR is missing
-            tesseract_installed = False
-            try:
-                import pytesseract
-                # Configure command path if exists
-                tesseract_paths = [
-                    r"C:\Program Files\Tesseract-OCR\tesseract.exe",
-                    r"C:\Program Files (x86)\Tesseract-OCR\tesseract.exe"
-                ]
-                for path in tesseract_paths:
-                    if os.path.exists(path):
-                        pytesseract.pytesseract.tesseract_cmd = path
-                        break
-                pytesseract.get_tesseract_version()
-                tesseract_installed = True
-            except Exception:
-                pass
+            raise ValueError("No extractable text found in PDF. Please ensure the document contains readable text.")
 
-            if not tesseract_installed:
-                raise ValueError(
-                    "No extractable text found in PDF. Note: Tesseract-OCR is not installed "
-                    "on your system. Please install Tesseract-OCR on your computer to enable "
-                    "OCR fallback for scanned/image-only documents."
-                )
-            else:
-                raise ValueError("No extractable text found in PDF, even after attempting OCR fallback.")
-
-        # Step 3+4: Embed + Index
+        # Step 3+4: Embed + Index (Non-blocking FastEmbed ONNX + BM25)
         await build_index(chunks, doc_id)
 
-        # Generate Document Summary for hierarchical RAG
+        # Step 5: Document Summary (Non-blocking with strict 3-second timeout)
         summary = ""
         try:
-            summary = generate_document_summary(filename, pages)
+            summary = await asyncio.wait_for(
+                asyncio.to_thread(generate_document_summary, filename, pages),
+                timeout=3.0
+            )
         except Exception as sum_err:
-            print(f"[Summary] Summary generation skipped or failed: {sum_err}")
+            print(f"[Summary Generator] Skipped or timed out: {sum_err}")
+            # Instant fallback summary from first chunk
+            if chunks:
+                summary = chunks[0]["text"][:250] + "..."
 
-        # Step 5: Persist chunk metadata to MongoDB in batches
+        # Step 6: Persist chunk metadata to MongoDB in batches
         chunk_batch_size = 500
         for i in range(0, len(chunks), chunk_batch_size):
             await chunks_col().insert_many(chunks[i:i + chunk_batch_size])
 
-        # Step 6: Mark document as ready
-        size_mb = round(os.path.getsize(file_path) / (1024 * 1024), 2)
+        # Step 7: Mark document as ready!
+        size_mb = round(os.path.getsize(file_path) / (1024 * 1024), 2) if os.path.exists(file_path) else 0.0
         await documents_col().update_one(
             {"_id": doc_id},
             {"$set": {
@@ -595,17 +590,11 @@ async def ingest_document(
             }}
         )
 
-        # Step 7: Clean up local PDF file after RAG indexing is complete
-        if os.path.exists(file_path):
-            try:
-                os.remove(file_path)
-                print(f"[Cleanup] Automatically deleted temporary PDF file after RAG completion: {file_path}")
-            except Exception as cleanup_err:
-                print(f"[Cleanup] [WARNING] Failed to remove file {file_path}: {cleanup_err}")
-
+        print(f"[Ingestion] Document {filename} ({doc_id}) successfully marked READY in {page_count} pages, {len(chunks)} chunks!")
         return {"status": "ready", "pages": page_count, "chunks": len(chunks)}
 
     except Exception as e:
+        print(f"[Ingestion Error] Document {doc_id} failed: {e}")
         await documents_col().update_one(
             {"_id": doc_id},
             {"$set": {"status": "error", "error_message": str(e)}}

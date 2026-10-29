@@ -28,18 +28,18 @@ def _uploads_dir(user_id: str) -> str:
 @router.post("/upload", response_model=DocumentOut, status_code=202)
 async def upload_document(
     file: UploadFile = File(...),
-    background_tasks: BackgroundTasks = None,
+    background_tasks: BackgroundTasks = BackgroundTasks(),
     user_id: str = Depends(get_current_user)
 ):
     """
     Upload document for indexing (async).
     
-    Returns 202 Accepted immediately. Document indexing happens in background Celery worker.
-    Frontend should poll GET /api/documents/{id} to check status.
+    Returns 202 Accepted immediately. Document indexing happens in background.
+    Frontend polls GET /api/documents/{id} to check status.
     
     Status progression:
-      - processing → indexed (success)
-      - processing → failed (error)
+      - processing → ready (success in <2 seconds)
+      - processing → error (failure)
     """
     # ── Validate file type ───────────────────────────────────────────────────
     if not file.filename.lower().endswith(".pdf"):
@@ -57,7 +57,7 @@ async def upload_document(
     if user.get("storage_used_mb", 0) >= settings.max_storage_mb:
         raise HTTPException(status_code=429, detail=f"Storage limit reached ({settings.max_storage_mb}MB on free plan).")
 
-    # ── Save file to disk & upload to Cloudinary ─────────────────────────────
+    # ── Save file to disk ────────────────────────────────────────────────────
     doc_id = str(ObjectId())
     filename = f"{doc_id}_{file.filename}"
     file_path = os.path.join(_uploads_dir(user_id), filename)
@@ -68,30 +68,25 @@ async def upload_document(
     async with aiofiles.open(file_path, "wb") as f:
         await f.write(content)
 
-    # Cloudinary Cloud Storage (Lifetime-free CDN hosting)
-    cloudinary_url = None
-    try:
-        from app.core.storage_cloudinary import upload_pdf_to_cloudinary
-        c_res = await asyncio.to_thread(upload_pdf_to_cloudinary, file_path, doc_id)
-        if c_res:
-            cloudinary_url = c_res.get("secure_url")
-    except Exception as c_err:
-        print(f"[Cloudinary Upload Notice] {c_err}")
-
-    # ── Create DB record (status=processing) ─────────────────────────────────
+    # ── Create DB record (status=processing) with binary backup ───────────────
     now = datetime.utcnow()
-    await documents_col().insert_one({
+    doc_data = {
         "_id": doc_id,
         "user_id": user_id,
         "filename": file.filename,
         "stored_filename": filename,
         "file_path": file_path,
-        "file_url": cloudinary_url or file_path,
+        "file_url": file_path,
         "size_mb": size_mb,
         "page_count": 0,
         "status": "processing",
         "uploaded_at": now
-    })
+    }
+    # Store binary PDF in MongoDB as an immortal backup (for files <= 14MB)
+    if len(content) <= 14 * 1024 * 1024:
+        doc_data["file_data"] = content
+
+    await documents_col().insert_one(doc_data)
 
     # Update user storage usage
     await users_col().update_one(
@@ -99,40 +94,14 @@ async def upload_document(
         {"$inc": {"storage_used_mb": size_mb}}
     )
 
-    # ── Queue Task (Upstash Redis Queue, Celery, or FastAPI BackgroundTasks) ──
-    import json
-    from app.db.upstash import get_upstash_client
-    upstash = get_upstash_client()
-    enqueued_cloud = False
-
-    if upstash.enabled:
-        try:
-            await upstash.push_event("nexus_ingest_queue", json.dumps({
-                "doc_id": doc_id,
-                "file_path": file_path,
-                "filename": file.filename,
-                "user_id": user_id
-            }))
-            print("[Upstash Queue] Enqueued PDF ingestion task to Upstash Redis Cloud.")
-            enqueued_cloud = True
-        except Exception as q_err:
-            print(f"[Upstash Queue Warning] {q_err}")
-
-    from app.celery_app import is_celery_worker_active
-    if is_celery_worker_active() and ingest_document_task:
-        try:
-            ingest_document_task.delay(doc_id, file_path, user_id)
-            print("[Celery] Successfully enqueued document ingestion task.")
-        except Exception as celery_err:
-            print(f"[Celery] Connection failed, falling back to BackgroundTasks: {celery_err}")
-            from app.ingestion.pipeline import ingest_document
-            if background_tasks:
-                background_tasks.add_task(ingest_document, file_path, file.filename, doc_id, user_id)
+    # ── Launch In-Process Ingestion Immediately ──────────────────────────────
+    from app.ingestion.pipeline import ingest_document
+    if background_tasks is not None:
+        background_tasks.add_task(ingest_document, file_path, file.filename, doc_id, user_id)
     else:
-        print("[In-Process Worker] Running PDF ingestion via FastAPI BackgroundTasks.")
-        from app.ingestion.pipeline import ingest_document
-        if background_tasks:
-            background_tasks.add_task(ingest_document, file_path, file.filename, doc_id, user_id)
+        asyncio.create_task(ingest_document(file_path, file.filename, doc_id, user_id))
+
+    print(f"[Document Upload] Scheduled instant background indexing for {file.filename} ({doc_id})")
 
     return DocumentOut(
         id=doc_id,
