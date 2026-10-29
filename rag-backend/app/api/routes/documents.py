@@ -4,7 +4,7 @@ import os
 import shutil
 import tempfile
 from datetime import datetime
-from fastapi import APIRouter, Depends, HTTPException, UploadFile, File
+from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, BackgroundTasks
 from bson import ObjectId
 
 from app.core.security import get_current_user
