@@ -129,15 +129,21 @@ async def upload_document(
     except Exception as queue_error:
         print(f"[Document Upload] Queue unavailable, using local fallback: {queue_error}")
 
-    if not queued:
-        task = asyncio.create_task(ingest_document("", file.filename, doc_id, user_id))
-        task.add_done_callback(
-            lambda completed_task: print(
-                f"[Document Upload] Background indexing failed for {doc_id}: {completed_task.exception()}"
-            ) if not completed_task.cancelled() and completed_task.exception() else None
-        )
+    # Always start a web-process fallback as well. The atomic claim inside
+    # ingest_document prevents duplicate work when the queue worker receives
+    # the same document first, and prevents documents from hanging forever if
+    # the separate Render worker is unavailable.
+    task = asyncio.create_task(ingest_document("", file.filename, doc_id, user_id))
+    task.add_done_callback(
+        lambda completed_task: print(
+            f"[Document Upload] Background indexing failed for {doc_id}: {completed_task.exception()}"
+        ) if not completed_task.cancelled() and completed_task.exception() else None
+    )
 
-    print(f"[Document Upload] Scheduled durable background indexing for {file.filename} ({doc_id})")
+    print(
+        f"[Document Upload] Scheduled durable background indexing for "
+        f"{file.filename} ({doc_id}); queue_enqueued={queued}"
+    )
 
     return DocumentOut(
         id=doc_id,

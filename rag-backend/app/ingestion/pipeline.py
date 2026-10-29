@@ -15,6 +15,7 @@ import asyncio
 # pyrefly: ignore [missing-import]
 import fitz  # PyMuPDF
 from datetime import datetime
+from pymongo import ReturnDocument
 from langchain_text_splitters import RecursiveCharacterTextSplitter
 from qdrant_client.http import models as qdrant_models
 
@@ -501,11 +502,24 @@ async def ingest_document(
     """
     temporary_file = False
     try:
-        # Mark as processing
-        await documents_col().update_one(
-            {"_id": doc_id},
-            {"$set": {"status": "processing"}}
+        # Claim the document atomically. The web fallback and queue worker may
+        # both receive the same job, but only one process should ingest it.
+        claimed = await documents_col().find_one_and_update(
+            {
+                "_id": doc_id,
+                "status": "processing",
+                "ingestion_claimed": {"$ne": True},
+            },
+            {
+                "$set": {
+                    "ingestion_claimed": True,
+                    "ingestion_started_at": datetime.utcnow(),
+                }
+            },
+            return_document=ReturnDocument.AFTER,
         )
+        if not claimed:
+            return {"status": "skipped", "reason": "already claimed or no longer processing"}
 
         # Step 0: Ensure file exists locally; if missing (e.g. container restart), restore from MongoDB backup or Cloudinary
         if not os.path.exists(file_path):
