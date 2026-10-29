@@ -1,8 +1,8 @@
+import asyncio
 import os
-import uuid
 import aiofiles
 from datetime import datetime
-from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, BackgroundTasks
+from fastapi import APIRouter, Depends, HTTPException, UploadFile, File
 from bson import ObjectId
 
 from app.core.security import get_current_user
@@ -10,10 +10,6 @@ from app.core.config import get_settings
 from app.core.embeddings import delete_faiss_index
 from app.db.mongodb import documents_col, chunks_col, users_col
 from app.models.schemas import DocumentOut, DocumentList
-try:
-    from app.tasks import ingest_document_task  # Use Celery task instead
-except Exception:
-    ingest_document_task = None
 
 router = APIRouter(prefix="/api/documents", tags=["documents"])
 settings = get_settings()
@@ -28,7 +24,6 @@ def _uploads_dir(user_id: str) -> str:
 @router.post("/upload", response_model=DocumentOut, status_code=202)
 async def upload_document(
     file: UploadFile = File(...),
-    background_tasks: BackgroundTasks = BackgroundTasks(),
     user_id: str = Depends(get_current_user)
 ):
     """
@@ -96,13 +91,14 @@ async def upload_document(
 
     # ── Launch In-Process Ingestion Immediately ──────────────────────────────
     from app.ingestion.pipeline import ingest_document
-    # Launch via asyncio.create_task directly so it cannot be dropped by Starlette BaseHTTPMiddleware
-    asyncio.create_task(ingest_document(file_path, file.filename, doc_id, user_id))
-    if background_tasks is not None:
-        try:
-            background_tasks.add_task(ingest_document, file_path, file.filename, doc_id, user_id)
-        except Exception:
-            pass
+    # Keep ingestion independent from response middleware and schedule it once.
+    task = asyncio.create_task(ingest_document(file_path, file.filename, doc_id, user_id))
+
+    def report_ingestion_failure(completed_task: asyncio.Task) -> None:
+        if not completed_task.cancelled() and completed_task.exception() is not None:
+            print(f"[Document Upload] Background indexing failed for {doc_id}: {completed_task.exception()}")
+
+    task.add_done_callback(report_ingestion_failure)
 
     print(f"[Document Upload] Scheduled instant background indexing for {file.filename} ({doc_id})")
 
