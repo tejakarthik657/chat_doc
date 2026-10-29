@@ -21,7 +21,7 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from app.core.config import get_settings
 from app.db.upstash import get_upstash_client
-from app.db.mongodb import get_client, create_indexes
+from app.db.mongodb import get_client, create_indexes, documents_col
 
 # Setup logging
 logging.basicConfig(
@@ -97,7 +97,22 @@ async def run_worker():
                         logger.info(f"[JOB STARTED] Document Ingestion for Doc={doc_id} ({filename})")
 
                         from app.ingestion.pipeline import ingest_document
-                        await ingest_document(file_path, filename, doc_id, user_id)
+                        try:
+                            await asyncio.wait_for(
+                                ingest_document(file_path, filename, doc_id, user_id),
+                                timeout=300,
+                            )
+                        except asyncio.TimeoutError:
+                            await documents_col().update_one(
+                                {"_id": doc_id, "status": "processing"},
+                                {
+                                    "$set": {
+                                        "status": "error",
+                                        "error_message": "Document processing timed out after 5 minutes. Please retry the upload.",
+                                    }
+                                },
+                            )
+                            logger.error(f"[JOB TIMEOUT] Document ingestion timed out for Doc={doc_id}")
                         logger.info(f"[JOB COMPLETED] Document Ingestion for Doc={doc_id}")
                     except Exception as ingest_err:
                         logger.error(f"[JOB ERROR] Ingestion task failed: {ingest_err}", exc_info=True)

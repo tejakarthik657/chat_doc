@@ -133,10 +133,30 @@ async def upload_document(
     # ingest_document prevents duplicate work when the queue worker receives
     # the same document first, and prevents documents from hanging forever if
     # the separate Render worker is unavailable.
-    task = asyncio.create_task(ingest_document("", file.filename, doc_id, user_id))
+    async def run_ingestion_with_timeout():
+        try:
+            await asyncio.wait_for(
+                ingest_document("", file.filename, doc_id, user_id),
+                timeout=300,
+            )
+        except asyncio.TimeoutError:
+            await documents_col().update_one(
+                {"_id": doc_id, "status": "processing"},
+                {
+                    "$set": {
+                        "status": "error",
+                        "error_message": "Document processing timed out after 5 minutes. Please retry the upload.",
+                    }
+                },
+            )
+            print(f"[Document Upload] Background indexing timed out for {doc_id}")
+        except Exception as ingestion_error:
+            print(f"[Document Upload] Background indexing failed for {doc_id}: {ingestion_error}")
+
+    task = asyncio.create_task(run_ingestion_with_timeout())
     task.add_done_callback(
         lambda completed_task: print(
-            f"[Document Upload] Background indexing failed for {doc_id}: {completed_task.exception()}"
+            f"[Document Upload] Background indexing supervisor failed for {doc_id}: {completed_task.exception()}"
         ) if not completed_task.cancelled() and completed_task.exception() else None
     )
 
