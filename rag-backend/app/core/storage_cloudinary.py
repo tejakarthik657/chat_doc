@@ -94,15 +94,13 @@ def get_pdf_download_url(public_id: str) -> Optional[str]:
         return None
 
     try:
-        from cloudinary.utils import cloudinary_url
+        from cloudinary.utils import private_download_url
 
-        url, _ = cloudinary_url(
+        url = private_download_url(
             public_id,
+            "pdf",
             resource_type="raw",
             type="private",
-            format="pdf",
-            secure=True,
-            sign_url=True,
         )
         if not url:
             logger.error("[Cloudinary URL Error] SDK returned an empty signed URL")
