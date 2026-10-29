@@ -178,6 +178,8 @@ def detect_outlier_sections(text: str, top_k: int = 3) -> list[dict[str, Any]]:
 def verify_answer_support(answer: str, candidate_snippets: list[str]) -> dict[str, Any]:
     """
     Embedding-based support check for answer grounding with safe fallback.
+    On cloud instances (Render 512MB RAM), uses fast zero-RAM lexical keyword overlap
+    to avoid multi-text ONNX embedding memory spikes.
     """
     if not answer.strip() or not candidate_snippets:
         return {"label": "insufficient", "confidence": 0.0, "best_snippet": ""}
@@ -185,6 +187,32 @@ def verify_answer_support(answer: str, candidate_snippets: list[str]) -> dict[st
     snippets = [s for s in candidate_snippets if s.strip()][:8]
     if not snippets:
         return {"label": "insufficient", "confidence": 0.0, "best_snippet": ""}
+
+    import os
+    is_cloud = os.environ.get("ENVIRONMENT") == "production" or bool(os.environ.get("PORT")) or bool(os.environ.get("RENDER"))
+    if is_cloud:
+        # Fast, zero-RAM lexical token overlap check
+        ans_tokens = set(re.findall(r"\w+", answer.lower()))
+        ans_tokens = {t for t in ans_tokens if len(t) > 3}
+        if not ans_tokens:
+            return {"label": "supported", "confidence": 0.85, "best_snippet": snippets[0][:280]}
+
+        best_sim = 0.0
+        best_snip = snippets[0]
+        for snip in snippets:
+            s_tokens = set(re.findall(r"\w+", snip.lower()))
+            overlap = len(ans_tokens & s_tokens)
+            score = overlap / max(1, len(ans_tokens))
+            if score > best_sim:
+                best_sim = score
+                best_snip = snip
+
+        label = "supported" if best_sim >= 0.15 else "partially_supported" if best_sim >= 0.08 else "weak_support"
+        return {
+            "label": label,
+            "confidence": round(min(0.99, max(0.60, best_sim * 2.5)), 3),
+            "best_snippet": best_snip[:280],
+        }
 
     try:
         vectors = embed_texts([answer] + snippets)

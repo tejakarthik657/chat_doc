@@ -71,6 +71,10 @@ JSON response:"""
 
 
 def _grade_chunk_relevance_local(question: str, excerpt: str) -> dict:
+    import os
+    is_cloud = os.environ.get("ENVIRONMENT") == "production" or bool(os.environ.get("PORT")) or bool(os.environ.get("RENDER"))
+    if is_cloud:
+        return {"relevance": "medium", "reason": "cloud_lexical"}
     try:
         from app.core.llm import generate_raw
         import json, re
@@ -90,6 +94,10 @@ def _grade_chunk_relevance_local(question: str, excerpt: str) -> dict:
 
 
 def _rewrite_query_local(question: str) -> str:
+    import os
+    is_cloud = os.environ.get("ENVIRONMENT") == "production" or bool(os.environ.get("PORT")) or bool(os.environ.get("RENDER"))
+    if is_cloud:
+        return question
     try:
         from app.core.llm import generate_raw
         prompt = (

@@ -537,7 +537,7 @@ async def answer_question(
         # Step 10: Persist — run DB writes in parallel using asyncio.gather
         t_db_start = time.perf_counter()
         # Reuse q_vector from retrieval instead of calling embed_texts again
-        raw_vector = embed_texts([question], is_query=True)[0]
+        raw_vector = q_vector
         await asyncio.gather(
             chat_history_col().insert_one({
                 "user_id": user_id,
@@ -556,6 +556,15 @@ async def answer_question(
 
         t_total = time.perf_counter() - t_start
         print(f"[RAG LATENCY (Single Doc)] Total: {t_total:.3f}s | Retrieval: {t_retrieval:.3f}s | MongoDB: {t_mongodb:.3f}s | Reranker: {t_rerank:.3f}s | Gen: {t_gen:.3f}s | Verify: {t_verify:.3f}s | DB Write: {t_db:.3f}s")
+
+        # Memory trimming for 512MB RAM preservation
+        import gc
+        gc.collect()
+        try:
+            import ctypes
+            ctypes.CDLL("libc.so.6").malloc_trim(0)
+        except Exception:
+            pass
 
         return ChatResponse(
             answer=answer,

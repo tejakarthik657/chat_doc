@@ -32,6 +32,9 @@ def get_llm():
     """Lazy singleton — loads the GGUF model once."""
     global _llm
     if _llm is None:
+        is_cloud = os.environ.get("ENVIRONMENT") == "production" or bool(os.environ.get("PORT")) or bool(os.environ.get("RENDER"))
+        if is_cloud:
+            raise RuntimeError("Local CTransformers LLM is permanently disabled on cloud deployment to preserve 512MB RAM.")
         if not os.path.exists(settings.local_llm_path):
             raise RuntimeError(
                 f"LLM model not found at {settings.local_llm_path}.\n"
