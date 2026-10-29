@@ -536,8 +536,7 @@ async def answer_question(
 
         # Step 10: Persist — run DB writes in parallel using asyncio.gather
         t_db_start = time.perf_counter()
-        # Reuse q_vector from retrieval instead of calling embed_texts again
-        raw_vector = q_vector
+        raw_vector = []
         await asyncio.gather(
             chat_history_col().insert_one({
                 "user_id": user_id,
@@ -550,7 +549,7 @@ async def answer_question(
                 "timestamp": datetime.utcnow()
             }),
             update_memory(doc_id, user_id, question, answer),
-            log_question(user_id, doc_id, doc_filename, question, raw_vector.tolist()),
+            log_question(user_id, doc_id, doc_filename, question, raw_vector),
         )
         t_db = time.perf_counter() - t_db_start
 
