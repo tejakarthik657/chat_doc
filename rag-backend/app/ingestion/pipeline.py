@@ -933,8 +933,24 @@ async def process_project_crawled_data(
         
         # Generate Embeddings — use contextual text when available, else raw text
         embedding_texts = [c.get("contextual_text", c["text"]) for c in all_chunks]
-        vectors = embed_texts(embedding_texts)
-        vector_dim = vectors.shape[1]
+        
+        # Batch embeddings in small chunks of 32 with immediate malloc_trim to stay strictly under 512MB RAM
+        batch_size = 32 if is_cloud else 128
+        vec_list = []
+        for b_i in range(0, len(embedding_texts), batch_size):
+            b_chunk = embedding_texts[b_i:b_i + batch_size]
+            b_vecs = embed_texts(b_chunk)
+            vec_list.append(b_vecs)
+            import gc
+            gc.collect()
+            try:
+                import ctypes
+                ctypes.CDLL("libc.so.6").malloc_trim(0)
+            except Exception:
+                pass
+        
+        vectors = np.vstack(vec_list) if vec_list else np.empty((0, 384), dtype=np.float32)
+        vector_dim = vectors.shape[1] if vectors.size > 0 else 384
         
         # Initialize Qdrant collection (drop stale vectors on full re-ingest)
         collection_name = f"project_{project_id}"
@@ -980,13 +996,20 @@ async def process_project_crawled_data(
             import ctypes
             ctypes.CDLL("libc.so.6").malloc_trim(0)
         except Exception:
-            pass
-        import gc
-        gc.collect()
-        try:
-            import ctypes
-            ctypes.CDLL("libc.so.6").malloc_trim(0)
-        except Exception:
+            pass
+
+        import gc
+
+        gc.collect()
+
+        try:
+
+            import ctypes
+
+            ctypes.CDLL("libc.so.6").malloc_trim(0)
+
+        except Exception:
+
             pass
         
         # Generate global project summary for Hierarchical RAG
