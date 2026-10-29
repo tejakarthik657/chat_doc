@@ -9,6 +9,7 @@ from app.core.security import get_current_user
 from app.core.config import get_settings
 from app.db.mongodb import projects_col, crawl_jobs_col, crawled_pages_col
 from app.db.qdrant import delete_collection
+from app.core.storage_cloudinary import delete_pdf_from_cloudinary
 from app.tasks import crawl_website_task as crawl_task
 from app.models.schemas import ProjectCreate, ProjectOut, ProjectList, CrawlJobOut
 
@@ -212,7 +213,20 @@ async def delete_project(project_id: str, user_id: str = Depends(get_current_use
     except Exception as e:
         print(f"[Qdrant Cleanup] [WARNING] Failed to drop collection: {e}")
 
-    # 2. Clean up downloaded PDF files
+    # 2. Clean up durable crawled PDFs and legacy local files
+    crawled_pdfs = await crawled_pages_col().find(
+        {"project_id": project_id, "page_type": "pdf"},
+        {"storage_public_id": 1, "file_path": 1},
+    ).to_list(length=1000)
+    for pdf in crawled_pdfs:
+        delete_pdf_from_cloudinary(pdf.get("storage_public_id", ""))
+        legacy_path = pdf.get("file_path", "")
+        if legacy_path and os.path.exists(legacy_path):
+            try:
+                os.remove(legacy_path)
+            except OSError as cleanup_error:
+                print(f"[Cleanup] [WARNING] Failed to remove legacy PDF {legacy_path}: {cleanup_error}")
+
     project_download_dir = os.path.join(settings.storage_dir, "uploads", user_id, "projects", project_id)
     if os.path.exists(project_download_dir):
         try:

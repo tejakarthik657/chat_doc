@@ -606,70 +606,57 @@ async def ingest_document(
 
 async def process_single_page(page) -> tuple[list[dict], str, str, str | None]:
     import asyncio
+    import httpx
+    import tempfile
+
     page_type = page.get("page_type", "html")
     url = page["url"]
     title = page.get("title", url)
-    
+
     try:
         if page_type == "html":
-            text = page["text_content"]
-            chunks = semantic_chunking(text, source_name=title, url=url, page_num=1)
+            chunks = semantic_chunking(page["text_content"], source_name=title, url=url, page_num=1)
             return chunks, page["_id"], "indexed", None
-            
-        elif page_type == "pdf":
-            file_path = page["file_path"]
+
+        if page_type == "pdf":
+            file_path = page.get("file_path", "")
+            temporary_file = False
+            if not os.path.exists(file_path) and page.get("file_url"):
+                temp_file = tempfile.NamedTemporaryFile(prefix=f"crawl_{page['_id']}_", suffix=".pdf", delete=False)
+                file_path = temp_file.name
+                temp_file.close()
+                temporary_file = True
+                try:
+                    async with httpx.AsyncClient(timeout=30.0, follow_redirects=True) as client:
+                        response = await client.get(page["file_url"])
+                        response.raise_for_status()
+                    with open(file_path, "wb") as downloaded:
+                        downloaded.write(response.content)
+                except Exception as download_error:
+                    return [], page["_id"], "error", f"PDF download failed: {download_error}"
+
             if not os.path.exists(file_path):
                 return [], page["_id"], "error", f"PDF file not found: {file_path}"
-            
-            # Use PyMuPDF with OCR fallback directly to avoid Docling dependency issues/deadlocks
-            def extract_pdf_direct():
-                try:
-                    return extract_pages_with_ocr(file_path)
-                except Exception as e:
-                    print(f"[Ingestion] [WARNING] Direct PDF extraction failed: {e}")
-                    return []
-                
-            pdf_pages = await asyncio.to_thread(extract_pdf_direct)
-            
-            if not pdf_pages:
-                # Check if Tesseract-OCR is installed
-                tesseract_installed = False
-                try:
-                    import pytesseract
-                    tesseract_paths = [
-                        r"C:\Program Files\Tesseract-OCR\tesseract.exe",
-                        r"C:\Program Files (x86)\Tesseract-OCR\tesseract.exe"
-                    ]
-                    for path in tesseract_paths:
-                        if os.path.exists(path):
-                            pytesseract.pytesseract.tesseract_cmd = path
-                            break
-                    pytesseract.get_tesseract_version()
-                    tesseract_installed = True
-                except Exception:
-                    pass
-                
-                if not tesseract_installed:
-                    error_msg = (
-                        "No extractable text found in PDF. Note: Tesseract-OCR is not installed "
-                        "on your system. Please install Tesseract-OCR on your computer to enable "
-                        "OCR fallback for scanned/image-only documents."
-                    )
-                else:
-                    error_msg = "No extractable text found in PDF, even after attempting OCR fallback."
-                return [], page["_id"], "error", error_msg
 
-            chunks = []
-            for pdf_page in pdf_pages:
-                page_chunks = semantic_chunking(
-                    pdf_page["text"],
-                    source_name=title,
-                    url=url,
-                    page_num=pdf_page["page"]
-                )
-                chunks.extend(page_chunks)
-            return chunks, page["_id"], "indexed", None
-            
+            try:
+                pdf_pages = await asyncio.to_thread(extract_pages_with_ocr, file_path)
+                if not pdf_pages:
+                    return [], page["_id"], "error", "No extractable text found in PDF, even after attempting OCR fallback."
+
+                chunks = []
+                for pdf_page in pdf_pages:
+                    chunks.extend(semantic_chunking(
+                        pdf_page["text"],
+                        source_name=title,
+                        url=url,
+                        page_num=pdf_page["page"],
+                    ))
+                return chunks, page["_id"], "indexed", None
+            finally:
+                if temporary_file and os.path.exists(file_path):
+                    os.remove(file_path)
+
+        return [], page["_id"], "error", f"Unsupported page type: {page_type}"
     except Exception as e:
         return [], page["_id"], "error", str(e)
 

@@ -3,6 +3,7 @@ import re
 import httpx
 import asyncio
 import hashlib
+import tempfile
 import urllib.robotparser
 from urllib.parse import urlparse, urljoin
 from bs4 import BeautifulSoup
@@ -13,6 +14,7 @@ from typing import Set, List, Dict, Any
 
 from app.db.mongodb import projects_col, crawl_jobs_col, crawled_pages_col
 from app.core.config import get_settings
+from app.core.storage_cloudinary import upload_pdf_to_cloudinary
 
 settings = get_settings()
 
@@ -175,9 +177,7 @@ async def crawl_website_task(project_id: str, job_id: str, user_id: str):
         {"$set": {"status": "crawling"}}
     )
 
-    # Ensure local directory for downloaded PDFs exists
-    project_download_dir = os.path.join(settings.storage_dir, "uploads", user_id, "projects", project_id)
-    os.makedirs(project_download_dir, exist_ok=True)
+    # PDFs are uploaded to durable object storage; local files are temporary only.
 
     # 1. Sitemap Discovery (Skip if resuming)
     if not skip_sitemap:
@@ -429,57 +429,75 @@ async def crawl_website_task(project_id: str, job_id: str, user_id: str):
                         if not filename:
                             filename = f"document_{hashlib.md5(clean_url.encode()).hexdigest()[:8]}.pdf"
                         
-                        file_path = os.path.join(project_download_dir, f"{ObjectId()}_{filename}")
+                        temp_file = tempfile.NamedTemporaryFile(
+                            prefix=f"{project_id}_",
+                            suffix=".pdf",
+                            delete=False,
+                        )
+                        file_path = temp_file.name
+                        temp_file.close()
                         file_hash_obj = hashlib.sha256()
-
-                        async with client.stream("GET", clean_url, cookies=cookies_dict, timeout=30.0) as response:
-                            if response.status_code == 200:
-                                with open(file_path, "wb") as f:
-                                    async for chunk in response.aiter_bytes(chunk_size=8192):
-                                        f.write(chunk)
-                                        file_hash_obj.update(chunk)
-                                file_hash = file_hash_obj.hexdigest()
-                                if os.path.exists(file_path) and os.path.getsize(file_path) > 500:
-                                    await crawled_pages_col().update_one(
-                                        {"project_id": project_id, "url": clean_url},
-                                        {"$set": {
-                                            "title": filename,
-                                            "file_path": file_path,
-                                            "content_hash": file_hash,
-                                            "page_type": "pdf",
-                                            "status": "pending",
-                                            "crawled_at": datetime.utcnow()
-                                        }},
-                                        upsert=True
-                                    )
-                                    stats["docs_found"] += 1
-                                    print(f"[Crawler Worker {worker_id}] Successfully saved PDF: {filename} ({os.path.getsize(file_path)} bytes)")
-                            elif response.status_code == 429:
-                                print(f"[Crawler Worker {worker_id}] Rate limited (429) downloading PDF {clean_url}. Backing off...")
-                                await asyncio.sleep(3.0)
-                            # Extract links from PDF page to enqueue them
-                            try:
-                                import fitz
-                                doc = fitz.open(file_path)
-                                for page in doc:
-                                    for link in page.get_links():
-                                        if link.get("kind") == 2:  # fitz.LINK_URI
-                                            uri = link.get("uri")
-                                            if uri:
-                                                full_link = urljoin(clean_url, uri)
-                                                parsed_link = urlparse(full_link)
-                                                if is_same_domain(full_link, seed_domain):
-                                                    extension = os.path.splitext(parsed_link.path)[1].lower()
-                                                    if extension not in [".jpg", ".jpeg", ".png", ".gif", ".svg", ".zip", ".tar", ".gz", ".mp4", ".mp3"]:
-                                                        clean_link = parsed_link._replace(fragment="").geturl()
-                                                        if not is_noise_url(clean_link):
-                                                            if clean_link not in enqueued:
-                                                                enqueued.add(clean_link)
-                                                                queue.put_nowait((get_url_priority(clean_link), clean_link))
-                                                                stats["urls_found"] += 1
-                                doc.close()
-                            except Exception as pdf_link_err:
-                                print(f"[Crawler Worker {worker_id}] [WARNING] Failed to extract links from PDF {clean_url}: {pdf_link_err}")
+                        try:
+                            async with client.stream("GET", clean_url, cookies=cookies_dict, timeout=30.0) as response:
+                                if response.status_code == 200:
+                                    with open(file_path, "wb") as f:
+                                        async for chunk in response.aiter_bytes(chunk_size=8192):
+                                            f.write(chunk)
+                                            file_hash_obj.update(chunk)
+                                    file_hash = file_hash_obj.hexdigest()
+                                    if os.path.exists(file_path) and os.path.getsize(file_path) > 500:
+                                        cloudinary_file = await asyncio.to_thread(
+                                            upload_pdf_to_cloudinary,
+                                            file_path,
+                                            f"projects/{project_id}/{hashlib.md5(clean_url.encode()).hexdigest()}",
+                                        )
+                                        if not cloudinary_file:
+                                            raise RuntimeError("Durable PDF storage is unavailable")
+                                        await crawled_pages_col().update_one(
+                                            {"project_id": project_id, "url": clean_url},
+                                            {"$set": {
+                                                "title": filename,
+                                                "file_url": cloudinary_file["secure_url"],
+                                                "storage_provider": "cloudinary",
+                                                "storage_public_id": cloudinary_file["public_id"],
+                                                "content_hash": file_hash,
+                                                "page_type": "pdf",
+                                                "status": "pending",
+                                                "crawled_at": datetime.utcnow()
+                                            }, "$unset": {"file_path": ""}},
+                                            upsert=True
+                                        )
+                                        stats["docs_found"] += 1
+                                        print(f"[Crawler Worker {worker_id}] Uploaded PDF to durable storage: {filename}")
+                                elif response.status_code == 429:
+                                    print(f"[Crawler Worker {worker_id}] Rate limited (429) downloading PDF {clean_url}. Backing off...")
+                                    await asyncio.sleep(3.0)
+                                # Extract links from the temporary PDF before removing it.
+                                try:
+                                    import fitz
+                                    doc = fitz.open(file_path)
+                                    for page in doc:
+                                        for link in page.get_links():
+                                            if link.get("kind") == 2:  # fitz.LINK_URI
+                                                uri = link.get("uri")
+                                                if uri:
+                                                    full_link = urljoin(clean_url, uri)
+                                                    parsed_link = urlparse(full_link)
+                                                    if is_same_domain(full_link, seed_domain):
+                                                        extension = os.path.splitext(parsed_link.path)[1].lower()
+                                                        if extension not in [".jpg", ".jpeg", ".png", ".gif", ".svg", ".zip", ".tar", ".gz", ".mp4", ".mp3"]:
+                                                            clean_link = parsed_link._replace(fragment="").geturl()
+                                                            if not is_noise_url(clean_link):
+                                                                if clean_link not in enqueued:
+                                                                    enqueued.add(clean_link)
+                                                                    queue.put_nowait((get_url_priority(clean_link), clean_link))
+                                                                    stats["urls_found"] += 1
+                                    doc.close()
+                                except Exception as pdf_link_err:
+                                    print(f"[Crawler Worker {worker_id}] [WARNING] Failed to extract links from PDF {clean_url}: {pdf_link_err}")
+                        finally:
+                            if os.path.exists(file_path):
+                                os.remove(file_path)
                     except Exception as pdf_err:
                         print(f"[Crawler Worker {worker_id}] Failed to download PDF {clean_url}: {pdf_err}")
                     queue.task_done()
