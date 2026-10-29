@@ -309,7 +309,82 @@ async def google_callback_alias(request: Request, code: Optional[str] = None, er
 @app.get("/api/health")
 async def health():
     """Liveness probe — basic service availability."""
-    return {"status": "ok", "version": "2.2.0", "env": os.environ.get("ENVIRONMENT", "development")}
+    return {"status": "ok", "version": "2.2.1", "env": os.environ.get("ENVIRONMENT", "development")}
+
+@app.get("/api/debug/test-step/{step}")
+async def test_step(step: str):
+    import os
+    out = {"step": step}
+    try:
+        import resource
+        out["initial_rss_kb"] = resource.getrusage(resource.RUSAGE_SELF).ru_maxrss
+    except Exception:
+        pass
+    try:
+        if step == "info":
+            from app.core.config import get_settings
+            s = get_settings()
+            masked_url = s.mongodb_url
+            if "@" in masked_url:
+                prefix, rest = masked_url.split("@", 1)
+                scheme = prefix.split("://")[0]
+                masked_url = f"{scheme}://***:***@{rest}"
+            out["mongodb_url"] = masked_url
+            out["db_name"] = s.db_name
+            out["qdrant_url"] = bool(s.qdrant_url)
+            out["groq_configured"] = bool(s.groq_api_key or s.groq_api_keys)
+        elif step == "fastembed_load":
+            from app.core.embeddings import get_embedding_model
+            m = get_embedding_model()
+            out["model"] = str(type(m))
+        elif step == "fastembed_embed":
+            from app.core.embeddings import embed_texts
+            v = embed_texts(["Test sentence for embedding on Render cloud container"])
+            out["shape"] = list(v.shape)
+        elif step == "faiss_index":
+            from app.core.embeddings import embed_texts, build_faiss_index
+            v = embed_texts(["Test sentence for FAISS indexing"])
+            idx = build_faiss_index(v, "debug_test_doc")
+            out["faiss_ntotal"] = idx.ntotal
+        elif step == "bm25_index":
+            from app.core.bm25 import build_bm25_index
+            build_bm25_index([{"text": "Test sentence for BM25"}], "debug_test_doc")
+            out["bm25"] = "ok"
+        elif step == "pymupdf_extract":
+            import fitz
+            doc = fitz.open()
+            p = doc.new_page()
+            p.insert_text((50, 60), "Hello world from PyMuPDF")
+            text = p.get_text("text")
+            doc.close()
+            out["extracted_chars"] = len(text)
+        elif step == "groq_summary":
+            from app.core.llm_groq import generate
+            res = generate("Summary test", "Summarize this test in 5 words")
+            out["groq_res"] = res
+        elif step == "full_ingest":
+            from app.ingestion.pipeline import ingest_document
+            import fitz
+            test_path = "/tmp/debug_test.pdf" if os.name != "nt" else "debug_test.pdf"
+            doc = fitz.open()
+            p = doc.new_page()
+            p.insert_text((50, 60), "Test PDF for full ingestion pipeline verification.")
+            doc.save(test_path)
+            doc.close()
+            res = await ingest_document(test_path, "debug_test.pdf", "debug_doc_id", "debug_user_id")
+            out["ingest_res"] = res
+        else:
+            out["error"] = f"Unknown step: {step}"
+    except Exception as e:
+        import traceback
+        out["exception"] = str(e)
+        out["traceback"] = traceback.format_exc()
+    try:
+        import resource
+        out["final_rss_kb"] = resource.getrusage(resource.RUSAGE_SELF).ru_maxrss
+    except Exception:
+        pass
+    return out
 
 
 @app.get("/models")

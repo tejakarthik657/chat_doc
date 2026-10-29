@@ -114,12 +114,10 @@ async def upload_document(
         except Exception as e:
             print(f"[Document Upload] Ingestion error: {e}")
 
-    asyncio.create_task(run_ingest())
     if background_tasks is not None:
-        try:
-            background_tasks.add_task(run_ingest)
-        except Exception:
-            pass
+        background_tasks.add_task(run_ingest)
+    else:
+        asyncio.create_task(run_ingest())
 
     return DocumentOut(
         id=doc_id,
