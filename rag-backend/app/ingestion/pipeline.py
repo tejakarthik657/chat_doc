@@ -16,7 +16,6 @@ import asyncio
 import fitz  # PyMuPDF
 from datetime import datetime
 from pymongo import ReturnDocument
-from langchain_text_splitters import RecursiveCharacterTextSplitter
 from qdrant_client.http import models as qdrant_models
 
 from app.core.config import get_settings

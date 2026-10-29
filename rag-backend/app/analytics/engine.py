@@ -6,8 +6,6 @@ No real-time plotting. Run as a cron job or on-demand.
 """
 import numpy as np
 from datetime import datetime, timedelta
-from sklearn.cluster import KMeans
-from sklearn.preprocessing import normalize
 
 from app.db.mongodb import analytics_col, documents_col
 from app.core.config import get_settings
@@ -94,6 +92,8 @@ async def get_user_analytics(user_id: str, days: int = 30) -> dict:
 
 
 def _cluster_questions(records: list[dict], n_clusters: int = 4) -> list[dict]:
+    from sklearn.cluster import KMeans
+    from sklearn.preprocessing import normalize
     """
     KMeans clustering on question embeddings.
     Returns cluster summaries with sample questions.

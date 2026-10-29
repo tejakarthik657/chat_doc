@@ -2,8 +2,6 @@ import re
 from typing import Any
 
 import numpy as np
-from sklearn.ensemble import IsolationForest
-from sklearn.feature_extraction.text import TfidfVectorizer
 
 from app.core.embeddings import embed_texts
 
@@ -43,6 +41,7 @@ def extract_keyphrases(text: str, top_k: int = 12) -> list[str]:
     if not sentences:
         return []
 
+    from sklearn.feature_extraction.text import TfidfVectorizer
     vectorizer = TfidfVectorizer(
         stop_words="english",
         ngram_range=(1, 3),
@@ -153,6 +152,8 @@ def detect_outlier_sections(text: str, top_k: int = 3) -> list[dict[str, Any]]:
     if len(paragraphs) < 4:
         return []
 
+    from sklearn.feature_extraction.text import TfidfVectorizer
+    from sklearn.ensemble import IsolationForest
     vectorizer = TfidfVectorizer(stop_words="english", max_features=1500)
     matrix = vectorizer.fit_transform(paragraphs)
 

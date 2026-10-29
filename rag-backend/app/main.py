@@ -35,7 +35,6 @@ from app.core.config import get_settings
 from app.core.logging import setup_logging, set_correlation_id, get_correlation_id, log_with_data
 from app.core.security_headers import SecurityHeadersMiddleware
 from app.core.embeddings import get_embedding_model
-from app.core.reranker import get_reranker
 from app.db.mongodb import create_indexes, get_client
 from app.api.routes.auth import router as auth_router
 from app.api.routes.documents import router as documents_router
@@ -121,6 +120,7 @@ async def lifespan(app: FastAPI):
     # Pre-load cross-encoder reranker if enabled
     if settings.reranker_enabled:
         try:
+            from app.core.reranker import get_reranker
             get_reranker()
         except Exception as e:
             logger.warning(f"[STARTUP] Non-fatal reranker load notice: {e}")
@@ -309,7 +309,7 @@ async def google_callback_alias(request: Request, code: Optional[str] = None, er
 @app.get("/api/health")
 async def health():
     """Liveness probe — basic service availability."""
-    return {"status": "ok", "version": "2.2.1", "env": os.environ.get("ENVIRONMENT", "development")}
+    return {"status": "ok", "version": "2.2.2", "env": os.environ.get("ENVIRONMENT", "development")}
 
 @app.get("/api/debug/test-step/{step}")
 async def test_step(step: str):
