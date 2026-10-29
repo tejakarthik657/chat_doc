@@ -708,28 +708,25 @@ async def answer_project_question(
     all_qdrant: dict[int, float] = {}
     hit_payloads: dict[int, dict] = {}
     try:
-        # Batch embed all variations at once for maximum speed
-        var_vectors = embed_texts(query_variations, is_query=True)
-        for i, qv in enumerate(var_vectors):
+        # Fast single or dual-query search to prevent RAM spikes on 512MB instances
+        is_cloud = os.environ.get("ENVIRONMENT") == "production" or bool(os.environ.get("PORT")) or bool(os.environ.get("RENDER"))
+        queries_to_search = [q_vector] if is_cloud else embed_texts(query_variations[:2], is_query=True)
+        for qv in queries_to_search:
             res = search_collection(
                 collection_name=collection_name,
-                query_vector=qv.tolist(),
+                query_vector=qv.tolist() if hasattr(qv, "tolist") else list(qv),
                 query_filter=query_filter,
                 limit=retrieval_limit,
             )
-            
             for hit in res:
                 emb_id = hit.payload.get("embedding_id")
                 cid = hit.payload.get("chunk_id") or str(hit.id)
                 key = int(emb_id) if emb_id is not None else cid
                 score = float(hit.score)
-                
-                # Apply soft metadata boosting in Python (add 0.15 boost for matches)
                 if metadata_filter.get("department") and hit.payload.get("department") == metadata_filter["department"]:
                     score += 0.15
                 if metadata_filter.get("document_type") and hit.payload.get("document_type") == metadata_filter["document_type"]:
                     score += 0.15
-                    
                 if key not in all_qdrant or score > all_qdrant[key]:
                     all_qdrant[key] = score
                     hit_payloads[key] = hit.payload
@@ -747,6 +744,8 @@ async def answer_project_question(
             print(f"[RAG Engine] Hybrid search BM25 hits: {len(bm25_results)}")
         except Exception as bm25_err:
             print(f"[RAG Engine] BM25 search notice: {bm25_err}")
+        finally:
+            del bm25_index
     t_retrieval = time.perf_counter() - t_retrieval_start
         
     # Perform RRF Fusion to combine Dense (Qdrant) and Sparse (BM25) results
@@ -1155,6 +1154,15 @@ async def answer_project_question(
     t_total = time.perf_counter() - t_start
     print(f"[RAG LATENCY (Project)] Total: {t_total:.3f}s | Retrieval: {t_retrieval:.3f}s | Fusion: {t_fusion:.3f}s | MongoDB: {t_mongodb:.3f}s | Reranker: {t_rerank:.3f}s | CRAG: {t_crag:.3f}s | Gen: {t_gen:.3f}s | Verify: {t_verify:.3f}s | DB Write: {t_db:.3f}s")
     
+    # Memory trimming for 512MB RAM preservation
+    import gc
+    gc.collect()
+    try:
+        import ctypes
+        ctypes.CDLL("libc.so.6").malloc_trim(0)
+    except Exception:
+        pass
+
     return ChatResponse(
         answer=answer,
         sources=sources,
