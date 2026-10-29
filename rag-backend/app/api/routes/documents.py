@@ -96,10 +96,13 @@ async def upload_document(
 
     # ── Launch In-Process Ingestion Immediately ──────────────────────────────
     from app.ingestion.pipeline import ingest_document
+    # Launch via asyncio.create_task directly so it cannot be dropped by Starlette BaseHTTPMiddleware
+    asyncio.create_task(ingest_document(file_path, file.filename, doc_id, user_id))
     if background_tasks is not None:
-        background_tasks.add_task(ingest_document, file_path, file.filename, doc_id, user_id)
-    else:
-        asyncio.create_task(ingest_document(file_path, file.filename, doc_id, user_id))
+        try:
+            background_tasks.add_task(ingest_document, file_path, file.filename, doc_id, user_id)
+        except Exception:
+            pass
 
     print(f"[Document Upload] Scheduled instant background indexing for {file.filename} ({doc_id})")
 
