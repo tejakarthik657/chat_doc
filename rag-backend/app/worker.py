@@ -91,7 +91,7 @@ async def run_worker():
                     try:
                         payload = json.loads(raw_ingest) if isinstance(raw_ingest, str) else raw_ingest
                         doc_id = payload.get("doc_id")
-                        file_path = payload.get("file_path")
+                        file_path = payload.get("file_path", "")
                         filename = payload.get("filename")
                         user_id = payload.get("user_id")
                         logger.info(f"[JOB STARTED] Document Ingestion for Doc={doc_id} ({filename})")

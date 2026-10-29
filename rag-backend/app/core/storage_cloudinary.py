@@ -6,9 +6,6 @@ Ensures zero binary blobs are stored in MongoDB Atlas, preserving the 512MB free
 import os
 import logging
 from typing import Optional, Dict, Any, Union
-import cloudinary
-import cloudinary.uploader
-import cloudinary.api
 from app.core.config import get_settings
 
 logger = logging.getLogger(__name__)
@@ -17,12 +14,15 @@ settings = get_settings()
 from urllib.parse import urlparse
 
 _configured = False
+_cloudinary = None
 
 
 def init_cloudinary():
-    global _configured
+    global _configured, _cloudinary
     if not _configured and settings.cloudinary_url:
         try:
+            import cloudinary
+            import cloudinary.uploader
             parsed = urlparse(settings.cloudinary_url)
             cloud_name = parsed.hostname
             api_key = parsed.username
@@ -33,6 +33,7 @@ def init_cloudinary():
                 api_secret=api_secret,
                 secure=True
             )
+            _cloudinary = cloudinary
             _configured = True
             logger.info(f"[Cloudinary] Configured media storage for cloud: {cloud_name}")
         except Exception as e:
@@ -45,8 +46,8 @@ def upload_pdf_to_cloudinary(file_path_or_bytes: Union[str, bytes], public_id: O
     Returns dict with 'secure_url', 'public_id', 'bytes', or None on failure.
     """
     init_cloudinary()
-    if not _configured:
-        logger.warning("[Cloudinary] Not configured. Using local disk fallback.")
+    if not _configured or _cloudinary is None:
+        logger.warning("[Cloudinary] Not configured. Durable document storage is unavailable.")
         return None
 
     try:
@@ -58,7 +59,7 @@ def upload_pdf_to_cloudinary(file_path_or_bytes: Union[str, bytes], public_id: O
         if public_id:
             options["public_id"] = public_id
 
-        result = cloudinary.uploader.upload(file_path_or_bytes, **options)
+        result = _cloudinary.uploader.upload(file_path_or_bytes, **options)
         secure_url = result.get("secure_url") or result.get("url")
         logger.info(f"[Cloudinary] Successfully uploaded document: {secure_url}")
         return {
@@ -69,3 +70,17 @@ def upload_pdf_to_cloudinary(file_path_or_bytes: Union[str, bytes], public_id: O
     except Exception as upload_err:
         logger.error(f"[Cloudinary Upload Error] {upload_err}", exc_info=True)
         return None
+
+
+def delete_pdf_from_cloudinary(public_id: str) -> bool:
+    """Delete a raw PDF from Cloudinary after its document is removed."""
+    init_cloudinary()
+    if not _configured or _cloudinary is None or not public_id:
+        return False
+
+    try:
+        result = _cloudinary.uploader.destroy(public_id, resource_type="raw")
+        return result.get("result") in {"ok", "not found"}
+    except Exception as delete_err:
+        logger.error(f"[Cloudinary Delete Error] {delete_err}", exc_info=True)
+        return False

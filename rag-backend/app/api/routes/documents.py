@@ -1,6 +1,8 @@
 import asyncio
+import json
 import os
-import aiofiles
+import shutil
+import tempfile
 from datetime import datetime
 from fastapi import APIRouter, Depends, HTTPException, UploadFile, File
 from bson import ObjectId
@@ -8,17 +10,14 @@ from bson import ObjectId
 from app.core.security import get_current_user
 from app.core.config import get_settings
 from app.core.embeddings import delete_faiss_index
+from app.core.bm25 import delete_bm25_index
+from app.core.storage_cloudinary import upload_pdf_to_cloudinary, delete_pdf_from_cloudinary
 from app.db.mongodb import documents_col, chunks_col, users_col
+from app.db.upstash import get_upstash_client
 from app.models.schemas import DocumentOut, DocumentList
 
 router = APIRouter(prefix="/api/documents", tags=["documents"])
 settings = get_settings()
-
-
-def _uploads_dir(user_id: str) -> str:
-    path = os.path.join(settings.storage_dir, "uploads", user_id)
-    os.makedirs(path, exist_ok=True)
-    return path
 
 
 @router.post("/upload", response_model=DocumentOut, status_code=202)
@@ -52,36 +51,64 @@ async def upload_document(
     if user.get("storage_used_mb", 0) >= settings.max_storage_mb:
         raise HTTPException(status_code=429, detail=f"Storage limit reached ({settings.max_storage_mb}MB on free plan).")
 
-    # ── Save file to disk ────────────────────────────────────────────────────
+    # ── Upload to durable object storage ─────────────────────────────────────
     doc_id = str(ObjectId())
-    filename = f"{doc_id}_{file.filename}"
-    file_path = os.path.join(_uploads_dir(user_id), filename)
+    stored_filename = f"{doc_id}_{file.filename}"
+    temp_path = ""
+    cloudinary_file = None
+    try:
+        with tempfile.NamedTemporaryFile(prefix=f"{doc_id}_", suffix=".pdf", delete=False) as temp_file:
+            temp_path = temp_file.name
+            shutil.copyfileobj(file.file, temp_file)
 
-    content = await file.read()
-    size_mb = round(len(content) / (1024 * 1024), 2)
+        size_bytes = os.path.getsize(temp_path)
+        size_mb = round(size_bytes / (1024 * 1024), 2)
+        if size_bytes == 0:
+            raise HTTPException(status_code=400, detail="The uploaded PDF is empty.")
+        if size_bytes > settings.max_upload_bytes:
+            raise HTTPException(
+                status_code=413,
+                detail=f"File is too large. Maximum size is {settings.max_upload_size_mb}MB."
+            )
 
-    async with aiofiles.open(file_path, "wb") as f:
-        await f.write(content)
+        cloudinary_file = await asyncio.to_thread(
+            upload_pdf_to_cloudinary,
+            temp_path,
+            f"{user_id}/{doc_id}"
+        )
+        if not cloudinary_file:
+            raise HTTPException(
+                status_code=503,
+                detail="Document storage is unavailable. Please try again."
+            )
+    except HTTPException:
+        raise
+    except Exception as upload_error:
+        raise HTTPException(status_code=503, detail=f"Could not store document: {upload_error}")
+    finally:
+        if temp_path and os.path.exists(temp_path):
+            os.remove(temp_path)
 
-    # ── Create DB record (status=processing) with binary backup ───────────────
+    # ── Create DB record (metadata only; never store raw PDF bytes) ───────────
     now = datetime.utcnow()
     doc_data = {
         "_id": doc_id,
         "user_id": user_id,
         "filename": file.filename,
-        "stored_filename": filename,
-        "file_path": file_path,
-        "file_url": file_path,
+        "stored_filename": stored_filename,
+        "file_url": cloudinary_file["secure_url"],
+        "storage_provider": "cloudinary",
+        "storage_public_id": cloudinary_file["public_id"],
         "size_mb": size_mb,
         "page_count": 0,
         "status": "processing",
         "uploaded_at": now
     }
-    # Store binary PDF in MongoDB as an immortal backup (for files <= 14MB)
-    if len(content) <= 14 * 1024 * 1024:
-        doc_data["file_data"] = content
-
-    await documents_col().insert_one(doc_data)
+    try:
+        await documents_col().insert_one(doc_data)
+    except Exception:
+        await asyncio.to_thread(delete_pdf_from_cloudinary, cloudinary_file["public_id"])
+        raise
 
     # Update user storage usage
     await users_col().update_one(
@@ -89,18 +116,28 @@ async def upload_document(
         {"$inc": {"storage_used_mb": size_mb}}
     )
 
-    # ── Launch In-Process Ingestion Immediately ──────────────────────────────
+    # ── Queue ingestion; use in-process fallback if the queue is unavailable ──
     from app.ingestion.pipeline import ingest_document
-    # Keep ingestion independent from response middleware and schedule it once.
-    task = asyncio.create_task(ingest_document(file_path, file.filename, doc_id, user_id))
+    queue_payload = json.dumps({
+        "doc_id": doc_id,
+        "filename": file.filename,
+        "user_id": user_id,
+    })
+    queued = False
+    try:
+        queued = await get_upstash_client().push_event("nexus_ingest_queue", queue_payload)
+    except Exception as queue_error:
+        print(f"[Document Upload] Queue unavailable, using local fallback: {queue_error}")
 
-    def report_ingestion_failure(completed_task: asyncio.Task) -> None:
-        if not completed_task.cancelled() and completed_task.exception() is not None:
-            print(f"[Document Upload] Background indexing failed for {doc_id}: {completed_task.exception()}")
+    if not queued:
+        task = asyncio.create_task(ingest_document("", file.filename, doc_id, user_id))
+        task.add_done_callback(
+            lambda completed_task: print(
+                f"[Document Upload] Background indexing failed for {doc_id}: {completed_task.exception()}"
+            ) if not completed_task.cancelled() and completed_task.exception() else None
+        )
 
-    task.add_done_callback(report_ingestion_failure)
-
-    print(f"[Document Upload] Scheduled instant background indexing for {file.filename} ({doc_id})")
+    print(f"[Document Upload] Scheduled durable background indexing for {file.filename} ({doc_id})")
 
     return DocumentOut(
         id=doc_id,
@@ -161,12 +198,18 @@ async def delete_document(doc_id: str, user_id: str = Depends(get_current_user))
     if not doc:
         raise HTTPException(status_code=404, detail="Document not found.")
 
-    # Delete file from disk
-    if os.path.exists(doc.get("file_path", "")):
-        os.remove(doc["file_path"])
+    # Delete the durable PDF from object storage.
+    delete_pdf_from_cloudinary(doc.get("storage_public_id", ""))
+    # Remove legacy local files created before durable object storage was enabled.
+    legacy_file_path = doc.get("file_path", "")
+    if legacy_file_path and os.path.exists(legacy_file_path):
+        os.remove(legacy_file_path)
 
     # Delete FAISS index
     delete_faiss_index(doc_id)
+    delete_bm25_index(doc_id)
+    from app.db.qdrant import delete_collection
+    delete_collection(f"project_{doc_id}")
 
     # Delete from MongoDB
     await documents_col().delete_one({"_id": doc_id})

@@ -499,6 +499,7 @@ async def ingest_document(
     Full ingestion pipeline. Called after the file is saved to disk.
     Updates the document record with status and page count in under 2 seconds.
     """
+    temporary_file = False
     try:
         # Mark as processing
         await documents_col().update_one(
@@ -509,26 +510,24 @@ async def ingest_document(
         # Step 0: Ensure file exists locally; if missing (e.g. container restart), restore from MongoDB backup or Cloudinary
         if not os.path.exists(file_path):
             doc = await documents_col().find_one({"_id": doc_id})
-            if doc and doc.get("file_data"):
-                try:
-                    os.makedirs(os.path.dirname(file_path), exist_ok=True)
-                    with open(file_path, "wb") as f:
-                        f.write(doc["file_data"])
-                    print(f"[Ingestion] Restored {file_path} from MongoDB file_data backup.")
-                except Exception as restore_err:
-                    print(f"[Ingestion] Warning: Could not restore from MongoDB file_data: {restore_err}")
-            elif doc and doc.get("file_url") and str(doc["file_url"]).startswith("http"):
+            if doc and doc.get("file_url") and str(doc["file_url"]).startswith("http"):
                 try:
                     import httpx
-                    os.makedirs(os.path.dirname(file_path), exist_ok=True)
+                    import tempfile
+                    suffix = os.path.splitext(filename)[1] or ".pdf"
+                    temp_file = tempfile.NamedTemporaryFile(prefix=f"{doc_id}_", suffix=suffix, delete=False)
+                    temp_file.close()
+                    file_path = temp_file.name
+                    temporary_file = True
                     async with httpx.AsyncClient(timeout=15.0) as dl_client:
                         r = await dl_client.get(doc["file_url"])
+                        r.raise_for_status()
                         if r.status_code == 200:
                             with open(file_path, "wb") as f:
                                 f.write(r.content)
-                            print(f"[Ingestion] Restored {file_path} from Cloudinary CDN.")
+                            print(f"[Ingestion] Downloaded document {doc_id} from durable object storage.")
                 except Exception as dl_err:
-                    print(f"[Ingestion] Warning: Could not restore from Cloudinary: {dl_err}")
+                    raise RuntimeError(f"Could not download document from durable object storage: {dl_err}") from dl_err
 
         # Step 1: Extract. Instant PyMuPDF extraction (< 50ms)
         pages = []
@@ -600,6 +599,9 @@ async def ingest_document(
             {"$set": {"status": "error", "error_message": str(e)}}
         )
         raise
+    finally:
+        if temporary_file and file_path and os.path.exists(file_path):
+            os.remove(file_path)
 
 
 async def process_single_page(page) -> tuple[list[dict], str, str, str | None]:
@@ -1116,4 +1118,3 @@ async def build_neo4j_graph_for_project(project_id: str, project_name: str, chun
         print(f"[Neo4j Graph] Successfully wrote {len(entities)} entities and {len(relations)} relations to Neo4j.")
     except Exception as neo_err:
         print(f"[Neo4j Graph] [NOTICE] Neo4j session write skipped: {neo_err}")
-

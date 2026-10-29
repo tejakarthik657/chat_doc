@@ -15,6 +15,19 @@ FastAPI
 
 **Stack:** FastAPI · PyMuPDF · sentence-transformers · FAISS-cpu · TinyLlama GGUF · MongoDB Atlas
 
+### Document storage
+
+Uploaded PDF binaries are stored in Cloudinary as raw assets. MongoDB stores document
+metadata and the Cloudinary `secure_url`/`storage_public_id`, but never stores PDF bytes.
+The ingestion worker downloads a temporary copy from Cloudinary, extracts and indexes it,
+then removes the temporary file. Extracted chunks remain in MongoDB; vector embeddings
+remain in Qdrant; local FAISS/BM25 indexes are cache artifacts and can be rebuilt from
+MongoDB chunks after a service restart.
+
+Set `CLOUDINARY_URL` for both the web service and the ingestion worker. Uploads fail
+explicitly when durable object storage is unavailable rather than silently falling back
+to ephemeral local disk.
+
 ---
 
 ## Quick Start
