@@ -79,10 +79,7 @@ async def upload_document(
         "status": "processing",
         "uploaded_at": now
     }
-    # Store binary in MongoDB Atlas for zero-latency recovery across container restarts
-    if size_bytes <= 14 * 1024 * 1024:
-        doc_data["file_data"] = content
-
+    # Decoupled storage: Binary is stored in Cloudinary CDN; MongoDB stores metadata only to preserve M0 512MB quota
     await documents_col().insert_one(doc_data)
 
     # Update user storage usage
@@ -187,7 +184,7 @@ async def delete_document(doc_id: str, user_id: str = Depends(get_current_user))
 
     # Delete FAISS index
     delete_faiss_index(doc_id)
-    delete_bm25_index(doc_id)
+    await delete_bm25_index(doc_id)
     from app.db.qdrant import delete_collection
     delete_collection(f"project_{doc_id}")
 

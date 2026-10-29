@@ -362,9 +362,9 @@ async def hybrid_retrieve(
         faiss_results = sorted(all_faiss_results.items(), key=lambda x: x[1], reverse=True)
         debug_info["faiss_hits"] = len(faiss_results)
 
-    # ── C: BM25 keyword search (always use raw question + variations) ─────────
+    # ── C: BM25 keyword search (durable MongoDB + local cache) ────────────────
     bm25_results = []
-    bm25_index = load_bm25_index(doc_id)
+    bm25_index = await load_bm25_index(doc_id)
     if bm25_index is not None:
         all_bm25: dict[int, float] = {}
         for q_text in query_variations:
@@ -417,7 +417,7 @@ async def answer_question(
                     texts = [c["text"] for c in raw_all_chunks]
                     vectors = await asyncio.to_thread(embed_texts, texts)
                     faiss_index = await asyncio.to_thread(build_faiss_index, vectors, doc_id)
-                    await asyncio.to_thread(build_bm25_index, raw_all_chunks, doc_id)
+                    await build_bm25_index(raw_all_chunks, doc_id)
                     print(f"[RAG Engine] Rebuilt FAISS and BM25 index on the fly for {doc_id} ({len(raw_all_chunks)} chunks).")
                 except Exception as rebuild_err:
                     print(f"[RAG Engine] Failed to rebuild index: {rebuild_err}")
@@ -745,7 +745,7 @@ async def answer_project_question(
     
     # Run Sparse Keyword Search (BM25)  
     bm25_results = []
-    bm25_index = load_bm25_index(project_id)
+    bm25_index = await load_bm25_index(project_id)
     if bm25_index is not None:
         try:
             bm25_results = bm25_search(bm25_index, question, top_k=retrieval_limit)

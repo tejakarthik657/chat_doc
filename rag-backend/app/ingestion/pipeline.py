@@ -457,8 +457,8 @@ async def build_index(chunks: list[dict], doc_id: str):
     vectors = await asyncio.to_thread(embed_texts, texts)
     await asyncio.to_thread(build_faiss_index, vectors, doc_id)
 
-    # Sparse index (BM25) — pure Python, milliseconds
-    await asyncio.to_thread(build_bm25_index, chunks, doc_id)
+    # Sparse index (BM25) — durable MongoDB + local fast cache
+    await build_bm25_index(chunks, doc_id)
 
 
 # ── Summary Generator for Hierarchical RAG ────────────────────────────────────
@@ -908,8 +908,8 @@ async def process_project_crawled_data(
         for i in range(0, len(all_chunks), chunk_batch_size):
             await chunks_col().insert_many(all_chunks[i:i + chunk_batch_size])
 
-        # Build BM25 index on the project chunks (uses raw text)
-        build_bm25_index(all_chunks, project_id)
+        # Build BM25 index on the project chunks (durable MongoDB + local cache)
+        await build_bm25_index(all_chunks, project_id)
 
         print(f"[Ingestion] Total chunks to index: {len(all_chunks)}")
         

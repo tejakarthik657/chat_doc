@@ -43,6 +43,10 @@ class Settings(BaseSettings):
     groq_api_key: Optional[str] = None
     groq_api_keys: Optional[str] = None  # Comma-separated list of multiple Groq API keys for pool rotation
 
+    # ── Multi-Provider Cloud LLM Fallbacks ──────────────────────────────────────
+    gemini_api_key: Optional[str] = None
+    openrouter_api_key: Optional[str] = None
+
     # ── Qdrant Vector Database ──────────────────────────────────────────────────
     qdrant_url: Optional[str] = None
     qdrant_api_key: Optional[str] = None

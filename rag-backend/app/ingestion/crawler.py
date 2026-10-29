@@ -697,6 +697,22 @@ async def crawl_website_task(project_id: str, job_id: str, user_id: str):
                 print(f"[Crawler Worker {worker_id}] [ERROR] Failed to fetch {clean_url}: {e}")
             finally:
                 queue.task_done()
+                if is_cloud and ((stats["pages_indexed"] + stats["docs_found"]) % 4 == 0):
+                    import gc
+                    gc.collect()
+                    try:
+                        import ctypes
+                        ctypes.CDLL("libc.so.6").malloc_trim(0)
+                    except Exception:
+                        pass
+                    try:
+                        import psutil
+                        rss_mb = psutil.Process().memory_info().rss / (1024 * 1024)
+                        if rss_mb > 420:
+                            print(f"[Crawler Memory Guard] RSS is {rss_mb:.1f}MB > 420MB. Cooling down for 2s...")
+                            await asyncio.sleep(2.0)
+                    except Exception:
+                        pass
 
     # Determine worker pool count dynamically based on engine mode
     is_cloud = os.environ.get("ENVIRONMENT") == "production" or bool(os.environ.get("PORT")) or bool(os.environ.get("RENDER"))

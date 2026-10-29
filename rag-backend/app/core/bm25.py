@@ -1,19 +1,18 @@
 """
-BM25 Index Manager
-──────────────────
-Keyword-based retrieval to complement FAISS semantic search.
-Uses rank_bm25 (pure Python, CPU, no cost).
+BM25 Index Manager (Hybrid Storage: Fast-Path Local Disk Cache + Durable MongoDB Collection)
+─────────────────────────────────────────────────────────────────────────────────────────────
+Keyword-based retrieval to complement dense vector search.
+Uses rank_bm25 (pure Python, CPU, zero cost).
 
-Why BM25 alongside FAISS?
-  - FAISS is great at meaning ("what treats high blood pressure?")
-  - BM25 is great at exact terms ("ACE inhibitor", "metformin 500mg", "ICD-10 I10")
-  - Together they catch what either alone misses (Hybrid Search)
-
-Storage: BM25 indexes are pickled to disk, one per document.
+Durable Storage:
+  - Local Disk: /storage/bm25/{doc_id}.pkl (sub-millisecond hot cache)
+  - MongoDB Atlas: bm25_indexes collection (compressed binary, zero loss across container restarts/redeploys)
 """
 import os
 import pickle
 import re
+import zlib
+from datetime import datetime
 from app.core.config import get_settings
 
 settings = get_settings()
@@ -40,36 +39,93 @@ def _tokenize(text: str) -> list[str]:
     return [t for t in tokens if t not in STOP_WORDS and len(t) > 1]
 
 
-def build_bm25_index(chunks: list[dict], doc_id: str):
+async def build_bm25_index(chunks: list[dict], doc_id: str):
     """
-    Build and persist a BM25 index from chunk texts.
-    Called during ingestion alongside FAISS.
+    Build BM25 index from chunk texts and persist to both:
+    1. Local filesystem cache for fast reads
+    2. MongoDB bm25_indexes collection for container restart durability
     """
     from rank_bm25 import BM25Okapi
 
     corpus = [_tokenize(c["text"]) for c in chunks]
     index = BM25Okapi(corpus)
+    pickled = pickle.dumps({"index": index, "chunk_count": len(chunks)})
 
-    with open(_bm25_path(doc_id), "wb") as f:
-        pickle.dump({"index": index, "chunk_count": len(chunks)}, f)
+    # Fast-path local write
+    try:
+        with open(_bm25_path(doc_id), "wb") as f:
+            f.write(pickled)
+    except Exception as e:
+        print(f"[BM25] Local write notice: {e}")
 
-    print(f"[BM25] Built index for {doc_id}: {len(chunks)} chunks")
+    # Durable MongoDB write
+    try:
+        from app.db.mongodb import bm25_indexes_col
+        compressed = zlib.compress(pickled)
+        await bm25_indexes_col().update_one(
+            {"doc_id": doc_id},
+            {"$set": {
+                "doc_id": doc_id,
+                "data": compressed,
+                "chunk_count": len(chunks),
+                "updated_at": datetime.utcnow()
+            }},
+            upsert=True
+        )
+        print(f"[BM25] Persisted durable index for {doc_id}: {len(chunks)} chunks ({len(compressed)/1024:.1f} KB in MongoDB)")
+    except Exception as mongo_err:
+        print(f"[BM25] MongoDB persist notice: {mongo_err}")
 
 
-def load_bm25_index(doc_id: str):
-    """Load a persisted BM25 index. Returns None if not found."""
-    path = _bm25_path(doc_id)
-    if not os.path.exists(path):
-        return None
-    with open(path, "rb") as f:
-        data = pickle.load(f)
-    return data["index"]
-
-
-def delete_bm25_index(doc_id: str):
+async def load_bm25_index(doc_id: str):
+    """
+    Load BM25 index.
+    Checks local disk first. If missing (e.g. Render redeploy/restart), restores
+    immediately from durable MongoDB storage and rehydrates the local cache.
+    """
     path = _bm25_path(doc_id)
     if os.path.exists(path):
-        os.remove(path)
+        try:
+            with open(path, "rb") as f:
+                data = pickle.load(f)
+            return data["index"]
+        except Exception:
+            pass
+
+    # Durable restore from MongoDB Atlas
+    try:
+        from app.db.mongodb import bm25_indexes_col
+        doc = await bm25_indexes_col().find_one({"doc_id": doc_id})
+        if doc and doc.get("data"):
+            decompressed = zlib.decompress(doc["data"])
+            data = pickle.loads(decompressed)
+            # Rehydrate local cache
+            try:
+                with open(path, "wb") as f:
+                    f.write(decompressed)
+            except Exception:
+                pass
+            print(f"[BM25] Restored index for {doc_id} from MongoDB Atlas ({doc.get('chunk_count', 0)} chunks).")
+            return data["index"]
+    except Exception as e:
+        print(f"[BM25] MongoDB restore notice for {doc_id}: {e}")
+
+    return None
+
+
+async def delete_bm25_index(doc_id: str):
+    """Delete index from both local disk and MongoDB collection."""
+    path = _bm25_path(doc_id)
+    if os.path.exists(path):
+        try:
+            os.remove(path)
+        except Exception:
+            pass
+    try:
+        from app.db.mongodb import bm25_indexes_col
+        await bm25_indexes_col().delete_one({"doc_id": doc_id})
+    except Exception:
+        pass
 
 
 def bm25_search(

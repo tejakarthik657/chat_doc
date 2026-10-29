@@ -309,7 +309,7 @@ async def google_callback_alias(request: Request, code: Optional[str] = None, er
 @app.get("/api/health")
 async def health():
     """Liveness probe — basic service availability."""
-    return {"status": "ok", "version": "2.2.8", "env": os.environ.get("ENVIRONMENT", "development")}
+    return {"status": "ok", "version": "2.3.0", "env": os.environ.get("ENVIRONMENT", "development")}
 
 @app.get("/api/debug/test-step/{step}")
 async def test_step(step: str):
@@ -348,7 +348,7 @@ async def test_step(step: str):
             out["faiss_ntotal"] = idx.ntotal
         elif step == "bm25_index":
             from app.core.bm25 import build_bm25_index
-            build_bm25_index([{"text": "Test sentence for BM25"}], "debug_test_doc")
+            await build_bm25_index([{"text": "Test sentence for BM25"}], "debug_test_doc")
             out["bm25"] = "ok"
         elif step == "pymupdf_extract":
             import fitz

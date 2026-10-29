@@ -92,6 +92,20 @@ def generate(context: str, question: str, memory: str = "") -> str:
     ]
     
     def fast_clean_fallback():
+        # 1. Cloud Multi-Provider Fallback (Gemini 1.5 Flash / OpenRouter)
+        try:
+            from app.core.llm_cloud_fallback import generate_gemini_fallback, generate_openrouter_fallback
+            prompt = f"Document Context:\n{context[:4000]}\n{memory_block}\nQuestion: {question}"
+            gemini_ans = generate_gemini_fallback(prompt=prompt, system_prompt=SYSTEM_PROMPT)
+            if gemini_ans:
+                return gemini_ans
+            openrouter_ans = generate_openrouter_fallback(messages)
+            if openrouter_ans:
+                return openrouter_ans
+        except Exception as cloud_fb_err:
+            logger.warning(f"[Cloud Fallback Notice] {cloud_fb_err}")
+
+        # 2. Local Workstation Ollama Fallback
         try:
             from app.core.llm_local import generate_ollama
             prompt = f"Document Context:\n{context[:3000]}\n{memory_block}\nQuestion: {question}"
