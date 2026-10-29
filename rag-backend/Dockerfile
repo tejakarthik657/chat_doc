@@ -23,7 +23,7 @@ COPY . .
 RUN mkdir -p storage/uploads storage/indexes models
 
 # Pre-cache embedding models so container starts fast with zero runtime download
-RUN python -c "from fastembed import TextEmbedding; TextEmbedding(model_name='BAAI/bge-small-en-v1.5')"
+RUN python -c "from fastembed import TextEmbedding; TextEmbedding(model_name='BAAI/bge-small-en-v1.5', cache_dir='/app/models/fastembed', threads=1)"
 
 EXPOSE 8000
 EXPOSE 10000

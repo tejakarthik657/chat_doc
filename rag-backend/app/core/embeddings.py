@@ -15,6 +15,19 @@ _embedding_model = None
 _fastembed_model = None
 
 
+def _get_fastembed_cache_dir() -> str:
+    candidates = [
+        os.path.abspath("models/fastembed"),
+        os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..", "models", "fastembed")),
+        os.path.abspath(os.path.join(settings.storage_dir, "..", "models", "fastembed")),
+        os.path.abspath(os.path.join(settings.model_cache_dir, "fastembed")),
+    ]
+    for c in candidates:
+        if os.path.exists(c):
+            return c
+    return candidates[0]
+
+
 def get_embedding_model():
     """Ultra-low RAM singleton. Prefers FastEmbed (ONNX, ~70MB) over PyTorch (~550MB)."""
     global _embedding_model, _fastembed_model
@@ -22,13 +35,24 @@ def get_embedding_model():
     try:
         if _fastembed_model is None:
             from fastembed import TextEmbedding
-            _fastembed_model = TextEmbedding(model_name="BAAI/bge-small-en-v1.5")
-            print("[Embeddings] FastEmbed ONNX engine loaded (RAM < 80MB).")
+            cache_dir = _get_fastembed_cache_dir()
+            os.makedirs(cache_dir, exist_ok=True)
+            _fastembed_model = TextEmbedding(
+                model_name="BAAI/bge-small-en-v1.5",
+                cache_dir=cache_dir,
+                threads=1
+            )
+            print(f"[Embeddings] FastEmbed ONNX engine loaded from {cache_dir} (RAM < 80MB).")
         return _fastembed_model
-    except Exception:
-        pass
+    except Exception as e:
+        print(f"[Embeddings] FastEmbed initialization note: {e}")
 
-    # 2. Fallback to SentenceTransformer (PyTorch)
+    # Prevent PyTorch OOM crashes on 512MB cloud instances like Render
+    is_cloud = os.environ.get("ENVIRONMENT") == "production" or bool(os.environ.get("PORT")) or bool(os.environ.get("RENDER"))
+    if is_cloud:
+        raise RuntimeError("FastEmbed ONNX engine is mandatory on cloud instances to avoid 512MB RAM exhaustion.")
+
+    # 2. Fallback to SentenceTransformer (PyTorch) for local workstation development only
     if _embedding_model is None:
         try:
             from sentence_transformers import SentenceTransformer
