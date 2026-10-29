@@ -100,17 +100,21 @@ export function ChatInterface({ docId, onCitationClick }: { docId: string, onCit
     }, [docId]);
 
     const simulateStreaming = async (fullText: string, aiMsgId: string) => {
+        if (!fullText) return;
         const words = fullText.split(" ");
         let currentText = "";
-
-        for (let i = 0; i < words.length; i++) {
-            currentText += (i === 0 ? "" : " ") + words[i];
+        const chunkSize = words.length > 150 ? 3 : 1;
+        for (let i = 0; i < words.length; i += chunkSize) {
+            const chunk = words.slice(i, i + chunkSize).join(" ");
+            currentText += (i === 0 ? "" : " ") + chunk;
             setMessages(prev => prev.map(m =>
                 m.id === aiMsgId ? { ...m, content: currentText } : m
             ));
-            const delay = Math.max(10, 50 - words.length / 5);
-            await new Promise(resolve => setTimeout(resolve, delay));
+            await new Promise(resolve => setTimeout(resolve, 20));
         }
+        setMessages(prev => prev.map(m =>
+            m.id === aiMsgId ? { ...m, content: fullText } : m
+        ));
     };
 
     const handleAskGeneralAI = async (question: string) => {
@@ -568,10 +572,12 @@ export function ChatInterface({ docId, onCitationClick }: { docId: string, onCit
 }
 
 function MarkdownText({ content }: { content: string }) {
+    if (!content) return null;
     const lines = content.split('\n');
     const elements: React.ReactNode[] = [];
     
     let listItems: React.ReactNode[] = [];
+    let orderedItems: React.ReactNode[] = [];
     let tableRows: string[][] = [];
 
     const renderTextWithInlineFormatting = (text: string) => {
@@ -601,13 +607,24 @@ function MarkdownText({ content }: { content: string }) {
         }
     };
 
+    const flushOrderedList = (key: number) => {
+        if (orderedItems.length > 0) {
+            elements.push(
+                <ol key={`ol-${key}`} className="list-decimal pl-5 my-2 space-y-1 text-slate-700 font-sans">
+                    {orderedItems}
+                </ol>
+            );
+            orderedItems = [];
+        }
+    };
+
     const flushTable = (key: number) => {
         if (tableRows.length > 0) {
             const headers = tableRows[0];
             const rows = tableRows.slice(2);
             
             elements.push(
-                <div key={`table-wrapper-${key}`} className="overflow-x-auto my-3 border border-slate-200/60 shadow-sm max-w-full">
+                <div key={`table-wrapper-${key}`} className="overflow-x-auto my-3 border border-slate-200/60 shadow-xs max-w-full rounded-md">
                     <table className="min-w-full divide-y divide-slate-200 text-xs font-sans text-left">
                         <thead className="bg-slate-50 font-mono text-[10px] text-slate-500 uppercase tracking-wider">
                             <tr>
@@ -641,6 +658,7 @@ function MarkdownText({ content }: { content: string }) {
         
         if (line.trim().startsWith('|')) {
             flushList(i);
+            flushOrderedList(i);
             const cells = line.split('|').map(c => c.trim()).filter((_, idx, arr) => idx > 0 && idx < arr.length - 1);
             tableRows.push(cells);
             continue;
@@ -649,6 +667,7 @@ function MarkdownText({ content }: { content: string }) {
         }
 
         if (line.trim().startsWith('- ') || line.trim().startsWith('* ')) {
+            flushOrderedList(i);
             const contentText = line.trim().substring(2);
             listItems.push(
                 <li key={`li-${i}`}>
@@ -658,6 +677,28 @@ function MarkdownText({ content }: { content: string }) {
             continue;
         } else {
             flushList(i);
+        }
+
+        const matchOrdered = line.trim().match(/^(\d+)\.\s+(.*)/);
+        if (matchOrdered) {
+            flushList(i);
+            orderedItems.push(
+                <li key={`ol-item-${i}`}>
+                    {renderTextWithInlineFormatting(matchOrdered[2])}
+                </li>
+            );
+            continue;
+        } else {
+            flushOrderedList(i);
+        }
+
+        if (line.trim().startsWith('> ')) {
+            elements.push(
+                <blockquote key={i} className="my-2 border-l-4 border-indigo-500 pl-3 italic text-slate-700 bg-indigo-50/30 py-1.5 rounded-r text-xs leading-relaxed">
+                    {renderTextWithInlineFormatting(line.trim().substring(2))}
+                </blockquote>
+            );
+            continue;
         }
 
         if (line.trim().startsWith('### ')) {
@@ -678,6 +719,7 @@ function MarkdownText({ content }: { content: string }) {
     }
 
     flushList(lines.length);
+    flushOrderedList(lines.length);
     flushTable(lines.length);
 
     return <div className="space-y-1">{elements}</div>;

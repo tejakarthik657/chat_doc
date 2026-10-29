@@ -1,16 +1,14 @@
 import os
 """
-Groq LLM: FREE and ULTRA FAST cloud LLM inference.
-Uses Llama 3.1 70B - better than GPT-3.5, completely free.
-
-Get free API key from: https://console.groq.com/keys
-Free tier: 30 requests/minute (more than enough for your app)
+Groq LLM: ULTRA-FAST, RESILIENT CLOUD INFERENCE WITH DYNAMIC MULTI-KEY POOL.
+Uses active Groq models (qwen/qwen3.8-27b, openai/gpt-oss-120b, openai/gpt-oss-20b)
+with automated round-robin load distribution across all configured GROQ_API_KEYS.
 
 PRODUCTION UPGRADES:
-  - Integrated with ResilientGroqClient (exponential backoff + rate limiting)
-  - Circuit breaker prevents cascading failures
-  - Token bucket prevents hitting 429 errors
-  - Fallback to local TinyLlama if Groq unavailable
+  - Executive-Grade System Persona (structured headings, tables, bullet points, citations)
+  - Elevated max_tokens (3500) to permanently eliminate response truncation ("stuck in middle")
+  - Multi-model failover hierarchy: qwen3.8-27b -> gpt-oss-120b -> gpt-oss-20b -> Gemini 1.5 Flash
+  - Dynamic key hopping with token bucket rate-limiting and zero-downtime 429 recovery
 """
 from groq import Groq
 from app.core.config import get_settings
@@ -19,16 +17,26 @@ import logging
 
 logger = logging.getLogger(__name__)
 
-SYSTEM_PROMPT = """You are a rigorous document assistant for an educational institution.
+SYSTEM_PROMPT = """You are an elite, executive-grade AI research assistant and document intelligence specialist.
 
-Your ONLY task: Answer the user's question using the provided document context.
-- Use ONLY the information in the Document Context below.
-- If the answer is not in the context, say: "I could not find this information in the indexed documents."
-- DO NOT guess, infer, or use external knowledge.
-- Always cite the source: [Source: filename, Page X]
-- Be precise and factual — this is for institutional use.
-- For lists (e.g., faculty), present them clearly with names and roles.
-- Keep answers concise but complete."""
+Your objective is to provide exhaustive, precise, beautifully articulated, and authoritative answers based strictly on the Document Context provided below.
+
+### Presentation & Style Guidelines:
+1. **Executive Tone & Polish**:
+   - Deliver clear, direct, and authoritative insights.
+   - Never start with conversational filler or robotic boilerplate like "Based on the provided documents..." or "According to the context...". Dive straight into the core answer.
+2. **Visual Hierarchy & Formatting**:
+   - Use clean Markdown headers (`##`, `###`) to structure multi-part answers.
+   - Use bold highlights (`**concept**`) to emphasize key entities, metrics, dates, and names.
+   - Use bullet points (`- `) or numbered lists for sequential steps, features, or breakdowns.
+3. **Structured Markdown Tables**:
+   - Whenever presenting rosters (e.g., faculty names, roles, departments, qualifications), course curriculum, dates, fees, schedules, or comparative statistics, ALWAYS format them in clean, responsive Markdown tables with column headers.
+4. **Source Citations**:
+   - Integrate elegant, precise citations at the end of relevant points or sections in the format: `[Source: filename, Page X]` or `[Source: URL]`.
+5. **Completeness & Depth**:
+   - Answer all aspects of the user's inquiry thoroughly and comprehensively. Never truncate or leave thoughts half-finished.
+6. **Constructive Guidance When Information Is Incomplete**:
+   - If the exact detail is not present in the context, do not respond with a blunt rejection. Inform the user what related data is available in the indexed context, and propose 2-3 logical follow-up questions they can ask."""
 
 _groq_client = None
 
@@ -56,13 +64,14 @@ def _get_or_init_groq_client():
 
 def generate(context: str, question: str, memory: str = "") -> str:
     """
-    Call Groq API for generation with production resilience.
+    Call Groq API for generation with production resilience and multi-model failover.
     
     With resilience layer:
-      - Rate limiting prevents 429 errors (token bucket)
+      - Rate limiting prevents 429 errors (token bucket per key)
+      - Key hopping across 10-key pool
       - Exponential backoff on transient errors
-      - Circuit breaker fails fast if Groq is down
-      - Fallback to local TinyLlama if all else fails
+      - Automatic model fallback: qwen3.8-27b -> gpt-oss-120b -> gpt-oss-20b -> Gemini 1.5 Flash
+      - Full token budget (3500) ensuring complete answers
     
     Returns: Model's answer string
     """
@@ -97,11 +106,11 @@ def generate(context: str, question: str, memory: str = "") -> str:
             from app.core.llm_cloud_fallback import generate_gemini_fallback, generate_openrouter_fallback
             prompt = f"Document Context:\n{context[:4000]}\n{memory_block}\nQuestion: {question}"
             gemini_ans = generate_gemini_fallback(prompt=prompt, system_prompt=SYSTEM_PROMPT)
-            if gemini_ans:
-                return gemini_ans
+            if gemini_ans and gemini_ans.strip():
+                return gemini_ans.strip()
             openrouter_ans = generate_openrouter_fallback(messages)
-            if openrouter_ans:
-                return openrouter_ans
+            if openrouter_ans and openrouter_ans.strip():
+                return openrouter_ans.strip()
         except Exception as cloud_fb_err:
             logger.warning(f"[Cloud Fallback Notice] {cloud_fb_err}")
 
@@ -110,8 +119,8 @@ def generate(context: str, question: str, memory: str = "") -> str:
             from app.core.llm_local import generate_ollama
             prompt = f"Document Context:\n{context[:3000]}\n{memory_block}\nQuestion: {question}"
             ollama_ans = generate_ollama(prompt=prompt, system_prompt=SYSTEM_PROMPT, temperature=0.2)
-            if ollama_ans:
-                return ollama_ans
+            if ollama_ans and ollama_ans.strip():
+                return ollama_ans.strip()
         except Exception as ollama_err:
             logger.warning(f"[Ollama Fallback Notice] {ollama_err}")
             
@@ -124,33 +133,28 @@ def generate(context: str, question: str, memory: str = "") -> str:
                 logger.error(f"[LLM Fallback Error] {err}")
         return "Based on the indexed document context, the requested information could not be determined."
 
-    try:
-        # Primary: qwen/qwen3.8-27b on Groq resilient pool
-        answer = client.chat_completion(
-            messages=messages,
-            model="qwen/qwen3.8-27b",
-            temperature=0.3,
-            max_tokens=800,
-            fallback_fn=None,
-        )
-        return answer.strip()
-    except Exception as primary_err:
-        logger.warning(f"[Groq] qwen/qwen3.8-27b error: {primary_err}. Trying openai/gpt-oss-120b...")
+    # Model hierarchy: qwen/qwen3.8-27b -> openai/gpt-oss-120b -> openai/gpt-oss-20b
+    models_to_try = ["qwen/qwen3.8-27b", "openai/gpt-oss-120b", "openai/gpt-oss-20b"]
+    
+    for model_name in models_to_try:
         try:
             answer = client.chat_completion(
                 messages=messages,
-                model="openai/gpt-oss-120b",
+                model=model_name,
                 temperature=0.3,
-                max_tokens=800,
+                max_tokens=3500,
                 fallback_fn=None,
             )
-            return answer.strip()
-        except Exception as fallback_err:
-            logger.error(f"[Groq] All cloud models failed: {fallback_err}.")
-            return fast_clean_fallback()
+            if answer and answer.strip():
+                return answer.strip()
+        except Exception as model_err:
+            logger.warning(f"[Groq Pool] Model '{model_name}' encountered: {model_err}. Falling back to next model...")
+            continue
+
+    logger.error("[Groq Pool] All primary cloud models failed. Delegating to external cloud fallback...")
+    return fast_clean_fallback()
 
 
 def get_groq_stats() -> dict:
     """Get Groq API usage metrics for monitoring."""
     return get_groq_metrics()
-

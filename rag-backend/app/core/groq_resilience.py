@@ -192,7 +192,7 @@ class ResilientGroqClient:
         messages: list,
         model: str = "qwen/qwen3.8-27b",
         temperature: float = 0.7,
-        max_tokens: int = 800,
+        max_tokens: int = 3500,
         fallback_fn: Optional[callable] = None,
     ) -> str:
         max_pool_attempts = min(len(self.workers) * 2, 10)
@@ -227,7 +227,7 @@ class ResilientGroqClient:
             except RateLimitError as e:
                 _groq_metrics.record_rate_limit()
                 _groq_metrics.record_call(time.time() - t_start, error=True)
-                worker.set_cooldown(seconds=35.0)
+                worker.set_cooldown(seconds=20.0)
                 worker.circuit_breaker.record_failure()
                 last_exception = e
                 logger.warning(f"[KeyPool] Key #{worker.index} hit 429 RateLimit. Seamlessly hopping to next key...")
@@ -303,7 +303,7 @@ class ResilientGroqClient:
             except RateLimitError as e:
                 _groq_metrics.record_rate_limit()
                 _groq_metrics.record_call(time.time() - t_start, error=True)
-                worker.set_cooldown(seconds=35.0)
+                worker.set_cooldown(seconds=20.0)
                 worker.circuit_breaker.record_failure()
                 last_exception = e
                 logger.warning(f"[KeyPool] Key #{worker.index} hit 429 on Whisper. Hopping to next key...")

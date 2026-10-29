@@ -33,7 +33,7 @@ def generate_gemini_fallback(prompt: str, system_prompt: str = "") -> Optional[s
         ],
         "generationConfig": {
             "temperature": 0.3,
-            "maxOutputTokens": 800,
+            "maxOutputTokens": 3000,
         }
     }
     if system_prompt:
@@ -81,7 +81,7 @@ def generate_openrouter_fallback(messages: list[dict]) -> Optional[str]:
         "model": "meta-llama/llama-3.1-8b-instruct:free",
         "messages": messages,
         "temperature": 0.3,
-        "max_tokens": 800,
+        "max_tokens": 3000,
     }
 
     try:

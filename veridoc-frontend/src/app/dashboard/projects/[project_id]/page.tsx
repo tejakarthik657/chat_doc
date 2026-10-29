@@ -2625,11 +2625,12 @@ export default function ProjectWorkspacePage({ params }: { params: Promise<{ pro
 }
 
 function MarkdownText({ content }: { content: string }) {
-    // Split by lines to process block structures
+    if (!content) return null;
     const lines = content.split('\n');
     const elements: React.ReactNode[] = [];
     
     let listItems: React.ReactNode[] = [];
+    let orderedItems: React.ReactNode[] = [];
     let tableRows: string[][] = [];
 
     const renderTextWithInlineFormatting = (text: string) => {
@@ -2659,13 +2660,24 @@ function MarkdownText({ content }: { content: string }) {
         }
     };
 
+    const flushOrderedList = (key: number) => {
+        if (orderedItems.length > 0) {
+            elements.push(
+                <ol key={`ol-${key}`} className="list-decimal pl-5 my-2 space-y-1 text-slate-700 font-sans">
+                    {orderedItems}
+                </ol>
+            );
+            orderedItems = [];
+        }
+    };
+
     const flushTable = (key: number) => {
         if (tableRows.length > 0) {
             const headers = tableRows[0];
-            const rows = tableRows.slice(2); // Skip divider row (index 1)
+            const rows = tableRows.slice(2);
             
             elements.push(
-                <div key={`table-wrapper-${key}`} className="overflow-x-auto my-3 border border-slate-200/60 shadow-sm max-w-full">
+                <div key={`table-wrapper-${key}`} className="overflow-x-auto my-3 border border-slate-200/60 shadow-xs max-w-full rounded-md">
                     <table className="min-w-full divide-y divide-slate-200 text-xs font-sans text-left">
                         <thead className="bg-slate-50 font-mono text-[10px] text-slate-500 uppercase tracking-wider">
                             <tr>
@@ -2697,10 +2709,9 @@ function MarkdownText({ content }: { content: string }) {
     for (let i = 0; i < lines.length; i++) {
         const line = lines[i];
         
-        // 1. Table Detection
         if (line.trim().startsWith('|')) {
             flushList(i);
-            // Parse table row cells
+            flushOrderedList(i);
             const cells = line.split('|').map(c => c.trim()).filter((_, idx, arr) => idx > 0 && idx < arr.length - 1);
             tableRows.push(cells);
             continue;
@@ -2708,8 +2719,8 @@ function MarkdownText({ content }: { content: string }) {
             flushTable(i);
         }
 
-        // 2. List Item Detection
         if (line.trim().startsWith('- ') || line.trim().startsWith('* ')) {
+            flushOrderedList(i);
             const contentText = line.trim().substring(2);
             listItems.push(
                 <li key={`li-${i}`}>
@@ -2721,7 +2732,28 @@ function MarkdownText({ content }: { content: string }) {
             flushList(i);
         }
 
-        // 3. Headers
+        const matchOrdered = line.trim().match(/^(\d+)\.\s+(.*)/);
+        if (matchOrdered) {
+            flushList(i);
+            orderedItems.push(
+                <li key={`ol-item-${i}`}>
+                    {renderTextWithInlineFormatting(matchOrdered[2])}
+                </li>
+            );
+            continue;
+        } else {
+            flushOrderedList(i);
+        }
+
+        if (line.trim().startsWith('> ')) {
+            elements.push(
+                <blockquote key={i} className="my-2 border-l-4 border-indigo-500 pl-3 italic text-slate-700 bg-indigo-50/30 py-1.5 rounded-r text-xs leading-relaxed">
+                    {renderTextWithInlineFormatting(line.trim().substring(2))}
+                </blockquote>
+            );
+            continue;
+        }
+
         if (line.trim().startsWith('### ')) {
             elements.push(<h3 key={i} className="text-sm font-bold text-slate-900 mt-4 mb-1.5 tracking-tight">{renderTextWithInlineFormatting(line.trim().substring(4))}</h3>);
         } else if (line.trim().startsWith('## ')) {
@@ -2739,8 +2771,8 @@ function MarkdownText({ content }: { content: string }) {
         }
     }
 
-    // Flush remaining
     flushList(lines.length);
+    flushOrderedList(lines.length);
     flushTable(lines.length);
 
     return <div className="space-y-1">{elements}</div>;
