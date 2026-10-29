@@ -211,6 +211,7 @@ _ALLOWED_ORIGINS = [
     "http://localhost:5173",
     "http://127.0.0.1:5173",
     "http://192.168.1.19:3000",
+    "https://nexus-tawny-seven-50.vercel.app",
 ]
 
 _env_origins = os.environ.get("ALLOWED_ORIGINS", "")
