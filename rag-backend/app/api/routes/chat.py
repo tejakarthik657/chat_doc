@@ -11,43 +11,6 @@ router = APIRouter(prefix="/api/chat", tags=["chat"])
 settings = get_settings()
 
 
-@router.post("/{doc_id}", response_model=ChatResponse)
-async def ask_question(
-    doc_id: str,
-    body: QuestionRequest,
-    user_id: str = Depends(get_current_user)
-):
-    # ── Verify document belongs to user and is ready ─────────────────────────
-    doc = await documents_col().find_one({"_id": doc_id, "user_id": user_id})
-    if not doc:
-        raise HTTPException(status_code=404, detail="Document not found.")
-    if doc.get("status") != "ready":
-        raise HTTPException(status_code=400, detail=f"Document is not ready (status: {doc.get('status')}).")
-
-    # ── Rate limit check ──────────────────────────────────────────────────────
-    today_count = await count_questions_today(user_id)
-    if today_count >= settings.max_questions_per_day:
-        raise HTTPException(
-            status_code=429,
-            detail=f"Daily question limit reached ({settings.max_questions_per_day}/day on free plan)."
-        )
-
-    # ── RAG pipeline ──────────────────────────────────────────────────────────
-    try:
-        response = await answer_question(
-            question=body.question,
-            doc_id=doc_id,
-            user_id=user_id,
-            strict_mode=body.strict_mode
-        )
-        return response
-    except Exception as e:
-        print(f"[CHAT ERROR] {type(e).__name__}: {e}")
-        import traceback
-        traceback.print_exc()
-        raise HTTPException(status_code=500, detail=f"Error processing question: {str(e)}")
-
-
 @router.post("/general", response_model=ChatResponse)
 @router.post("/{doc_id}/general", response_model=ChatResponse)
 async def ask_general_ai(
@@ -166,6 +129,43 @@ async def ask_general_ai(
         ],
         mode="general_ai"
     )
+
+
+@router.post("/{doc_id}", response_model=ChatResponse)
+async def ask_question(
+    doc_id: str,
+    body: QuestionRequest,
+    user_id: str = Depends(get_current_user)
+):
+    # ── Verify document belongs to user and is ready ─────────────────────────
+    doc = await documents_col().find_one({"_id": doc_id, "user_id": user_id})
+    if not doc:
+        raise HTTPException(status_code=404, detail="Document not found.")
+    if doc.get("status") != "ready":
+        raise HTTPException(status_code=400, detail=f"Document is not ready (status: {doc.get('status')}).")
+
+    # ── Rate limit check ──────────────────────────────────────────────────────
+    today_count = await count_questions_today(user_id)
+    if today_count >= settings.max_questions_per_day:
+        raise HTTPException(
+            status_code=429,
+            detail=f"Daily question limit reached ({settings.max_questions_per_day}/day on free plan)."
+        )
+
+    # ── RAG pipeline ──────────────────────────────────────────────────────────
+    try:
+        response = await answer_question(
+            question=body.question,
+            doc_id=doc_id,
+            user_id=user_id,
+            strict_mode=body.strict_mode
+        )
+        return response
+    except Exception as e:
+        print(f"[CHAT ERROR] {type(e).__name__}: {e}")
+        import traceback
+        traceback.print_exc()
+        raise HTTPException(status_code=500, detail=f"Error processing question: {str(e)}")
 
 
 @router.get("/{doc_id}/history", response_model=list[ChatHistoryItem])
