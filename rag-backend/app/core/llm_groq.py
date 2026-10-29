@@ -1,3 +1,4 @@
+import os
 """
 Groq LLM: FREE and ULTRA FAST cloud LLM inference.
 Uses Llama 3.1 70B - better than GPT-3.5, completely free.
@@ -13,7 +14,6 @@ PRODUCTION UPGRADES:
 """
 from groq import Groq
 from app.core.config import get_settings
-from app.core.llm import generate as local_generate
 from app.core.groq_resilience import get_groq_client, get_groq_metrics
 import logging
 
@@ -71,8 +71,11 @@ def generate(context: str, question: str, memory: str = "") -> str:
     # Get resilient client
     client = _get_or_init_groq_client()
     if not client:
-        logger.info("[Groq] Using local LLM (no API key)")
-        return local_generate(context=context, question=question, memory=memory)
+        is_cloud = os.environ.get("ENVIRONMENT") == "production" or bool(os.environ.get("PORT")) or bool(os.environ.get("RENDER"))
+        if not is_cloud:
+            from app.core.llm import generate as local_generate
+            return local_generate(context=context, question=question, memory=memory)
+        return "Based on the indexed document context, the requested information could not be determined."
     
     memory_block = f"\nConversation Context:\n{memory}\n" if memory else ""
     
@@ -98,11 +101,14 @@ def generate(context: str, question: str, memory: str = "") -> str:
         except Exception as ollama_err:
             logger.warning(f"[Ollama Fallback Notice] {ollama_err}")
             
-        try:
-            return local_generate(context=context[:1500], question=question, memory=memory)
-        except Exception as err:
-            logger.error(f"[LLM Fallback Error] {err}")
-            return "Based on the indexed document context, the requested information could not be determined."
+        is_cloud = os.environ.get("ENVIRONMENT") == "production" or bool(os.environ.get("PORT")) or bool(os.environ.get("RENDER"))
+        if not is_cloud:
+            try:
+                from app.core.llm import generate as local_generate
+                return local_generate(context=context[:1500], question=question, memory=memory)
+            except Exception as err:
+                logger.error(f"[LLM Fallback Error] {err}")
+        return "Based on the indexed document context, the requested information could not be determined."
 
     try:
         # Primary: qwen/qwen3.8-27b on Groq resilient pool

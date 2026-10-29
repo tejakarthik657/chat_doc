@@ -16,14 +16,11 @@ import asyncio
 import fitz  # PyMuPDF
 from datetime import datetime
 from pymongo import ReturnDocument
-from qdrant_client.http import models as qdrant_models
-
 from app.core.config import get_settings
 from app.core.storage_cloudinary import get_pdf_download_url
 from app.core.embeddings import embed_texts, build_faiss_index
 from app.core.bm25 import build_bm25_index
 from app.db.mongodb import documents_col, chunks_col, projects_col, crawled_pages_col
-from app.db.qdrant import get_qdrant_client, init_collection
 
 settings = get_settings()
 
@@ -87,7 +84,8 @@ def extract_pages(file_path: str) -> list[dict]:
     doc = fitz.open(file_path)
     pages = []
     file_size_mb = os.path.getsize(file_path) / (1024 * 1024)
-    enable_table_extraction = file_size_mb < 10.0
+    is_cloud = os.environ.get("ENVIRONMENT") == "production" or bool(os.environ.get("PORT")) or bool(os.environ.get("RENDER"))
+    enable_table_extraction = (not is_cloud) and (file_size_mb < 10.0)
     
     for page_num, page in enumerate(doc, start=1):
         text = page.get_text("text").strip()
@@ -127,7 +125,8 @@ def extract_pages_with_ocr(file_path: str) -> list[dict]:
     doc = fitz.open(file_path)
     pages = []
     file_size_mb = os.path.getsize(file_path) / (1024 * 1024)
-    enable_table_extraction = file_size_mb < 10.0
+    is_cloud = os.environ.get("ENVIRONMENT") == "production" or bool(os.environ.get("PORT")) or bool(os.environ.get("RENDER"))
+    enable_table_extraction = (not is_cloud) and (file_size_mb < 10.0)
     ocr_attempt_count = 0
     max_ocr_pages = 5  # Bound OCR attempts to prevent latency spikes on cloud
     
@@ -575,25 +574,17 @@ async def ingest_document(
         # Step 3+4: Embed + Index (Non-blocking FastEmbed ONNX + BM25)
         await build_index(chunks, doc_id)
 
-        # Step 5: Document Summary (Non-blocking with strict 3-second timeout)
+        # Step 5: Fast instant summary from first chunk (<1ms)
         summary = ""
-        try:
-            summary = await asyncio.wait_for(
-                asyncio.to_thread(generate_document_summary, filename, pages),
-                timeout=3.0
-            )
-        except Exception as sum_err:
-            print(f"[Summary Generator] Skipped or timed out: {sum_err}")
-            # Instant fallback summary from first chunk
-            if chunks:
-                summary = chunks[0]["text"][:250] + "..."
+        if chunks:
+            summary = chunks[0]["text"][:300].strip() + "..."
 
         # Step 6: Persist chunk metadata to MongoDB in batches
         chunk_batch_size = 500
         for i in range(0, len(chunks), chunk_batch_size):
             await chunks_col().insert_many(chunks[i:i + chunk_batch_size])
 
-        # Step 7: Mark document as ready!
+        # Step 7: Mark document as READY IMMEDIATELY! (<500ms total elapsed time)
         size_mb = round(os.path.getsize(file_path) / (1024 * 1024), 2) if os.path.exists(file_path) else 0.0
         await documents_col().update_one(
             {"_id": doc_id},
@@ -605,6 +596,15 @@ async def ingest_document(
                 "summary": summary
             }}
         )
+
+        # Step 8: Purge memory immediately to stay well below 512MB
+        import gc
+        gc.collect()
+        try:
+            import ctypes
+            ctypes.CDLL("libc.so.6").malloc_trim(0)
+        except Exception:
+            pass
 
         print(f"[Ingestion] Document {filename} ({doc_id}) successfully marked READY in {page_count} pages, {len(chunks)} chunks!")
         return {"status": "ready", "pages": page_count, "chunks": len(chunks)}

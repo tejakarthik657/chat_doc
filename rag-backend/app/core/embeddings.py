@@ -111,7 +111,13 @@ def embed_texts(texts: list[str], is_query: bool = False) -> np.ndarray:
     if hasattr(model, "embed"):
         # FastEmbed ONNX generator
         embeddings = list(model.embed(prefixed_texts))
-        return np.array(embeddings, dtype=np.float32)
+        arr = np.array(embeddings, dtype=np.float32)
+        try:
+            import ctypes
+            ctypes.CDLL("libc.so.6").malloc_trim(0)
+        except Exception:
+            pass
+        return arr
     else:
         vectors = model.encode(
             prefixed_texts,
