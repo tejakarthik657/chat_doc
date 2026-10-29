@@ -132,6 +132,19 @@ async def lifespan(app: FastAPI):
         try:
             await create_indexes()
             logger.info("[STARTUP] MongoDB indexes verified in background.")
+            
+            # Auto-recover projects left in 'indexing' state with indexed chunks
+            try:
+                from app.db.mongodb import projects_col, chunks_col
+                indexing_projs = await projects_col().find({"status": "indexing"}).to_list(20)
+                for proj in indexing_projs:
+                    pid = proj["_id"]
+                    chunk_cnt = await chunks_col().count_documents({"doc_id": pid})
+                    if chunk_cnt > 0:
+                        await projects_col().update_one({"_id": pid}, {"$set": {"status": "active"}})
+                        logger.info(f"[STARTUP] Auto-activated interrupted project {pid} with {chunk_cnt} chunks.")
+            except Exception as rec_err:
+                logger.warning(f"[STARTUP] Non-fatal project auto-recovery note: {rec_err}")
         except Exception as e:
             logger.warning(f"[STARTUP] Non-fatal index initialization note: {e}")
 
@@ -309,7 +322,7 @@ async def google_callback_alias(request: Request, code: Optional[str] = None, er
 @app.get("/api/health")
 async def health():
     """Liveness probe — basic service availability."""
-    return {"status": "ok", "version": "2.3.1", "env": os.environ.get("ENVIRONMENT", "development")}
+    return {"status": "ok", "version": "2.3.2", "env": os.environ.get("ENVIRONMENT", "development")}
 
 @app.get("/api/debug/test-step/{step}")
 async def test_step(step: str):

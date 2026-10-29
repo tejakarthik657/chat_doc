@@ -34,6 +34,7 @@ export const documentService = {
             headers: {
                 'Content-Type': 'multipart/form-data',
             },
+            timeout: 60000,
         };
 
         const response = await api.post<DocumentOut>('/documents/upload', formData, config);

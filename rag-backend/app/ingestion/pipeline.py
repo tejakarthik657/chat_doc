@@ -12,6 +12,7 @@ def sanitize_utf8(val):
 import os
 import uuid
 import asyncio
+import numpy as np
 # pyrefly: ignore [missing-import]
 import fitz  # PyMuPDF
 from datetime import datetime
@@ -132,7 +133,11 @@ def extract_pages_with_ocr(file_path: str) -> list[dict]:
     ocr_attempt_count = 0
     max_ocr_pages = 5  # Bound OCR attempts to prevent latency spikes on cloud
     
+    max_pdf_pages = 25 if is_cloud else 250
     for page_num, page in enumerate(doc, start=1):
+        if page_num > max_pdf_pages:
+            print(f"[OCR Pipeline] Reached cloud max page limit ({max_pdf_pages}) for {file_path}. Ending page loop.")
+            break
         # Tier 1: Native Text Layer Extraction
         text = page.get_text("text").strip()
         
@@ -649,7 +654,7 @@ async def process_single_page(page) -> tuple[list[dict], str, str, str | None]:
                 # Priority 1: Direct source URL download (e.g. from https://kitsw.ac.in/.../file.pdf)
                 if page.get("url") and page["url"].startswith("http"):
                     try:
-                        async with httpx.AsyncClient(timeout=20.0, follow_redirects=True, verify=False) as client:
+                        async with httpx.AsyncClient(timeout=8.0, follow_redirects=True, verify=False) as client:
                             response = await client.get(page["url"])
                             if response.status_code == 200:
                                 with open(file_path, "wb") as f_dl:

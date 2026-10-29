@@ -40,10 +40,16 @@ def fetch_robots_parser(seed_url: str):
 
 
 def normalize_url(url: str) -> str:
-    """Normalize URL by removing fragment and trimming whitespace."""
+    """Normalize URL by enforcing canonical https, stripping www, and trimming fragments/slashes."""
+    if not url:
+        return ""
     parsed = urlparse(url.strip())
+    netloc = parsed.netloc.lower()
+    if netloc.startswith("www."):
+        netloc = netloc[4:]
+    scheme = "http" if ("localhost" in netloc or "127.0.0.1" in netloc) else "https"
     clean_path = parsed.path.rstrip("/") if parsed.path and parsed.path != "/" else parsed.path
-    return parsed._replace(fragment="", path=clean_path).geturl()
+    return parsed._replace(scheme=scheme, netloc=netloc, fragment="", path=clean_path).geturl()
 
 
 def parse_sitemap_urls(xml_content: str) -> list[str]:

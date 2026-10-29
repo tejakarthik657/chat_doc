@@ -50,8 +50,7 @@ export const projectService = {
     },
 
     async get(projectId: string) {
-        const response = await api.get<ProjectOut>(`/projects/${projectId}`);
-        return response.data;
+        return await fastGet<ProjectOut>(`/projects/${projectId}`, undefined, 4000);
     },
 
     async create(project: ProjectCreate) {
