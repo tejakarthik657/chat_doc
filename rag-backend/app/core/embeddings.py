@@ -71,11 +71,18 @@ def _bge_prefix(texts: list[str], is_query: bool = False, model_name: str = "") 
     return [f"passage: {t}" for t in texts]
 
 
+def _clean_str(text: str) -> str:
+    if not isinstance(text, str):
+        text = str(text or "")
+    return text.encode("utf-8", errors="replace").decode("utf-8", errors="replace").replace("\x00", "")
+
+
 def embed_texts(texts: list[str], is_query: bool = False) -> np.ndarray:
     """Batch embed a list of strings -> float32 numpy array. Supports FastEmbed and SentenceTransformers."""
     model = get_embedding_model()
     model_name = settings.embedding_model
-    prefixed_texts = _bge_prefix(texts, is_query=is_query, model_name=model_name)
+    cleaned_texts = [_clean_str(t) for t in texts]
+    prefixed_texts = _bge_prefix(cleaned_texts, is_query=is_query, model_name=model_name)
 
     if hasattr(model, "embed"):
         # FastEmbed ONNX generator

@@ -17,18 +17,24 @@ from app.core.config import get_settings
 settings = get_settings()
 
 
-def fetch_robots_parser(seed_url: str) -> urllib.robotparser.RobotFileParser:
-    """Fetch and parse robots.txt for domain compliance."""
-    rp = urllib.robotparser.RobotFileParser()
+def fetch_robots_parser(seed_url: str):
+    """Fetch and parse robots.txt for domain compliance. Returns None if unreachable or not present."""
     try:
         parsed = urlparse(seed_url)
         robots_url = f"{parsed.scheme}://{parsed.netloc}/robots.txt"
-        rp.set_url(robots_url)
-        rp.read()
-        print(f"[Crawler] Loaded robots.txt rules from: {robots_url}")
+        with httpx.Client(verify=False, timeout=5.0, follow_redirects=True) as client:
+            resp = client.get(robots_url, headers={"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)"})
+            if resp.status_code == 200 and resp.text.strip():
+                rp = urllib.robotparser.RobotFileParser()
+                rp.parse(resp.text.splitlines())
+                print(f"[Crawler] Loaded robots.txt rules from: {robots_url}")
+                return rp
+            elif resp.status_code in (404, 403, 410):
+                print(f"[Crawler] No robots.txt restrictions (HTTP {resp.status_code}).")
+                return None
     except Exception as e:
         print(f"[Crawler] Notice: robots.txt for {seed_url} unreadable or unparseable: {e}")
-    return rp
+    return None
 
 
 def normalize_url(url: str) -> str:
@@ -181,7 +187,7 @@ async def crawl_website_task(project_id: str, job_id: str, user_id: str):
         print(f"[Crawler] Checking sitemap at: {sitemap_url}")
         try:
             async with httpx.AsyncClient(follow_redirects=True, timeout=10.0) as client:
-                headers = {"User-Agent": "IDRSEnterpriseCrawler/1.0 (+https://github.com/idrs)"}
+                headers = {"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36"}
                 sitemap_res = await client.get(sitemap_url, headers=headers)
                 if sitemap_res.status_code == 200:
                     sitemap_urls = parse_sitemap_urls(sitemap_res.text)
@@ -212,10 +218,13 @@ async def crawl_website_task(project_id: str, job_id: str, user_id: str):
         print("[Crawler] [NOTICE] Playwright is not installed. Using standard HTTPX.")
         playwright_available = False
 
-    if playwright_available:
+    if playwright_available and use_dynamic_crawl:
         try:
             playwright_instance = await async_playwright().start()
-            browser = await playwright_instance.chromium.launch(headless=True)
+            browser = await playwright_instance.chromium.launch(
+                headless=True,
+                args=["--no-sandbox", "--disable-setuid-sandbox", "--disable-dev-shm-usage", "--disable-gpu", "--single-process"]
+            )
             playwright_context = await browser.new_context(
                 user_agent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36",
                 viewport={"width": 1280, "height": 800}
@@ -228,14 +237,22 @@ async def crawl_website_task(project_id: str, job_id: str, user_id: str):
             await playwright_context.route("**/*", block_assets)
             print("[Crawler] Playwright Chromium stealth engine ready for dynamic SPA rendering.")
         except Exception as pw_launch_err:
-            print(f"[Crawler] [NOTICE] Playwright launch deferred: {pw_launch_err}.")
+            print(f"[Crawler] [NOTICE] Playwright launch deferred: {pw_launch_err}. Using fast HTTPX engine.")
             playwright_context = None
             if browser:
-                await browser.close()
+                try:
+                    await browser.close()
+                except Exception:
+                    pass
             if playwright_instance:
-                await playwright_instance.stop()
+                try:
+                    await playwright_instance.stop()
+                except Exception:
+                    pass
             playwright_instance = None
             browser = None
+    elif not use_dynamic_crawl:
+        print("[Crawler] Fast HTTPX crawling engine active (RAM < 25MB, optimal for Render free tier).")
 
     # 3. Portal Authentication Login
     if playwright_context and login_url and login_username and login_password:

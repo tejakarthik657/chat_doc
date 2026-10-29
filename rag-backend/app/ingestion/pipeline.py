@@ -1085,7 +1085,8 @@ async def build_neo4j_graph_for_project(project_id: str, project_name: str, chun
             {"source": f"{p_clean} Services", "relationship": "USES", "target": f"{p_clean} Documentation"}
         ]
         
-        # Write to Neo4j in a session
+    # Write to Neo4j in a session (de-indented outside of except)
+    try:
         with driver.session() as session:
             # 1. Create Project Node
             session.run(
@@ -1123,8 +1124,7 @@ async def build_neo4j_graph_for_project(project_id: str, project_name: str, chun
                         f"MERGE (a)-[r:{rel_type}]->(b)",
                         {"source": source, "target": target, "project_id": project_id}
                     )
-                    
-        print(f"[Neo4j Graph] Successfully written graph for project: {project_id}")
-    except Exception as graph_err:
-        print(f"[Neo4j Graph] [WARNING] Failed to extract or write graph data: {graph_err}")
+        print(f"[Neo4j Graph] Successfully wrote {len(entities)} entities and {len(relations)} relations to Neo4j.")
+    except Exception as neo_err:
+        print(f"[Neo4j Graph] [NOTICE] Neo4j session write skipped: {neo_err}")
 
