@@ -54,7 +54,9 @@ def upload_pdf_to_cloudinary(file_path_or_bytes: Union[str, bytes], public_id: O
         options = {
             "resource_type": "raw",
             "folder": "nexus_documents",
-            "overwrite": True
+            "overwrite": True,
+            "type": "upload",
+            "access_mode": "public",
         }
         if public_id:
             options["public_id"] = public_id
@@ -95,13 +97,7 @@ def get_pdf_download_url(public_id: str) -> Optional[str]:
     try:
         from cloudinary.utils import private_download_url
 
-        return private_download_url(
-            public_id,
-            format="pdf",
-            resource_type="raw",
-            type="upload",
-            attachment=False,
-        )
+        return private_download_url(public_id, "pdf", resource_type="raw", type="upload")
     except Exception as download_err:
         logger.error(f"[Cloudinary URL Error] {download_err}", exc_info=True)
         return None
