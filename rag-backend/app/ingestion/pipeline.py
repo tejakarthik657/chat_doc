@@ -84,7 +84,8 @@ def extract_pages(file_path: str) -> list[dict]:
     doc = fitz.open(file_path)
     pages = []
     file_size_mb = os.path.getsize(file_path) / (1024 * 1024)
-    is_cloud = os.environ.get("ENVIRONMENT") == "production" or bool(os.environ.get("PORT")) or bool(os.environ.get("RENDER"))
+    is_cloud = os.environ.get("ENVIRONMENT") == "production" or bool(os.environ.get("PORT")) or bool(os.environ.get("RENDER"))
+
     enable_table_extraction = (not is_cloud) and (file_size_mb < 10.0)
     
     for page_num, page in enumerate(doc, start=1):
@@ -125,7 +126,8 @@ def extract_pages_with_ocr(file_path: str) -> list[dict]:
     doc = fitz.open(file_path)
     pages = []
     file_size_mb = os.path.getsize(file_path) / (1024 * 1024)
-    is_cloud = os.environ.get("ENVIRONMENT") == "production" or bool(os.environ.get("PORT")) or bool(os.environ.get("RENDER"))
+    is_cloud = os.environ.get("ENVIRONMENT") == "production" or bool(os.environ.get("PORT")) or bool(os.environ.get("RENDER"))
+
     enable_table_extraction = (not is_cloud) and (file_size_mb < 10.0)
     ocr_attempt_count = 0
     max_ocr_pages = 5  # Bound OCR attempts to prevent latency spikes on cloud
@@ -814,8 +816,10 @@ async def process_project_crawled_data(
 
         print(f"[Ingestion] Found {len(pending_pages)} pages to extract/OCR...")
         
-        # Process pages concurrently using a semaphore to limit CPU saturation (e.g. max 5 concurrent threads/tasks)
-        semaphore = asyncio.Semaphore(5)
+        # Process pages with strict concurrency control to prevent RAM exhaustion on 512MB cloud tiers
+        is_cloud = os.environ.get("ENVIRONMENT") == "production" or bool(os.environ.get("PORT")) or bool(os.environ.get("RENDER"))
+        concurrency = 1 if is_cloud else 3
+        semaphore = asyncio.Semaphore(concurrency)
         
         all_chunks = []
         processed_count = 0
@@ -970,6 +974,20 @@ async def process_project_crawled_data(
             )
             
         print(f"[Ingestion] Upserted {len(points)} chunks into Qdrant collection: {collection_name}")
+        import gc
+        gc.collect()
+        try:
+            import ctypes
+            ctypes.CDLL("libc.so.6").malloc_trim(0)
+        except Exception:
+            pass
+        import gc
+        gc.collect()
+        try:
+            import ctypes
+            ctypes.CDLL("libc.so.6").malloc_trim(0)
+        except Exception:
+            pass
         
         # Generate global project summary for Hierarchical RAG
         project_summary = ""

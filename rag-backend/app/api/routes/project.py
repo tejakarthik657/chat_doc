@@ -86,13 +86,10 @@ async def create_project(
             print(f"[Upstash Queue Warning] {q_err}")
 
     from app.ingestion.crawler import crawl_website_task as run_crawler
-    # Launch in-process crawler task immediately
-    asyncio.create_task(run_crawler(project_id, job_id, user_id))
-    if background_tasks:
-        try:
-            background_tasks.add_task(run_crawler, project_id, job_id, user_id)
-        except Exception:
-            pass
+    if background_tasks is not None:
+        background_tasks.add_task(run_crawler, project_id, job_id, user_id)
+    else:
+        asyncio.create_task(run_crawler(project_id, job_id, user_id))
 
     return ProjectOut(
         id=project_id,

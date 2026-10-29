@@ -699,8 +699,9 @@ async def crawl_website_task(project_id: str, job_id: str, user_id: str):
                 queue.task_done()
 
     # Determine worker pool count dynamically based on engine mode
+    is_cloud = os.environ.get("ENVIRONMENT") == "production" or bool(os.environ.get("PORT")) or bool(os.environ.get("RENDER"))
     is_js_crawl = playwright_context and use_dynamic_crawl
-    num_workers = 3
+    num_workers = 2 if is_cloud else 3
     print(f"[Crawler] Spawning {num_workers} parallel workers (Mode: {'Playwright JS' if is_js_crawl else 'Standard HTTP'}).")
 
     limits = httpx.Limits(max_keepalive_connections=num_workers, max_connections=num_workers * 3)
