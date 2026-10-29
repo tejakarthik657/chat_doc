@@ -911,7 +911,7 @@ async def process_project_crawled_data(
         print(f"[Ingestion] Total chunks to index: {len(all_chunks)}")
         
         # ── Contextual Retrieval: generate context blurbs for embedding ─────────
-        if settings.contextual_enabled:
+        if settings.contextual_enabled and len(all_chunks) <= 30:
             from app.rag.contextual import generate_context_batch, apply_contextual_prefix
             CONTEXT_BATCH = 20
             contextual_used = 0

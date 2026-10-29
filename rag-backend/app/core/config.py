@@ -74,7 +74,7 @@ class Settings(BaseSettings):
     chunk_overlap: int = 150
 
     # ── Feature Flags ───────────────────────────────────────────────────────────
-    contextual_enabled: bool = True
+    contextual_enabled: bool = False
     crag_enabled: bool = False         # Disabled: CRAG adds 1–3 extra Groq API calls per query (major latency)
 
     # ── Free-tier limits ────────────────────────────────────────────────────────
