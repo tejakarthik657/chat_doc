@@ -55,8 +55,7 @@ def upload_pdf_to_cloudinary(file_path_or_bytes: Union[str, bytes], public_id: O
             "resource_type": "raw",
             "folder": "nexus_documents",
             "overwrite": True,
-            "type": "upload",
-            "access_mode": "public",
+            "type": "private",
         }
         if public_id:
             options["public_id"] = public_id
@@ -100,7 +99,8 @@ def get_pdf_download_url(public_id: str) -> Optional[str]:
         url, _ = cloudinary_url(
             public_id,
             resource_type="raw",
-            type="upload",
+            type="private",
+            format="pdf",
             secure=True,
             sign_url=True,
         )
