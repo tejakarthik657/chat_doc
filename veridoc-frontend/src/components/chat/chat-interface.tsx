@@ -46,7 +46,19 @@ function formatErrorDetail(detail: unknown): string | undefined {
     return undefined;
 }
 
-export function ChatInterface({ docId, onCitationClick }: { docId: string, onCitationClick: (page: number) => void }) {
+interface ChatInterfaceProps {
+    docId: string;
+    onCitationClick: (page: number) => void;
+    onToggleDocs?: () => void;
+    onToggleInsights?: () => void;
+}
+
+export function ChatInterface({
+    docId,
+    onCitationClick,
+    onToggleDocs,
+    onToggleInsights
+}: ChatInterfaceProps) {
     const [input, setInput] = useState("");
     const [isLoading, setIsLoading] = useState(false);
     const [strictMode, setStrictMode] = useState(true);
@@ -253,20 +265,42 @@ export function ChatInterface({ docId, onCitationClick }: { docId: string, onCit
     return (
         <div className="flex flex-col h-full relative">
             {/* Top Bar */}
-            <div className="h-14 border-b border-border flex items-center justify-between px-6 bg-surface/50 backdrop-blur">
-                <div className="flex items-center gap-3">
+            <div className="h-13 sm:h-14 border-b border-border flex items-center justify-between px-2.5 sm:px-6 bg-surface/70 backdrop-blur-md gap-1.5 sm:gap-2 overflow-x-auto no-scrollbar shrink-0 z-10">
+                <div className="flex items-center gap-2 sm:gap-3 shrink-0">
+                    {onToggleDocs && (
+                        <button
+                            onClick={onToggleDocs}
+                            className="lg:hidden flex items-center gap-1.5 px-2.5 py-1.5 text-xs font-mono font-medium rounded-lg border border-border bg-surface hover:bg-slate-100 text-text-secondary active:scale-95 transition-all shadow-2xs"
+                            title="Open Document Index"
+                        >
+                            <BookOpen size={13} className="text-accent" />
+                            <span className="hidden sm:inline">Docs</span>
+                        </button>
+                    )}
                     <div className="h-2 w-2 rounded-full bg-accent animate-pulse" />
-                    <span className="font-mono text-xs text-text-secondary uppercase">Active Session</span>
+                    <span className="font-mono text-[11px] sm:text-xs text-text-secondary uppercase truncate max-w-[80px] sm:max-w-none">Session</span>
                 </div>
 
-                <div className="flex items-center gap-3">
+                <div className="flex items-center gap-1 sm:gap-2 shrink-0">
+                    {/* Mobile Insights Button */}
+                    {onToggleInsights && (
+                        <button
+                            onClick={onToggleInsights}
+                            className="xl:hidden flex items-center gap-1 px-2.5 py-1.5 text-xs font-mono rounded-lg border border-indigo-200 bg-indigo-50/70 text-indigo-700 hover:bg-indigo-100 active:scale-95 transition-all shrink-0"
+                            title="Open Document Intelligence"
+                        >
+                            <Sparkles size={12} />
+                            <span className="hidden sm:inline">Insights</span>
+                        </button>
+                    )}
+
                     {/* Reasoning Selector */}
-                    <div className="hidden md:flex items-center gap-1 p-0.5 bg-slate-100 rounded-lg border border-slate-200 text-[10px] font-mono">
+                    <div className="hidden sm:flex items-center gap-0.5 p-0.5 bg-slate-100 rounded-lg border border-slate-200 text-[10px] font-mono shrink-0">
                         {(["fast", "balanced", "deep"] as const).map((level) => (
                             <button
                                 key={level}
                                 onClick={() => setReasoningLevel(level)}
-                                className={`px-2 py-0.5 rounded capitalize transition-all ${
+                                className={`px-1.5 sm:px-2 py-0.5 rounded capitalize transition-all ${
                                     reasoningLevel === level
                                         ? "bg-indigo-600 text-white font-semibold shadow-xs"
                                         : "text-slate-500 hover:text-slate-900"
@@ -280,49 +314,58 @@ export function ChatInterface({ docId, onCitationClick }: { docId: string, onCit
                     {/* Canvas Workspace Button */}
                     <button
                         onClick={() => setCanvasOpen(true)}
-                        className="flex items-center gap-1.5 text-[11px] font-mono px-2.5 py-1 transition-all border border-purple-200 bg-purple-50 text-purple-700 hover:bg-purple-100/80 rounded"
+                        className="flex items-center gap-1 text-[11px] font-mono px-2.5 py-1.5 transition-all border border-purple-200 bg-purple-50 text-purple-700 hover:bg-purple-100/80 rounded-lg shrink-0 active:scale-95"
                         title="Open side-by-side interactive Canvas Workspace"
                     >
                         <LayoutGrid size={12} />
-                        Canvas Workspace
+                        <span className="hidden sm:inline">Canvas Workspace</span>
+                        <span className="sm:hidden">Canvas</span>
                     </button>
 
                     <Button
                         variant="ghost"
                         size="sm"
-                        className={`h-8 text-xs ${strictMode ? 'text-accent' : 'text-text-muted'} hover:text-text-primary`}
+                        className={`h-8 px-2 sm:px-2.5 text-[11px] font-mono rounded-lg ${strictMode ? 'text-accent bg-accent/5 border border-accent/20' : 'text-text-muted'} hover:text-text-primary shrink-0 active:scale-95`}
                         onClick={() => setStrictMode((v) => !v)}
+                        title="Toggle strict grounding verification"
                     >
-                        STRICT: {strictMode ? "ON" : "OFF"}
+                        {strictMode ? "STRICT" : "RELAXED"}
                     </Button>
 
-                    <Button variant="ghost" size="sm" className="h-8 text-xs text-text-muted hover:text-text-primary" onClick={handleClearMemory}>
-                        <RotateCcw size={14} className="mr-1" /> Clear Memory
+                    <Button 
+                        variant="ghost" 
+                        size="sm" 
+                        className="h-8 px-2 sm:px-2 text-[11px] font-mono rounded-lg text-text-muted hover:text-text-primary shrink-0 active:scale-95" 
+                        onClick={handleClearMemory} 
+                        title="Clear Memory"
+                    >
+                        <RotateCcw size={12} className="sm:mr-1" />
+                        <span className="hidden sm:inline">Clear</span>
                     </Button>
                 </div>
             </div>
 
             {/* Messages */}
-            <div className="flex-1 overflow-y-auto p-6 space-y-8" ref={scrollRef}>
+            <div className="flex-1 overflow-y-auto p-3 sm:p-6 space-y-4 sm:space-y-6" ref={scrollRef}>
                 {messages.map((msg) => (
                     <motion.div
                         key={msg.id}
                         initial={{ opacity: 0, y: 10 }}
                         animate={{ opacity: 1, y: 0 }}
                         className={cn(
-                            "flex gap-4 max-w-3xl mx-auto",
+                            "flex gap-2.5 sm:gap-4 max-w-3xl mx-auto w-full",
                             msg.role === "user" ? "flex-row-reverse" : "flex-row"
                         )}
                     >
                         <div className={cn(
-                            "h-8 w-8 rounded-sm flex items-center justify-center shrink-0 border",
+                            "h-7 w-7 sm:h-8 sm:w-8 rounded-sm flex items-center justify-center shrink-0 border",
                             msg.role === "user" ? "bg-surface-high border-border" : "bg-accent/10 border-accent/20"
                         )}>
-                            {msg.role === "user" ? <User size={16} /> : <Bot size={16} className="text-accent" />}
+                            {msg.role === "user" ? <User size={14} className="sm:size-4" /> : <Bot size={14} className="text-accent sm:size-4" />}
                         </div>
 
                         <div className={cn(
-                            "flex flex-col gap-2 min-w-0",
+                            "flex flex-col gap-1.5 sm:gap-2 min-w-0 max-w-[88%] sm:max-w-none",
                             msg.role === "user" ? "items-end" : "items-start"
                         )}>
                             <div className="flex items-center gap-2">
@@ -468,44 +511,44 @@ export function ChatInterface({ docId, onCitationClick }: { docId: string, onCit
             </div>
 
             {/* Input Area */}
-            <div className="p-6 bg-background max-w-5xl mx-auto w-full">
+            <div className="p-2.5 sm:p-5 bg-background max-w-5xl mx-auto w-full pb-[max(0.75rem,env(safe-area-inset-bottom))] border-t border-border/50 sm:border-0 shrink-0">
                 {/* Knowledge Scope Selector */}
-                <div className="flex items-center justify-between mb-2">
-                    <div className="flex items-center gap-1 p-0.5 bg-slate-100 rounded-lg border border-slate-200">
+                <div className="flex items-center justify-between gap-1.5 sm:gap-2 mb-2">
+                    <div className="flex items-center gap-1 p-0.5 bg-slate-100 rounded-lg border border-slate-200 overflow-x-auto no-scrollbar shrink-0">
                         <button
                             type="button"
                             onClick={() => setChatMode("document")}
                             className={cn(
-                                "px-2.5 py-1 text-xs font-medium rounded-md flex items-center gap-1.5 transition-all",
+                                "px-2.5 py-1 text-[11px] sm:text-xs font-medium rounded-md flex items-center gap-1.5 transition-all shrink-0 active:scale-95",
                                 chatMode === "document"
                                     ? "bg-white text-slate-900 shadow-xs border border-slate-200"
                                     : "text-slate-500 hover:text-slate-800"
                             )}
                         >
                             <BookOpen size={12} className={chatMode === "document" ? "text-accent" : ""} />
-                            Document Scope (RAG)
+                            <span>Document Scope</span>
                         </button>
                         <button
                             type="button"
                             onClick={() => setChatMode("general")}
                             className={cn(
-                                "px-2.5 py-1 text-xs font-medium rounded-md flex items-center gap-1.5 transition-all",
+                                "px-2.5 py-1 text-[11px] sm:text-xs font-medium rounded-md flex items-center gap-1.5 transition-all shrink-0 active:scale-95",
                                 chatMode === "general"
-                                    ? "bg-indigo-600 text-white shadow-xs"
+                                    ? "bg-indigo-600 text-white shadow-xs font-medium"
                                     : "text-slate-500 hover:text-indigo-600"
                             )}
                         >
                             <Globe size={12} />
-                            General AI (World Knowledge)
+                            <span>General AI</span>
                         </button>
                     </div>
 
                     {chatMode === "general" ? (
-                        <span className="text-[11px] font-mono text-indigo-700 bg-indigo-50 px-2 py-0.5 rounded border border-indigo-200">
-                            🌐 Open LLM active — ask anything freely
+                        <span className="text-[10px] sm:text-[11px] font-mono text-indigo-700 bg-indigo-50 px-2 py-0.5 rounded border border-indigo-200 truncate ml-auto">
+                            🌐 Open LLM active
                         </span>
                     ) : (
-                        <div className="flex gap-2 items-center">
+                        <div className="hidden sm:flex gap-2 items-center ml-auto">
                             <span className="h-1.5 w-1.5 rounded-full bg-accent" />
                             <span className="text-[10px] font-mono text-text-muted">VECTOR RAG</span>
                             <span className="h-1.5 w-1.5 rounded-full bg-accent ml-1" />
@@ -514,7 +557,7 @@ export function ChatInterface({ docId, onCitationClick }: { docId: string, onCit
                     )}
                 </div>
 
-                <div className="relative flex items-center bg-surface border border-border rounded-lg px-3 gap-2">
+                <div className="relative flex items-center bg-surface border border-border rounded-xl px-2 sm:px-3 gap-1.5 sm:gap-2 shadow-2xs focus-within:border-accent focus-within:ring-1 focus-within:ring-accent/20 transition-all">
                     <VoiceInput
                         onTranscript={(txt) => setInput(prev => prev ? `${prev} ${txt}` : txt)}
                         isGenerating={isLoading}
@@ -523,26 +566,27 @@ export function ChatInterface({ docId, onCitationClick }: { docId: string, onCit
                         value={input}
                         onChange={(e) => setInput(e.target.value)}
                         onKeyDown={(e) => e.key === "Enter" && handleSend()}
-                        placeholder={chatMode === "general" ? "Ask any general question (e.g. Who is Swami Vivekananda?)..." : "Ask anything about this document..."}
-                        className="pr-24 h-14 border-0 focus-visible:ring-0 focus-visible:ring-offset-0 bg-transparent text-base"
+                        placeholder={chatMode === "general" ? "Ask any general question..." : "Ask anything about this document..."}
+                        className="pr-16 sm:pr-24 h-11 sm:h-14 border-0 focus-visible:ring-0 focus-visible:ring-offset-0 bg-transparent text-base sm:text-base text-text-primary px-1"
                     />
-                    <div className="absolute right-2 top-1/2 -translate-y-1/2">
+                    <div className="absolute right-1.5 sm:right-2 top-1/2 -translate-y-1/2">
                         <Button
                             size="sm"
                             variant="primary"
                             onClick={handleSend}
                             disabled={!input.trim() || isLoading}
+                            className="h-8 sm:h-9 px-2.5 sm:px-3 text-xs rounded-lg active:scale-95"
                         >
-                            <Send size={16} className="mr-2" />
-                            Send
+                            <Send size={13} className="sm:mr-1.5" />
+                            <span className="hidden sm:inline">Send</span>
                         </Button>
                     </div>
                 </div>
-                <div className="flex justify-between mt-2 px-1">
-                    <div className="text-[10px] font-mono text-text-muted">
-                        {chatMode === "general" ? "Prompting Groq Cloud LLM with full world knowledge" : "Prompting Document vector chunks & hybrid search"}
+                <div className="flex justify-between items-center mt-1.5 px-1 gap-2">
+                    <div className="text-[9px] sm:text-[10px] font-mono text-text-muted truncate">
+                        {chatMode === "general" ? "Prompting Groq Cloud LLM (Open Knowledge)" : "Document vector chunks & hybrid search"}
                     </div>
-                    <div className="text-[10px] font-mono text-text-muted">{input.length} / 1000</div>
+                    <div className="text-[9px] sm:text-[10px] font-mono text-text-muted shrink-0">{input.length} / 1000</div>
                 </div>
             </div>
 

@@ -65,23 +65,23 @@ export const EvidencePanel: React.FC<EvidencePanelProps> = ({
       {/* Drawer */}
       <div className="fixed inset-y-0 right-0 z-[1000] w-full sm:w-[480px] bg-white shadow-2xl border-l border-slate-200 flex flex-col transition-all duration-300 animate-in slide-in-from-right">
         {/* Header */}
-        <div className="p-4 border-b border-slate-200 flex items-center justify-between bg-slate-50/90 shadow-2xs">
-          <div className="flex items-center gap-2">
-            <div className="p-2 rounded-xl bg-cyan-500/10 text-cyan-600 border border-cyan-200">
+        <div className="p-3 sm:p-4 border-b border-slate-200 flex items-center justify-between bg-slate-50/90 shadow-2xs gap-2">
+          <div className="flex items-center gap-2 min-w-0">
+            <div className="p-1.5 sm:p-2 rounded-xl bg-cyan-500/10 text-cyan-600 border border-cyan-200 shrink-0">
               <Layers className="w-4 h-4" />
             </div>
-            <div>
-              <h3 className="text-sm font-semibold text-slate-900">Evidence & Source Inspector</h3>
-              <p className="text-xs text-slate-500">Underlying RAG retrieval chunks & match scores</p>
+            <div className="min-w-0">
+              <h3 className="text-xs sm:text-sm font-semibold text-slate-900 truncate">Evidence Inspector</h3>
+              <p className="text-[11px] text-slate-500 hidden sm:block truncate">Underlying RAG retrieval chunks & match scores</p>
             </div>
           </div>
           <button
             onClick={onClose}
-            className="px-2.5 py-1.5 rounded-lg bg-slate-100 hover:bg-rose-50 hover:border-rose-200 hover:text-rose-600 text-slate-700 text-xs font-medium flex items-center gap-1.5 transition-colors border border-slate-200 cursor-pointer shadow-2xs"
+            className="px-2 py-1 sm:px-2.5 sm:py-1.5 rounded-lg bg-slate-100 hover:bg-rose-50 hover:border-rose-200 hover:text-rose-600 text-slate-700 text-xs font-medium flex items-center gap-1 sm:gap-1.5 transition-all border border-slate-200 cursor-pointer shadow-2xs touch-manipulation active:scale-95 shrink-0"
             title="Close Inspector (or press Esc)"
           >
             <X className="w-4 h-4" />
-            <span>Close</span>
+            <span className="hidden xs:inline">Close</span>
             <kbd className="hidden sm:inline-block px-1 py-0.5 text-[9px] font-mono bg-white rounded border border-slate-300 text-slate-500">Esc</kbd>
           </button>
         </div>
@@ -107,7 +107,7 @@ export const EvidencePanel: React.FC<EvidencePanelProps> = ({
       )}
 
       {/* Content Chunk List */}
-      <div className="flex-1 overflow-y-auto p-4 space-y-3 bg-slate-50/40">
+      <div className="flex-1 overflow-y-auto p-3.5 sm:p-4 pb-[max(1.25rem,env(safe-area-inset-bottom))] space-y-3 bg-slate-50/40">
         {evidenceItems.length === 0 ? (
           <div className="py-6 px-4 text-center rounded-2xl bg-white border border-slate-200/80 shadow-xs space-y-4">
             <div className="w-10 h-10 rounded-full bg-amber-50 border border-amber-200 text-amber-600 flex items-center justify-center mx-auto text-lg">

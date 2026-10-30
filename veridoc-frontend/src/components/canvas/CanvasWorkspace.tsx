@@ -104,55 +104,55 @@ export const CanvasWorkspace: React.FC<CanvasWorkspaceProps> = ({
       {/* Canvas Workspace Drawer */}
       <div className="fixed inset-y-0 right-0 z-[1000] w-full lg:w-[720px] bg-white shadow-2xl border-l border-slate-200 flex flex-col transition-all duration-300 animate-in slide-in-from-right">
         {/* Header Bar */}
-        <div className="p-4 border-b border-slate-200 flex items-center justify-between bg-slate-50/90 shadow-2xs">
-          <div className="flex items-center gap-2.5">
-            <div className="p-2 rounded-xl bg-purple-500/10 text-purple-600 border border-purple-200">
+        <div className="p-3 sm:p-4 border-b border-slate-200 flex items-center justify-between bg-slate-50/90 shadow-2xs gap-2">
+          <div className="flex items-center gap-2 sm:gap-2.5 min-w-0">
+            <div className="p-1.5 sm:p-2 rounded-xl bg-purple-500/10 text-purple-600 border border-purple-200 shrink-0">
               <LayoutTemplate className="w-4 h-4" />
             </div>
-            <div>
-              <h3 className="text-sm font-semibold text-slate-900">{title}</h3>
-              <p className="text-xs text-slate-500">Interactive live editing workspace & artifact canvas</p>
+            <div className="min-w-0">
+              <h3 className="text-xs sm:text-sm font-semibold text-slate-900 truncate">{title}</h3>
+              <p className="text-[11px] text-slate-500 hidden sm:block truncate">Interactive live editing workspace & artifact canvas</p>
             </div>
           </div>
 
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-1.5 sm:gap-2 shrink-0">
             {onInsertToChat && (
               <button
                 onClick={() => onInsertToChat(content)}
-                className="px-2.5 py-1.5 text-xs font-medium text-purple-700 bg-purple-50 hover:bg-purple-100 rounded-lg border border-purple-200 transition-colors"
+                className="px-2 py-1 sm:px-2.5 sm:py-1.5 text-[11px] sm:text-xs font-medium text-purple-700 bg-purple-50 hover:bg-purple-100 rounded-lg border border-purple-200 transition-all touch-manipulation active:scale-95"
                 title="Insert canvas text into chat prompt"
               >
-                Insert into Chat
+                Insert
               </button>
             )}
             <button
               onClick={handleCopy}
-              className="p-1.5 rounded-lg text-slate-500 hover:text-slate-900 hover:bg-slate-200/60 transition-colors"
+              className="p-1.5 rounded-lg text-slate-500 hover:text-slate-900 hover:bg-slate-200/60 transition-all touch-manipulation active:scale-95"
               title="Copy content"
             >
               {copied ? <Check className="w-4 h-4 text-emerald-600" /> : <Copy className="w-4 h-4" />}
             </button>
             <button
               onClick={handleDownload}
-              className="p-1.5 rounded-lg text-slate-500 hover:text-slate-900 hover:bg-slate-200/60 transition-colors"
+              className="p-1.5 rounded-lg text-slate-500 hover:text-slate-900 hover:bg-slate-200/60 transition-all touch-manipulation active:scale-95"
               title="Export Markdown (.md)"
             >
               <Download className="w-4 h-4" />
             </button>
             <button
               onClick={onClose}
-              className="px-2.5 py-1.5 rounded-lg bg-slate-100 hover:bg-rose-50 hover:border-rose-200 hover:text-rose-600 text-slate-700 text-xs font-medium flex items-center gap-1.5 transition-colors border border-slate-200 shadow-2xs cursor-pointer"
+              className="px-2 py-1 sm:px-2.5 sm:py-1.5 rounded-lg bg-slate-100 hover:bg-rose-50 hover:border-rose-200 hover:text-rose-600 text-slate-700 text-xs font-medium flex items-center gap-1 sm:gap-1.5 transition-all border border-slate-200 shadow-2xs cursor-pointer touch-manipulation active:scale-95"
               title="Close Canvas (or press Esc)"
             >
               <X className="w-4 h-4" />
-              <span>Close</span>
+              <span className="hidden xs:inline">Close</span>
               <kbd className="hidden sm:inline-block px-1 py-0.5 text-[9px] font-mono bg-white rounded border border-slate-300 text-slate-500">Esc</kbd>
             </button>
           </div>
         </div>
 
       {/* AI Assistant Quick Actions Bar */}
-      <div className="px-4 py-2 bg-gradient-to-r from-purple-50/60 via-indigo-50/40 to-slate-50 border-b border-purple-100 flex items-center gap-2 overflow-x-auto">
+      <div className="px-3 sm:px-4 py-2 bg-gradient-to-r from-purple-50/60 via-indigo-50/40 to-slate-50 border-b border-purple-100 flex items-center gap-2 overflow-x-auto no-scrollbar touch-pan-x">
         <span className="text-[10px] font-mono uppercase text-purple-700 font-semibold flex items-center gap-1 shrink-0">
           <Sparkles className="w-3 h-3 text-purple-600" />
           AI Actions:
@@ -249,7 +249,7 @@ export const CanvasWorkspace: React.FC<CanvasWorkspaceProps> = ({
       </div>
 
       {/* Editor & Rich Preview Body */}
-      <div className="flex-1 overflow-y-auto p-5 bg-slate-50/40">
+      <div className="flex-1 overflow-y-auto p-3.5 sm:p-5 pb-[max(1.25rem,env(safe-area-inset-bottom))] bg-slate-50/40">
         {activeTab === "edit" ? (
           <textarea
             value={content}
@@ -258,7 +258,7 @@ export const CanvasWorkspace: React.FC<CanvasWorkspaceProps> = ({
               if (onSave) onSave(e.target.value);
             }}
             placeholder="Type or paste markdown content here..."
-            className="w-full h-full min-h-[450px] p-4 bg-white text-slate-800 font-mono text-xs rounded-xl border border-slate-200 focus:border-purple-500 focus:outline-none resize-none leading-relaxed shadow-xs"
+            className="w-full h-full min-h-[450px] p-3.5 sm:p-4 bg-white text-slate-800 font-mono text-[16px] sm:text-xs rounded-xl border border-slate-200 focus:border-purple-500 focus:outline-none resize-none leading-relaxed shadow-xs"
           />
         ) : (
           <div className="bg-white p-6 rounded-xl border border-slate-200 shadow-xs min-h-[450px]">

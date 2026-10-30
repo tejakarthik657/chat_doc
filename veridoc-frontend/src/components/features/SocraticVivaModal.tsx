@@ -146,36 +146,36 @@ export default function SocraticVivaModal({ isOpen, onClose, projectId }: Socrat
     if (!isOpen) return null;
 
     return (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
-            <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl w-full max-w-4xl max-h-[90vh] flex flex-col shadow-2xl overflow-hidden animate-in fade-in zoom-in-95 duration-200">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-2 sm:p-4">
+            <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl w-full max-w-4xl max-h-[92dvh] sm:max-h-[90vh] flex flex-col shadow-2xl overflow-hidden animate-in fade-in zoom-in-95 duration-200">
                 {/* Header */}
-                <div className="flex items-center justify-between px-6 py-4 border-b border-slate-100 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-900/50">
-                    <div className="flex items-center gap-3">
-                        <div className="w-10 h-10 rounded-xl bg-indigo-600/10 text-indigo-600 dark:bg-indigo-500/20 dark:text-indigo-400 flex items-center justify-center">
+                <div className="flex items-center justify-between px-3.5 sm:px-6 py-3 sm:py-4 border-b border-slate-100 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-900/50 gap-2">
+                    <div className="flex items-center gap-2.5 sm:gap-3 min-w-0">
+                        <div className="w-9 h-9 sm:w-10 sm:h-10 rounded-xl bg-indigo-600/10 text-indigo-600 dark:bg-indigo-500/20 dark:text-indigo-400 flex items-center justify-center shrink-0">
                             <GraduationCap className="w-5 h-5" />
                         </div>
-                        <div>
-                            <h2 className="text-lg font-bold text-slate-900 dark:text-white flex items-center gap-2">
-                                The Socratic Viva Master
-                                <span className="text-[10px] uppercase font-mono px-2 py-0.5 rounded-full bg-indigo-100 text-indigo-700 dark:bg-indigo-950 dark:text-indigo-300">
-                                    Oral Exam Simulator
+                        <div className="min-w-0">
+                            <h2 className="text-sm sm:text-lg font-bold text-slate-900 dark:text-white flex items-center gap-2 truncate">
+                                <span>The Socratic Viva Master</span>
+                                <span className="text-[10px] uppercase font-mono px-2 py-0.5 rounded-full bg-indigo-100 text-indigo-700 dark:bg-indigo-950 dark:text-indigo-300 hidden xs:inline">
+                                    Oral Exam
                                 </span>
                             </h2>
-                            <p className="text-xs text-slate-500">
+                            <p className="text-[11px] sm:text-xs text-slate-500 hidden sm:block truncate">
                                 Active recall oral examination with adaptive Bloom's Taxonomy and real-time misconception diagnosis.
                             </p>
                         </div>
                     </div>
                     <button 
                         onClick={onClose}
-                        className="p-2 rounded-lg text-slate-400 hover:text-slate-600 hover:bg-slate-100 dark:hover:bg-slate-800"
+                        className="p-1.5 sm:p-2 rounded-lg text-slate-400 hover:text-slate-600 hover:bg-slate-100 dark:hover:bg-slate-800 transition-all touch-manipulation active:scale-95 shrink-0"
                     >
                         <X className="w-5 h-5" />
                     </button>
                 </div>
 
                 {/* Content */}
-                <div className="p-6 overflow-y-auto space-y-6 flex-1">
+                <div className="p-3.5 sm:p-6 overflow-y-auto space-y-5 sm:space-y-6 flex-1 pb-[max(1rem,env(safe-area-inset-bottom))]">
                     {/* Setup / Configuration */}
                     {!currentQuestion && (
                         <div className="space-y-6">
@@ -189,7 +189,7 @@ export default function SocraticVivaModal({ isOpen, onClose, projectId }: Socrat
                                         value={topic}
                                         onChange={(e) => setTopic(e.target.value)}
                                         placeholder="e.g. Distributed Consensus, Auth Architecture, Neural Attention"
-                                        className="w-full text-sm rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 px-3.5 py-2.5 text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                                        className="w-full text-base sm:text-sm rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 px-3.5 py-2.5 text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-indigo-500"
                                     />
                                     <p className="text-[11px] text-slate-400 mt-1">Leave blank to let examiner test the entire project knowledge base.</p>
                                 </div>
@@ -200,7 +200,7 @@ export default function SocraticVivaModal({ isOpen, onClose, projectId }: Socrat
                                     <select
                                         value={bloomLevel}
                                         onChange={(e) => setBloomLevel(e.target.value)}
-                                        className="w-full text-sm rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 px-3.5 py-2.5 text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                                        className="w-full text-base sm:text-sm rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 px-3.5 py-2.5 text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-indigo-500"
                                     >
                                         {BLOOM_LEVELS.map((lvl) => (
                                             <option key={lvl.id} value={lvl.id}>
@@ -319,7 +319,7 @@ export default function SocraticVivaModal({ isOpen, onClose, projectId }: Socrat
                                     onChange={(e) => setStudentAnswer(e.target.value)}
                                     rows={4}
                                     placeholder="Speak your answer using the microphone, or type your oral explanation here..."
-                                    className="w-full text-sm rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 p-3.5 text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                                    className="w-full text-base sm:text-sm rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 p-3.5 text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-indigo-500"
                                 />
 
                                 <div className="flex items-center justify-between">

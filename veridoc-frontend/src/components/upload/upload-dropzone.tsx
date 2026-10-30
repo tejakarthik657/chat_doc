@@ -129,7 +129,7 @@ export function UploadDropzone() {
 
     return (
         <div className="w-full max-w-2xl mx-auto">
-            <Card className="p-8 bg-surface-high/20 border-border/50 backdrop-blur-sm">
+            <Card className="p-4 sm:p-8 bg-surface-high/20 border-border/50 backdrop-blur-sm">
                 <AnimatePresence mode="wait">
                     {uploadStatus === "idle" && (
                         <motion.div
@@ -138,7 +138,7 @@ export function UploadDropzone() {
                             animate={{ opacity: 1 }}
                             exit={{ opacity: 0 }}
                             className={cn(
-                                "border-2 border-dashed rounded-lg p-12 flex flex-col items-center justify-center text-center transition-colors duration-300",
+                                "border-2 border-dashed rounded-lg p-6 sm:p-12 flex flex-col items-center justify-center text-center transition-colors duration-300",
                                 isDragActive ? "border-accent bg-accent/5" : "border-border hover:border-accent/50 hover:bg-surface-high/30"
                             )}
                             onDragOver={handleDragOver}
@@ -252,11 +252,11 @@ export function UploadDropzone() {
                                 Ready for semantic search and Q&A.
                             </p>
 
-                            <div className="flex justify-center gap-4">
-                                <Button variant="primary" size="lg" onClick={() => router.push(`/dashboard/chat/${uploadedDoc?.id}`)}>
+                            <div className="flex flex-col sm:flex-row justify-center gap-3 sm:gap-4 px-2">
+                                <Button variant="primary" size="lg" className="w-full sm:w-auto" onClick={() => router.push(`/dashboard/chat/${uploadedDoc?.id}`)}>
                                     Start Asking Questions →
                                 </Button>
-                                <Button variant="ghost" onClick={reset}>
+                                <Button variant="ghost" className="w-full sm:w-auto" onClick={reset}>
                                     Upload Another
                                 </Button>
                             </div>

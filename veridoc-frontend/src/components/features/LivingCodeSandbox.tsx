@@ -59,32 +59,32 @@ export default function LivingCodeSandbox({
     return (
         <div className="rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 overflow-hidden shadow-sm space-y-0">
             {/* Toolbar */}
-            <div className="flex items-center justify-between px-4 py-3 bg-slate-50 dark:bg-slate-800/60 border-b border-slate-200 dark:border-slate-800">
-                <div className="flex items-center gap-2">
-                    <Code2 className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />
-                    <span className="text-xs font-bold text-slate-800 dark:text-slate-200">{title}</span>
-                    <span className="px-2 py-0.5 rounded text-[10px] font-mono bg-emerald-100 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-300">
+            <div className="flex flex-wrap items-center justify-between gap-2.5 px-3 sm:px-4 py-2.5 sm:py-3 bg-slate-50 dark:bg-slate-800/60 border-b border-slate-200 dark:border-slate-800">
+                <div className="flex items-center gap-2 min-w-0">
+                    <Code2 className="w-4 h-4 text-emerald-600 dark:text-emerald-400 shrink-0" />
+                    <span className="text-xs font-bold text-slate-800 dark:text-slate-200 truncate">{title}</span>
+                    <span className="px-2 py-0.5 rounded text-[10px] font-mono bg-emerald-100 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-300 shrink-0">
                         AST Verified
                     </span>
                 </div>
 
-                <div className="flex items-center gap-2">
+                <div className="flex items-center gap-2 w-full sm:w-auto justify-end">
                     <button
                         type="button"
                         onClick={() => setShowTests(!showTests)}
-                        className={`px-2.5 py-1 rounded-lg text-xs font-medium border transition-colors ${
+                        className={`px-2.5 py-1.5 sm:py-1 rounded-lg text-xs font-medium border transition-all touch-manipulation active:scale-95 ${
                             showTests 
                                 ? "bg-indigo-50 border-indigo-200 text-indigo-700 dark:bg-indigo-950 dark:border-indigo-800 dark:text-indigo-300"
                                 : "border-slate-200 text-slate-600 dark:border-slate-700 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800"
                         }`}
                     >
-                        {showTests ? "Hide Unit Tests" : "Add Unit Assertions"}
+                        {showTests ? "Hide Tests" : "Add Assertions"}
                     </button>
 
                     <button
                         onClick={handleRun}
                         disabled={isRunning}
-                        className="px-3.5 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-semibold flex items-center gap-1.5 shadow-sm transition-all disabled:opacity-50"
+                        className="px-3 sm:px-3.5 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-semibold flex items-center gap-1.5 shadow-sm transition-all disabled:opacity-50 touch-manipulation active:scale-95"
                     >
                         {isRunning ? (
                             <>
@@ -100,7 +100,7 @@ export default function LivingCodeSandbox({
             </div>
 
             {/* Code Input */}
-            <div className="p-4 space-y-3">
+            <div className="p-3.5 sm:p-4 space-y-3">
                 <div>
                     <label className="text-[10px] font-mono uppercase text-slate-400 block mb-1">
                         Python Execution Sandbox
@@ -109,7 +109,7 @@ export default function LivingCodeSandbox({
                         value={code}
                         onChange={(e) => setCode(e.target.value)}
                         rows={6}
-                        className="w-full font-mono text-xs p-3 rounded-xl bg-slate-950 text-emerald-400 border border-slate-800 focus:outline-none focus:ring-1 focus:ring-emerald-500 leading-relaxed"
+                        className="w-full font-mono text-[16px] sm:text-xs p-3 rounded-xl bg-slate-950 text-emerald-400 border border-slate-800 focus:outline-none focus:ring-1 focus:ring-emerald-500 leading-relaxed"
                     />
                 </div>
 
@@ -123,7 +123,7 @@ export default function LivingCodeSandbox({
                             onChange={(e) => setTests(e.target.value)}
                             rows={3}
                             placeholder="assert func(x) == expected"
-                            className="w-full font-mono text-xs p-3 rounded-xl bg-slate-950 text-indigo-300 border border-indigo-900/40 focus:outline-none focus:ring-1 focus:ring-indigo-500 leading-relaxed"
+                            className="w-full font-mono text-[16px] sm:text-xs p-3 rounded-xl bg-slate-950 text-indigo-300 border border-indigo-900/40 focus:outline-none focus:ring-1 focus:ring-indigo-500 leading-relaxed"
                         />
                     </div>
                 )}

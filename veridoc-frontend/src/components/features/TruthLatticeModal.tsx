@@ -60,36 +60,36 @@ export default function TruthLatticeModal({
     if (!isOpen) return null;
 
     return (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
-            <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl w-full max-w-4xl max-h-[90vh] flex flex-col shadow-2xl overflow-hidden animate-in fade-in zoom-in-95 duration-200">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-2 sm:p-4">
+            <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl w-full max-w-4xl max-h-[92dvh] sm:max-h-[90vh] flex flex-col shadow-2xl overflow-hidden animate-in fade-in zoom-in-95 duration-200">
                 {/* Header */}
-                <div className="flex items-center justify-between px-6 py-4 border-b border-slate-100 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-900/50">
-                    <div className="flex items-center gap-3">
-                        <div className="w-10 h-10 rounded-xl bg-emerald-600/10 text-emerald-600 dark:bg-emerald-500/20 dark:text-emerald-400 flex items-center justify-center">
+                <div className="flex items-center justify-between px-3.5 sm:px-6 py-3 sm:py-4 border-b border-slate-100 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-900/50 gap-2">
+                    <div className="flex items-center gap-2.5 sm:gap-3 min-w-0">
+                        <div className="w-9 h-9 sm:w-10 sm:h-10 rounded-xl bg-emerald-600/10 text-emerald-600 dark:bg-emerald-500/20 dark:text-emerald-400 flex items-center justify-center shrink-0">
                             <ShieldCheck className="w-5 h-5" />
                         </div>
-                        <div>
-                            <h2 className="text-lg font-bold text-slate-900 dark:text-white flex items-center gap-2">
-                                Truth Lattice
-                                <span className="text-[10px] uppercase font-mono px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-300">
-                                    Adversarial Red-Team Audit
+                        <div className="min-w-0">
+                            <h2 className="text-sm sm:text-lg font-bold text-slate-900 dark:text-white flex items-center gap-2 truncate">
+                                <span>Truth Lattice</span>
+                                <span className="text-[10px] uppercase font-mono px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-300 hidden xs:inline">
+                                    Audit
                                 </span>
                             </h2>
-                            <p className="text-xs text-slate-500">
+                            <p className="text-[11px] sm:text-xs text-slate-500 hidden sm:block truncate">
                                 Dual-model consensus arbitration: Qwen-27B vs. GPT-OSS cross-examination against ground truth.
                             </p>
                         </div>
                     </div>
                     <button 
                         onClick={onClose}
-                        className="p-2 rounded-lg text-slate-400 hover:text-slate-600 hover:bg-slate-100 dark:hover:bg-slate-800"
+                        className="p-1.5 sm:p-2 rounded-lg text-slate-400 hover:text-slate-600 hover:bg-slate-100 dark:hover:bg-slate-800 transition-all touch-manipulation active:scale-95 shrink-0"
                     >
                         <X className="w-5 h-5" />
                     </button>
                 </div>
 
                 {/* Body */}
-                <div className="p-6 overflow-y-auto space-y-6 flex-1">
+                <div className="p-3.5 sm:p-6 overflow-y-auto space-y-4 sm:space-y-6 flex-1 pb-[max(1rem,env(safe-area-inset-bottom))]">
                     {/* Target preview */}
                     <div className="p-3.5 rounded-xl bg-slate-50 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-800 text-xs">
                         <span className="font-semibold text-slate-500 uppercase tracking-wider block mb-1">Audited Statement</span>
@@ -120,7 +120,7 @@ export default function TruthLatticeModal({
                     {auditData && !loading && (
                         <div className="space-y-6 animate-in fade-in duration-300">
                             {/* Score header */}
-                            <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+                            <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5 sm:gap-4">
                                 <div className="p-4 rounded-xl bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-center">
                                     <div className="text-xs text-slate-500 font-medium uppercase">Consensus Score</div>
                                     <div className="text-2xl font-black text-slate-900 dark:text-white mt-1">

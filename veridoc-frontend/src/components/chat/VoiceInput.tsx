@@ -215,7 +215,7 @@ export const VoiceInput: React.FC<VoiceInputProps> = ({
             ? "Listening... Click to stop and finish"
             : "Speak to dictation (Groq Whisper Turbo)"
         }
-        className={`p-1.5 rounded-lg transition-all duration-200 flex items-center justify-center relative ${
+        className={`h-8 w-8 sm:h-9 sm:w-9 rounded-lg transition-all duration-200 flex items-center justify-center relative shrink-0 active:scale-95 ${
           isTranscribing
             ? "bg-amber-50 text-amber-600 border border-amber-300"
             : isActive
@@ -238,7 +238,7 @@ export const VoiceInput: React.FC<VoiceInputProps> = ({
         type="button"
         onClick={() => setAutoSend(!autoSend)}
         title={autoSend ? "Auto-Send: ON (Submits query right after speech ends)" : "Auto-Send: OFF"}
-        className={`p-1.5 rounded-lg text-xs flex items-center gap-1 border transition-all ${
+        className={`h-8 px-2 sm:h-9 sm:px-2.5 rounded-lg text-xs flex items-center gap-1 border transition-all shrink-0 active:scale-95 ${
           autoSend
             ? "bg-indigo-50 text-indigo-700 border-indigo-300 font-semibold"
             : "bg-slate-100 text-slate-600 border-slate-200 hover:bg-slate-200"
@@ -250,7 +250,7 @@ export const VoiceInput: React.FC<VoiceInputProps> = ({
 
       {/* Floating Status & Fallback Indicator */}
       {statusMessage && (
-        <div className="absolute bottom-full left-0 mb-2 w-64 p-2 bg-slate-900/90 backdrop-blur-md text-white border border-slate-700 rounded-lg text-[11px] shadow-lg flex items-start gap-1.5 z-50 animate-in fade-in">
+        <div className="absolute bottom-full left-0 mb-2 w-[calc(100vw-2rem)] sm:w-64 max-w-xs p-2 bg-slate-900/90 backdrop-blur-md text-white border border-slate-700 rounded-lg text-[11px] shadow-lg flex items-start gap-1.5 z-50 animate-in fade-in">
           {isTranscribing ? (
             <Loader2 className="w-3.5 h-3.5 text-indigo-400 shrink-0 mt-0.5 animate-spin" />
           ) : isActive ? (

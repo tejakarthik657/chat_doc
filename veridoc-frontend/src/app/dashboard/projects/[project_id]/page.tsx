@@ -40,8 +40,14 @@ export default function ProjectWorkspacePage({ params }: { params: Promise<{ pro
     // Scoped Inventory State
     const [inventory, setInventory] = useState<{ web_pages: { url: string; title: string }[]; pdfs: { url: string; title: string }[] }>({ web_pages: [], pdfs: [] });
     const [selectedSources, setSelectedSources] = useState<string[]>([]);
-    const [sidebarOpen, setSidebarOpen] = useState(true);
+    const [sidebarOpen, setSidebarOpen] = useState(false);
     const [inventorySearch, setInventorySearch] = useState("");
+
+    useEffect(() => {
+        if (typeof window !== "undefined" && window.innerWidth >= 1024) {
+            setSidebarOpen(true);
+        }
+    }, []);
     
     // Chat State & 30 UX Features State
     const [messages, setMessages] = useState<Array<{ 
@@ -632,32 +638,40 @@ export default function ProjectWorkspacePage({ params }: { params: Promise<{ pro
     );
 
     return (
-        <div className="flex flex-col h-[calc(100vh-60px)] bg-slate-50 overflow-hidden relative">
+        <div className="flex flex-col h-[calc(100dvh-60px)] bg-slate-50 overflow-hidden relative">
             {/* Dynamic Sub-Header */}
-            <div className="h-[56px] border-b border-slate-200/60 bg-white/80 backdrop-blur-md px-6 flex items-center justify-between shrink-0 z-30 shadow-sm shadow-slate-100">
-                <div className="flex items-center gap-3 min-w-0">
-                    <Link href="/dashboard/projects" className="text-slate-400 hover:text-slate-900 transition-colors">
+            <div className="min-h-[56px] h-auto py-2 border-b border-slate-200/60 bg-white/90 backdrop-blur-md px-3 sm:px-6 flex items-center justify-between gap-2 shrink-0 z-30 shadow-sm shadow-slate-100 overflow-x-auto no-scrollbar">
+                <div className="flex items-center gap-2 sm:gap-3 min-w-0 shrink-0">
+                    <Link href="/dashboard/projects" className="text-slate-400 hover:text-slate-900 transition-colors p-1" title="Back to Projects">
                         <ArrowLeft size={16} />
                     </Link>
-                    <div className="h-4 w-px bg-slate-200" />
-                    <h2 className="text-sm font-semibold truncate text-slate-900 flex items-center gap-2 tracking-tight">
-                        <Database size={14} className="text-indigo-600" />
-                        {project.name}
+                    <button
+                        onClick={() => setSidebarOpen(prev => !prev)}
+                        className="lg:hidden flex items-center gap-1 px-2 py-1 text-xs font-mono rounded border border-slate-200 bg-white hover:bg-slate-100 text-slate-700 shrink-0 active:scale-95 transition-all"
+                        title="Toggle Context Inventory"
+                    >
+                        <ListFilter size={13} className="text-indigo-600" />
+                        <span className="hidden sm:inline">Docs</span>
+                    </button>
+                    <div className="h-4 w-px bg-slate-200 hidden sm:block" />
+                    <h2 className="text-xs sm:text-sm font-semibold truncate text-slate-900 flex items-center gap-1.5 sm:gap-2 tracking-tight max-w-[120px] sm:max-w-xs">
+                        <Database size={13} className="text-indigo-600 shrink-0" />
+                        <span className="truncate">{project.name}</span>
                     </h2>
-                    <Badge variant={project.status === "active" ? "success" : "info"} className="rounded-none uppercase text-[9px] font-mono px-2 py-0.5">
+                    <Badge variant={project.status === "active" ? "success" : "info"} className="rounded-none uppercase text-[8px] sm:text-[9px] font-mono px-1.5 sm:px-2 py-0.5 shrink-0">
                         {project.status}
                     </Badge>
                 </div>
                 
-                <div className="flex items-center gap-3 shrink-0">
+                <div className="flex items-center gap-1.5 sm:gap-2.5 shrink-0">
                     <>
                         {/* Reasoning Selector */}
-                        <div className="hidden md:flex items-center gap-1 p-0.5 bg-slate-100 rounded-lg border border-slate-200 text-[10px] font-mono">
+                        <div className="hidden md:flex items-center gap-0.5 p-0.5 bg-slate-100 rounded-lg border border-slate-200 text-[10px] font-mono">
                             {(["fast", "balanced", "deep"] as const).map((level) => (
                                 <button
                                     key={level}
                                     onClick={() => setReasoningLevel(level)}
-                                    className={`px-2 py-0.5 rounded capitalize transition-all ${
+                                    className={`px-1.5 sm:px-2 py-0.5 rounded capitalize transition-all ${
                                         reasoningLevel === level
                                             ? "bg-indigo-600 text-white font-semibold shadow-xs"
                                             : "text-slate-500 hover:text-slate-900"
@@ -669,11 +683,11 @@ export default function ProjectWorkspacePage({ params }: { params: Promise<{ pro
                         </div>
 
                         {/* Knowledge Scope Toggle */}
-                        <div className="flex items-center rounded-lg border border-slate-200 bg-slate-100/90 p-0.5 text-[10px] font-mono">
+                        <div className="flex items-center rounded-lg border border-slate-200 bg-slate-100/90 p-0.5 text-[10px] font-mono shrink-0">
                             <button
                                 type="button"
                                 onClick={() => setChatScope("project")}
-                                className={`flex items-center gap-1 px-2.5 py-0.5 rounded transition-all ${
+                                className={`flex items-center gap-1 px-2 sm:px-2.5 py-0.5 rounded transition-all ${
                                     chatScope === "project"
                                         ? "bg-white text-indigo-700 shadow-xs font-semibold"
                                         : "text-slate-500 hover:text-slate-900"
@@ -681,12 +695,13 @@ export default function ProjectWorkspacePage({ params }: { params: Promise<{ pro
                                 title="Limit answers exclusively to this project's crawled documents and pages"
                             >
                                 <Database size={10} />
-                                Project Scope (RAG)
+                                <span className="hidden sm:inline">Project Scope</span>
+                                <span className="sm:hidden">RAG</span>
                             </button>
                             <button
                                 type="button"
                                 onClick={() => setChatScope("general")}
-                                className={`flex items-center gap-1 px-2.5 py-0.5 rounded transition-all ${
+                                className={`flex items-center gap-1 px-2 sm:px-2.5 py-0.5 rounded transition-all ${
                                     chatScope === "general"
                                         ? "bg-indigo-600 text-white shadow-xs font-semibold"
                                         : "text-slate-500 hover:text-slate-900"
@@ -694,39 +709,42 @@ export default function ProjectWorkspacePage({ params }: { params: Promise<{ pro
                                 title="Query Groq LLM general world knowledge without document restrictions"
                             >
                                 <Globe size={10} />
-                                General AI
+                                <span className="hidden sm:inline">General AI</span>
+                                <span className="sm:hidden">Groq</span>
                             </button>
                         </div>
 
                         {/* Canvas Workspace Button */}
                         <button
                             onClick={() => setCanvasOpen(true)}
-                            className="flex items-center gap-1.5 text-[11px] font-mono px-2.5 py-1 transition-all border border-purple-200 bg-purple-50 text-purple-700 hover:bg-purple-100/80 rounded"
+                            className="flex items-center gap-1 text-[10px] sm:text-[11px] font-mono px-2 sm:px-2.5 py-1 transition-all border border-purple-200 bg-purple-50 text-purple-700 hover:bg-purple-100/80 rounded shrink-0"
                             title="Open side-by-side interactive Canvas Workspace"
                         >
-                            <LayoutGrid size={12} />
-                            Canvas Workspace
+                            <LayoutGrid size={11} />
+                            <span className="hidden sm:inline">Canvas Workspace</span>
+                            <span className="sm:hidden">Canvas</span>
                         </button>
 
                         <button
                             onClick={() => setStrictMode(!strictMode)}
-                            className={`flex items-center gap-1.5 text-[11px] font-mono px-2.5 py-1 transition-all border ${
+                            className={`flex items-center gap-1 text-[10px] sm:text-[11px] font-mono px-1.5 sm:px-2.5 py-1 transition-all border shrink-0 ${
                                 strictMode 
                                     ? "bg-amber-500/10 border-amber-300/40 text-amber-700" 
                                     : "border-slate-200 bg-white text-slate-500 hover:text-slate-900 hover:bg-slate-50"
                             }`}
                             title="Strict mode restricts answering if confidence threshold is too low"
                         >
-                            <Shield size={11} />
-                            STRICT: {strictMode ? "ON" : "OFF"}
+                            <Shield size={10} />
+                            <span>{strictMode ? "STRICT" : "RELAXED"}</span>
                         </button>
                         <Button 
                             onClick={handleClearMemory} 
                             variant="ghost" 
-                            className="text-xs h-7 gap-1 font-mono rounded-none text-slate-500 hover:text-slate-900 hover:bg-slate-100/50"
+                            className="text-[10px] sm:text-xs h-7 px-1.5 sm:px-2 gap-1 font-mono rounded-none text-slate-500 hover:text-slate-900 hover:bg-slate-100/50 shrink-0"
+                            title="Reset Chat"
                         >
                             <RefreshCw size={11} />
-                            Reset Chat
+                            <span className="hidden sm:inline">Reset Chat</span>
                         </Button>
                     </>
                     {(project.status === "crawling" || project.status === "paused") && (
@@ -734,7 +752,7 @@ export default function ProjectWorkspacePage({ params }: { params: Promise<{ pro
                             onClick={handleToggleCrawl}
                             disabled={actionLoading}
                             variant="ghost"
-                            className={`text-xs h-7 gap-1 font-mono rounded-none border ${
+                            className={`text-[10px] sm:text-xs h-7 px-2 gap-1 font-mono rounded-none border shrink-0 ${
                                 project.status === "crawling"
                                     ? "bg-amber-500/10 border-amber-300/40 text-amber-700 hover:bg-amber-500/20"
                                     : "bg-emerald-500/10 border-emerald-300/40 text-emerald-700 hover:bg-emerald-500/20"
@@ -743,12 +761,12 @@ export default function ProjectWorkspacePage({ params }: { params: Promise<{ pro
                             {project.status === "crawling" ? (
                                 <>
                                     <Pause size={11} />
-                                    Pause Crawling
+                                    <span className="hidden sm:inline">Pause Crawling</span>
                                 </>
                             ) : (
                                 <>
                                     <Play size={11} />
-                                    Resume Crawling
+                                    <span className="hidden sm:inline">Resume Crawling</span>
                                 </>
                             )}
                         </Button>
@@ -756,32 +774,33 @@ export default function ProjectWorkspacePage({ params }: { params: Promise<{ pro
                     <Button
                         onClick={handleDeleteProject}
                         variant="ghost"
-                        className="text-xs h-7 gap-1 font-mono rounded-none text-red-500 hover:text-red-700 hover:bg-red-50"
+                        className="text-[10px] sm:text-xs h-7 px-1.5 sm:px-2 gap-1 font-mono rounded-none text-red-500 hover:text-red-700 hover:bg-red-50 shrink-0"
+                        title="Delete Project"
                     >
                         <Trash2 size={11} />
-                        Delete Project
+                        <span className="hidden sm:inline">Delete</span>
                     </Button>
                 </div>
             </div>
 
             {/* Progressive Indexing Top Live Progress Banner */}
             {isCrawling && (
-                <div className="bg-slate-950 text-slate-200 px-6 py-2 flex items-center justify-between shrink-0 border-b border-slate-800 shadow-sm z-20">
-                    <div className="flex items-center gap-3">
-                        <span className="relative flex h-2.5 w-2.5">
+                <div className="bg-slate-950 text-slate-200 px-3 sm:px-6 py-2 flex flex-col sm:flex-row sm:items-center justify-between gap-2 shrink-0 border-b border-slate-800 shadow-sm z-20">
+                    <div className="flex items-center gap-2 sm:gap-3 flex-wrap">
+                        <span className="relative flex h-2.5 w-2.5 shrink-0">
                             <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
                             <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-emerald-500"></span>
                         </span>
-                        <span className="text-xs font-mono font-medium tracking-tight text-slate-200">
-                            Indexing Pipeline: <strong className="text-white">{crawlStatus?.urls_processed || 0}</strong> pages visited • <strong className="text-white">{inventory.pdfs.length}</strong> PDFs • <strong className="text-white">{inventory.web_pages.length}</strong> Web Pages
+                        <span className="text-[11px] sm:text-xs font-mono font-medium tracking-tight text-slate-200">
+                            Pipeline: <strong className="text-white">{crawlStatus?.urls_processed || 0}</strong> visited • <strong className="text-white">{inventory.pdfs.length}</strong> PDFs • <strong className="text-white">{inventory.web_pages.length}</strong> Web
                         </span>
-                        <span className="text-[10px] bg-emerald-500/15 text-emerald-400 border border-emerald-500/30 px-2.5 py-0.5 font-mono uppercase tracking-wider rounded-full font-bold">
+                        <span className="text-[9px] bg-emerald-500/15 text-emerald-400 border border-emerald-500/30 px-2 py-0.5 font-mono uppercase tracking-wider rounded-full font-bold">
                             Live RAG Ready
                         </span>
                     </div>
-                    <div className="flex items-center gap-3 text-xs font-mono">
-                        <span className="text-slate-400 font-medium">{getProgressPercent()}% complete</span>
-                        <div className="w-28 h-1.5 bg-slate-800 rounded-full overflow-hidden border border-slate-700">
+                    <div className="flex items-center gap-2 sm:gap-3 text-xs font-mono shrink-0">
+                        <span className="text-slate-400 font-medium text-[11px]">{getProgressPercent()}% complete</span>
+                        <div className="w-20 sm:w-28 h-1.5 bg-slate-800 rounded-full overflow-hidden border border-slate-700">
                             <div className="h-full bg-gradient-to-r from-indigo-500 to-emerald-400 transition-all duration-300" style={{ width: `${getProgressPercent()}%` }} />
                         </div>
                     </div>
@@ -789,7 +808,7 @@ export default function ProjectWorkspacePage({ params }: { params: Promise<{ pro
             )}
 
             {/* Redesigned High-End Segmented Navigation Bar */}
-            <div className="flex border-b border-slate-200/80 bg-white/95 backdrop-blur-md px-4 shrink-0 h-12 items-center gap-1.5 select-none overflow-x-auto shadow-xs">
+            <div className="flex border-b border-slate-200/80 bg-white/95 backdrop-blur-md px-3 sm:px-4 shrink-0 h-12 items-center gap-1.5 select-none overflow-x-auto no-scrollbar shadow-xs">
                 {[
                     { id: "chat", label: "Research Chat", icon: Cpu },
                     { id: "socratic", label: "Socratic Viva", icon: GraduationCap, badge: "Oral AI" },
@@ -841,112 +860,118 @@ export default function ProjectWorkspacePage({ params }: { params: Promise<{ pro
                         
                         {/* COLUMN 1: Collapsible Left Sidebar (Context Inventory) */}
                         {sidebarOpen && (
-                            <div className="w-[280px] border-r border-slate-200/60 bg-white flex flex-col shrink-0 min-h-0 animate-in slide-in-from-left duration-200">
-                                <div className="p-4 border-b border-slate-200/60 space-y-3 bg-slate-50/50">
-                                    <div className="flex items-center justify-between">
-                                        <span className="text-xs font-mono font-bold text-slate-800 uppercase tracking-wider flex items-center gap-1">
-                                            <ListFilter size={12} className="text-indigo-600" />
-                                            Context Inventory
-                                        </span>
-                                        <button 
-                                            onClick={() => setSidebarOpen(false)}
-                                            className="text-slate-400 hover:text-slate-900 p-1 hover:bg-slate-200/50"
-                                            title="Collapse inventory"
-                                        >
-                                            <X size={14} />
-                                        </button>
-                                    </div>
-                                    <Input
-                                        placeholder="Search dataset files..."
-                                        value={inventorySearch}
-                                        onChange={(e) => setInventorySearch(e.target.value)}
-                                        className="h-8 text-xs rounded-none border-slate-200 bg-white"
-                                    />
-                                    
-                                    <div className="flex gap-2 text-[10px] font-mono">
-                                        <button 
-                                            onClick={() => toggleAllSources(true)}
-                                            className="text-indigo-600 hover:underline"
-                                        >
-                                            Select All
-                                        </button>
-                                        <span className="text-slate-300">|</span>
-                                        <button 
-                                            onClick={() => toggleAllSources(false)}
-                                            className="text-slate-500 hover:underline"
-                                        >
-                                            Clear All
-                                        </button>
-                                    </div>
-                                </div>
-
-                                <div className="flex-1 overflow-y-auto p-4 space-y-6">
-                                    {/* PDFs Section */}
-                                    <div className="space-y-2">
-                                        <div className="text-[10px] font-mono text-slate-400 uppercase font-bold flex items-center gap-1">
-                                            <FileText size={10} />
-                                            Documents ({filteredPdfs.length})
+                            <>
+                                <div
+                                    onClick={() => setSidebarOpen(false)}
+                                    className="fixed inset-0 bg-slate-950/40 backdrop-blur-xs z-40 lg:hidden"
+                                />
+                                <div className="fixed inset-y-0 left-0 w-[280px] max-w-[85vw] z-50 lg:static lg:z-auto lg:w-[280px] border-r border-slate-200/60 bg-white flex flex-col shrink-0 min-h-0 shadow-2xl lg:shadow-none animate-in slide-in-from-left duration-200">
+                                    <div className="p-4 border-b border-slate-200/60 space-y-3 bg-slate-50/50">
+                                        <div className="flex items-center justify-between">
+                                            <span className="text-xs font-mono font-bold text-slate-800 uppercase tracking-wider flex items-center gap-1">
+                                                <ListFilter size={12} className="text-indigo-600" />
+                                                Context Inventory
+                                            </span>
+                                            <button 
+                                                onClick={() => setSidebarOpen(false)}
+                                                className="text-slate-400 hover:text-slate-900 p-1 hover:bg-slate-200/50"
+                                                title="Collapse inventory"
+                                            >
+                                                <X size={14} />
+                                            </button>
                                         </div>
-                                        <div className="space-y-1.5">
-                                            {filteredPdfs.map((pdf, idx) => (
-                                                <label 
-                                                    key={idx} 
-                                                    className="flex items-start gap-2.5 p-1.5 hover:bg-slate-50 cursor-pointer select-none text-xs group"
-                                                >
-                                                    <input
-                                                        type="checkbox"
-                                                        checked={selectedSources.includes(pdf.url)}
-                                                        onChange={() => toggleSource(pdf.url)}
-                                                        className="mt-0.5 accent-indigo-600 cursor-pointer"
-                                                    />
-                                                    <span className="text-slate-700 font-medium truncate group-hover:text-slate-900" title={pdf.title}>
-                                                        {pdf.title}
-                                                    </span>
-                                                </label>
-                                            ))}
-                                            {filteredPdfs.length === 0 && (
-                                                <span className="text-[11px] text-slate-400 italic">No PDFs matching query</span>
-                                            )}
+                                        <Input
+                                            placeholder="Search dataset files..."
+                                            value={inventorySearch}
+                                            onChange={(e) => setInventorySearch(e.target.value)}
+                                            className="h-8 text-xs rounded-none border-slate-200 bg-white"
+                                        />
+                                        
+                                        <div className="flex gap-2 text-[10px] font-mono">
+                                            <button 
+                                                onClick={() => toggleAllSources(true)}
+                                                className="text-indigo-600 hover:underline"
+                                            >
+                                                Select All
+                                            </button>
+                                            <span className="text-slate-300">|</span>
+                                            <button 
+                                                onClick={() => toggleAllSources(false)}
+                                                className="text-slate-500 hover:underline"
+                                            >
+                                                Clear All
+                                            </button>
                                         </div>
                                     </div>
 
-                                    {/* Web Pages Section */}
-                                    <div className="space-y-2">
-                                        <div className="text-[10px] font-mono text-slate-400 uppercase font-bold flex items-center gap-1">
-                                            <Globe size={10} />
-                                            Web Portals ({filteredWebPages.length})
+                                    <div className="flex-1 overflow-y-auto p-4 space-y-6">
+                                        {/* PDFs Section */}
+                                        <div className="space-y-2">
+                                            <div className="text-[10px] font-mono text-slate-400 uppercase font-bold flex items-center gap-1">
+                                                <FileText size={10} />
+                                                Documents ({filteredPdfs.length})
+                                            </div>
+                                            <div className="space-y-1.5">
+                                                {filteredPdfs.map((pdf, idx) => (
+                                                    <label 
+                                                        key={idx} 
+                                                        className="flex items-start gap-2.5 p-1.5 hover:bg-slate-50 cursor-pointer select-none text-xs group"
+                                                    >
+                                                        <input
+                                                            type="checkbox"
+                                                            checked={selectedSources.includes(pdf.url)}
+                                                            onChange={() => toggleSource(pdf.url)}
+                                                            className="mt-0.5 accent-indigo-600 cursor-pointer"
+                                                        />
+                                                        <span className="text-slate-700 font-medium truncate group-hover:text-slate-900" title={pdf.title}>
+                                                            {pdf.title}
+                                                        </span>
+                                                    </label>
+                                                ))}
+                                                {filteredPdfs.length === 0 && (
+                                                    <span className="text-[11px] text-slate-400 italic">No PDFs matching query</span>
+                                                )}
+                                            </div>
                                         </div>
-                                        <div className="space-y-1.5">
-                                            {filteredWebPages.map((page, idx) => (
-                                                <label 
-                                                    key={idx} 
-                                                    className="flex items-start gap-2.5 p-1.5 hover:bg-slate-50 cursor-pointer select-none text-xs group"
-                                                >
-                                                    <input
-                                                        type="checkbox"
-                                                        checked={selectedSources.includes(page.url)}
-                                                        onChange={() => toggleSource(page.url)}
-                                                        className="mt-0.5 accent-indigo-600 cursor-pointer"
-                                                    />
-                                                    <span className="text-slate-700 font-medium truncate group-hover:text-slate-900" title={page.title}>
-                                                        {page.title}
-                                                    </span>
-                                                </label>
-                                            ))}
-                                            {filteredWebPages.length === 0 && (
-                                                <span className="text-[11px] text-slate-400 italic">No web pages matching query</span>
-                                            )}
+
+                                        {/* Web Pages Section */}
+                                        <div className="space-y-2">
+                                            <div className="text-[10px] font-mono text-slate-400 uppercase font-bold flex items-center gap-1">
+                                                <Globe size={10} />
+                                                Web Portals ({filteredWebPages.length})
+                                            </div>
+                                            <div className="space-y-1.5">
+                                                {filteredWebPages.map((page, idx) => (
+                                                    <label 
+                                                        key={idx} 
+                                                        className="flex items-start gap-2.5 p-1.5 hover:bg-slate-50 cursor-pointer select-none text-xs group"
+                                                    >
+                                                        <input
+                                                            type="checkbox"
+                                                            checked={selectedSources.includes(page.url)}
+                                                            onChange={() => toggleSource(page.url)}
+                                                            className="mt-0.5 accent-indigo-600 cursor-pointer"
+                                                        />
+                                                        <span className="text-slate-700 font-medium truncate group-hover:text-slate-900" title={page.title}>
+                                                            {page.title}
+                                                        </span>
+                                                    </label>
+                                                ))}
+                                                {filteredWebPages.length === 0 && (
+                                                    <span className="text-[11px] text-slate-400 italic">No web pages matching query</span>
+                                                )}
+                                            </div>
                                         </div>
                                     </div>
                                 </div>
-                            </div>
+                            </>
                         )}
 
-                        {/* Toggle button to expand Left Sidebar if closed */}
+                        {/* Toggle button to expand Left Sidebar if closed (desktop) */}
                         {!sidebarOpen && (
                             <button
                                 onClick={() => setSidebarOpen(true)}
-                                className="absolute left-4 top-4 z-20 p-2 border border-slate-200/60 bg-white hover:bg-slate-50 shadow-sm text-slate-600 flex items-center justify-center hover:-translate-y-0.5 transition-transform"
+                                className="hidden lg:flex absolute left-4 top-4 z-20 p-2 border border-slate-200/60 bg-white hover:bg-slate-50 shadow-sm text-slate-600 items-center justify-center hover:-translate-y-0.5 transition-transform"
                                 title="Expand Context Inventory"
                             >
                                 <ListFilter size={16} />
@@ -956,7 +981,7 @@ export default function ProjectWorkspacePage({ params }: { params: Promise<{ pro
                         {/* COLUMN 2: Center Panel (Intelligent Chat Thread) */}
                         <div className="flex-1 flex flex-col min-w-0 bg-slate-50 min-h-0 relative">
                             {/* Chat Thread */}
-                            <div className="flex-1 overflow-y-auto p-8 space-y-6 scrollbar-thin">
+                            <div className="flex-1 overflow-y-auto p-3 sm:p-6 md:p-8 space-y-4 sm:space-y-6 scrollbar-thin">
                                 {messages.map((msg, i) => (
                                     <div 
                                         key={i} 
@@ -1022,12 +1047,12 @@ export default function ProjectWorkspacePage({ params }: { params: Promise<{ pro
                                                         </div>
                                                     )}
 
-                                                     <div className="flex items-center gap-1.5 ml-auto">
+                                                     <div className="flex flex-wrap items-center gap-1.5 w-full sm:w-auto sm:ml-auto pt-2 sm:pt-0">
                                                          {/* 1-Click Ask General AI button */}
                                                          {msg.questionRef && !msg.isGeneralAI && (
                                                              <button
                                                                  onClick={() => handleAskGeneralAI(msg.questionRef!)}
-                                                                 className="flex items-center gap-1 px-2 py-0.5 border border-indigo-300/60 bg-indigo-50/70 text-[10px] font-mono text-indigo-700 hover:bg-indigo-100 transition-colors rounded font-medium"
+                                                                 className="flex items-center gap-1 px-2.5 py-1 sm:py-0.5 sm:px-2 border border-indigo-300/60 bg-indigo-50/70 text-[10px] font-mono text-indigo-700 hover:bg-indigo-100 transition-all rounded font-medium touch-manipulation active:scale-95"
                                                                  title="Query General AI (Groq) for this question with broader world knowledge"
                                                              >
                                                                  <Globe size={10} />
@@ -1041,7 +1066,7 @@ export default function ProjectWorkspacePage({ params }: { params: Promise<{ pro
                                                                  setAuditQuery(msg.questionRef || "Verify factual reliability");
                                                                  setTruthLatticeOpen(true);
                                                              }}
-                                                             className="flex items-center gap-1 px-2 py-0.5 border border-emerald-300/60 bg-emerald-50/70 text-[10px] font-mono text-emerald-800 hover:bg-emerald-100 transition-colors rounded font-medium"
+                                                             className="flex items-center gap-1 px-2.5 py-1 sm:py-0.5 sm:px-2 border border-emerald-300/60 bg-emerald-50/70 text-[10px] font-mono text-emerald-800 hover:bg-emerald-100 transition-all rounded font-medium touch-manipulation active:scale-95"
                                                              title="Run Truth Lattice dual-model adversarial red team audit"
                                                          >
                                                              <ShieldCheck size={10} />
@@ -1052,7 +1077,7 @@ export default function ProjectWorkspacePage({ params }: { params: Promise<{ pro
                                                                  setCanvasContent(msg.text);
                                                                  setCanvasOpen(true);
                                                              }}
-                                                             className="flex items-center gap-1 px-2 py-0.5 border border-purple-300/60 bg-purple-50/50 text-[10px] font-mono text-purple-800 hover:bg-purple-100 transition-colors rounded"
+                                                             className="flex items-center gap-1 px-2.5 py-1 sm:py-0.5 sm:px-2 border border-purple-300/60 bg-purple-50/50 text-[10px] font-mono text-purple-800 hover:bg-purple-100 transition-all rounded touch-manipulation active:scale-95"
                                                              title="Send this response to Canvas for live editing & export"
                                                          >
                                                              <LayoutGrid size={10} />
@@ -1064,7 +1089,7 @@ export default function ProjectWorkspacePage({ params }: { params: Promise<{ pro
                                                                  setActiveEvidenceTrace(msg.evidence_trace || []);
                                                                  setEvidenceOpen(true);
                                                              }}
-                                                             className="flex items-center gap-1 px-2 py-0.5 border border-cyan-300/60 bg-cyan-50/50 text-[10px] font-mono text-cyan-800 hover:bg-cyan-100 transition-colors rounded"
+                                                             className="flex items-center gap-1 px-2.5 py-1 sm:py-0.5 sm:px-2 border border-cyan-300/60 bg-cyan-50/50 text-[10px] font-mono text-cyan-800 hover:bg-cyan-100 transition-all rounded touch-manipulation active:scale-95"
                                                              title="Inspect raw RAG evidence chunks and scores"
                                                          >
                                                              <Eye size={10} />
@@ -1086,10 +1111,10 @@ export default function ProjectWorkspacePage({ params }: { params: Promise<{ pro
                             </div>
 
                             {/* Chat Form Input */}
-                            <div className="p-4 sm:p-6 border-t border-slate-200/60 bg-white/70 backdrop-blur-md shrink-0 space-y-3">
+                            <div className="p-2.5 sm:p-5 border-t border-slate-200/60 bg-white/70 backdrop-blur-md shrink-0 space-y-2.5 sm:space-y-3 pb-[max(0.75rem,env(safe-area-inset-bottom))]">
                                 {/* Mode Selector Pill Bar */}
-                                <div className="max-w-[800px] mx-auto flex items-center gap-1.5 overflow-x-auto pb-1 text-xs font-mono">
-                                    <span className="text-slate-400 text-[10px] uppercase font-bold tracking-wider mr-1">Experience Mode:</span>
+                                <div className="max-w-[800px] mx-auto flex items-center gap-1.5 overflow-x-auto pb-1 text-xs font-mono no-scrollbar">
+                                    <span className="text-slate-400 text-[10px] uppercase font-bold tracking-wider mr-1 shrink-0">Experience Mode:</span>
                                     {[
                                         { id: "standard", label: "Standard", hint: "Factual cited Q&A" },
                                         { id: "debate", label: "Debate", hint: "2 Opposing arguments + verdict" },
@@ -1102,7 +1127,7 @@ export default function ProjectWorkspacePage({ params }: { params: Promise<{ pro
                                             type="button"
                                             onClick={() => setResponseMode(m.id as any)}
                                             title={m.hint}
-                                            className={`px-2.5 py-1 rounded-full border transition-all text-[11px] ${
+                                            className={`px-2.5 py-1 rounded-full border transition-all text-[11px] shrink-0 whitespace-nowrap active:scale-95 ${
                                                 responseMode === m.id
                                                     ? "bg-indigo-600 text-white border-indigo-600 font-semibold shadow-xs"
                                                     : "bg-white text-slate-600 border-slate-200 hover:border-slate-300 hover:bg-slate-50"
@@ -1126,7 +1151,7 @@ export default function ProjectWorkspacePage({ params }: { params: Promise<{ pro
                                         <button
                                             type="button"
                                             onClick={() => setAttachedImage(null)}
-                                            className="p-1 text-slate-400 hover:text-rose-600 rounded"
+                                            className="p-1 text-slate-400 hover:text-rose-600 rounded active:scale-95"
                                             title="Remove attachment"
                                         >
                                             <X size={14} />
@@ -1134,8 +1159,8 @@ export default function ProjectWorkspacePage({ params }: { params: Promise<{ pro
                                     </div>
                                 )}
 
-                                <form onSubmit={handleSendMessage} onPaste={handlePaste} className="max-w-[800px] mx-auto flex gap-3 items-center">
-                                     <div className="flex-1 flex border border-slate-200/60 bg-white focus-within:border-indigo-400 focus-within:ring-1 focus-within:ring-indigo-400 transition-all items-center px-3 gap-2 rounded-lg">
+                                <form onSubmit={handleSendMessage} onPaste={handlePaste} className="max-w-[800px] mx-auto flex gap-2 sm:gap-3 items-center">
+                                     <div className="flex-1 flex border border-slate-200/60 bg-white focus-within:border-indigo-400 focus-within:ring-1 focus-within:ring-indigo-400 transition-all items-center px-2.5 sm:px-3 gap-1.5 sm:gap-2 rounded-lg">
                                          <input
                                              type="file"
                                              ref={imageInputRef}
@@ -1146,7 +1171,7 @@ export default function ProjectWorkspacePage({ params }: { params: Promise<{ pro
                                          <button 
                                              type="button" 
                                              onClick={() => imageInputRef.current?.click()}
-                                             className="text-slate-400 hover:text-indigo-600 p-1.5 transition-colors"
+                                             className="text-slate-400 hover:text-indigo-600 p-1.5 transition-colors active:scale-95"
                                              title="Attach Image / Screenshot (or paste directly with Ctrl+V)"
                                          >
                                              <Paperclip size={16} />
@@ -1160,24 +1185,24 @@ export default function ProjectWorkspacePage({ params }: { params: Promise<{ pro
                                              placeholder={`Ask a question or paste screenshot (${selectedSources.length} selected pages)...`}
                                              value={input}
                                              onChange={(e) => setInput(e.target.value)}
-                                             className="border-0 focus-visible:ring-0 focus-visible:ring-offset-0 px-0 h-10 bg-transparent text-sm text-slate-900"
+                                             className="border-0 focus-visible:ring-0 focus-visible:ring-offset-0 px-1 h-10 bg-transparent text-base sm:text-sm text-slate-900"
                                              disabled={chatLoading || imageAnalyzing}
                                          />
                                      </div>
                                     <Button
                                         type="submit"
                                         disabled={chatLoading || imageAnalyzing || (!input.trim() && !attachedImage)}
-                                        className="bg-indigo-600 hover:bg-indigo-700 text-white gap-2 px-6 h-10 rounded-lg shrink-0"
+                                        className="bg-indigo-600 hover:bg-indigo-700 text-white gap-1.5 px-3.5 sm:px-6 h-10 rounded-lg shrink-0 font-medium active:scale-95"
                                     >
                                         {imageAnalyzing ? (
                                             <>
                                                 <Loader2 className="animate-spin" size={14} />
-                                                Analyzing...
+                                                <span className="hidden sm:inline">Analyzing...</span>
                                             </>
                                         ) : (
                                             <>
                                                 <Send size={14} />
-                                                Submit
+                                                <span className="hidden sm:inline">Submit</span>
                                             </>
                                         )}
                                     </Button>
@@ -1187,71 +1212,80 @@ export default function ProjectWorkspacePage({ params }: { params: Promise<{ pro
 
                         {/* COLUMN 3: Right Sidebar (Citation Source Inspector Panel) */}
                         {activeCitation && (
-                            <div className="w-[340px] border-l border-slate-200/60 bg-white flex flex-col shrink-0 min-h-0 animate-in slide-in-from-right duration-200 shadow-md">
-                                <div className="h-[56px] px-4 border-b border-slate-200/60 flex items-center justify-between bg-slate-50/50">
-                                    <span className="text-xs font-mono font-bold text-slate-800 uppercase tracking-wider flex items-center gap-1">
-                                        <Info size={12} className="text-indigo-600" />
-                                        Source Inspector
-                                    </span>
-                                    <button 
-                                        onClick={() => setActiveCitation(null)}
-                                        className="text-slate-400 hover:text-slate-900 p-1 hover:bg-slate-200/50"
-                                    >
-                                        <X size={16} />
-                                    </button>
-                                </div>
-                                
-                                <div className="flex-1 p-5 space-y-6 overflow-y-auto min-h-0">
-                                    <div className="space-y-1.5">
-                                        <h4 className="text-sm font-semibold text-slate-900 tracking-tight leading-tight">
-                                            {activeCitation.source_name || "Source"}
-                                        </h4>
-                                        <p className="text-[10px] font-mono text-slate-400 break-all select-all leading-normal">
-                                            {activeCitation.url || "Attached PDF document"}
-                                        </p>
+                            <>
+                                {/* Mobile Backdrop */}
+                                <div
+                                    onClick={() => setActiveCitation(null)}
+                                    className="fixed inset-0 bg-slate-950/40 backdrop-blur-xs z-40 lg:hidden"
+                                    aria-label="Close Citation Panel"
+                                />
+                                <div className="fixed inset-y-0 right-0 z-50 w-full sm:w-[360px] lg:static lg:z-auto lg:w-[340px] border-l border-slate-200/60 bg-white flex flex-col shrink-0 min-h-0 shadow-2xl lg:shadow-md animate-in slide-in-from-right duration-200">
+                                    <div className="h-[56px] px-4 border-b border-slate-200/60 flex items-center justify-between bg-slate-50/50">
+                                        <span className="text-xs font-mono font-bold text-slate-800 uppercase tracking-wider flex items-center gap-1">
+                                            <Info size={12} className="text-indigo-600" />
+                                            Source Inspector
+                                        </span>
+                                        <button 
+                                            onClick={() => setActiveCitation(null)}
+                                            className="text-slate-400 hover:text-slate-900 p-1 hover:bg-slate-200/50 rounded active:scale-95"
+                                            aria-label="Close"
+                                        >
+                                            <X size={16} />
+                                        </button>
                                     </div>
-
-                                    {/* High-Fidelity Soft Mint Green Segment Box */}
-                                    <div className="p-4 bg-emerald-500/5 border border-emerald-200/50 font-sans text-xs leading-relaxed text-emerald-800 font-medium whitespace-pre-wrap select-text">
-                                        &ldquo;{activeCitation.snippet}&rdquo;
-                                    </div>
-
-                                    {/* Telemetry Metadata Details */}
-                                    <div className="space-y-2.5 font-mono text-[11px] text-slate-500 border-t border-slate-100 pt-4">
-                                        {activeCitation.page > 1 && (
-                                            <div className="flex justify-between border-b border-slate-50 pb-1.5">
-                                                <span>PAGE NUMBER</span>
-                                                <span className="text-slate-800 font-semibold">Page {activeCitation.page}</span>
-                                            </div>
-                                        )}
-                                        <div className="flex justify-between border-b border-slate-50 pb-1.5">
-                                            <span>CONFIDENCE MATCH</span>
-                                            <span className="text-emerald-700 font-bold">92.4%</span>
+                                    
+                                    <div className="flex-1 p-4 sm:p-5 space-y-5 overflow-y-auto min-h-0 pb-[max(1rem,env(safe-area-inset-bottom))]">
+                                        <div className="space-y-1.5">
+                                            <h4 className="text-sm font-semibold text-slate-900 tracking-tight leading-tight">
+                                                {activeCitation.source_name || "Source"}
+                                            </h4>
+                                            <p className="text-[10px] font-mono text-slate-400 break-all select-all leading-normal">
+                                                {activeCitation.url || "Attached PDF document"}
+                                            </p>
                                         </div>
-                                        
-                                        {activeCitation.url && (
-                                            <div className="pt-2">
-                                                <a
-                                                    href={activeCitation.url}
-                                                    target="_blank"
-                                                    rel="noopener noreferrer"
-                                                    className="w-full flex items-center justify-center gap-1.5 border border-indigo-200 bg-indigo-500/5 hover:bg-indigo-500/10 py-2 text-indigo-700 text-xs font-mono font-medium transition-all"
-                                                >
-                                                    <ExternalLink size={12} />
-                                                    Visit Original Link
-                                                </a>
+
+                                        {/* High-Fidelity Soft Mint Green Segment Box */}
+                                        <div className="p-3.5 sm:p-4 bg-emerald-500/5 border border-emerald-200/50 font-sans text-xs leading-relaxed text-emerald-800 font-medium whitespace-pre-wrap select-text rounded">
+                                            &ldquo;{activeCitation.snippet}&rdquo;
+                                        </div>
+
+                                        {/* Telemetry Metadata Details */}
+                                        <div className="space-y-2.5 font-mono text-[11px] text-slate-500 border-t border-slate-100 pt-4">
+                                            {activeCitation.page > 1 && (
+                                                <div className="flex justify-between border-b border-slate-50 pb-1.5">
+                                                    <span>PAGE NUMBER</span>
+                                                    <span className="text-slate-800 font-semibold">Page {activeCitation.page}</span>
+                                                </div>
+                                            )}
+                                            <div className="flex justify-between border-b border-slate-50 pb-1.5">
+                                                <span>CONFIDENCE MATCH</span>
+                                                <span className="text-emerald-700 font-bold">92.4%</span>
                                             </div>
-                                        )}
+                                            
+                                            {activeCitation.url && (
+                                                <div className="pt-2">
+                                                    <a
+                                                        href={activeCitation.url}
+                                                        target="_blank"
+                                                        rel="noopener noreferrer"
+                                                        className="w-full flex items-center justify-center gap-1.5 border border-indigo-200 bg-indigo-500/5 hover:bg-indigo-500/10 py-2.5 text-indigo-700 text-xs font-mono font-medium transition-all rounded active:scale-95"
+                                                    >
+                                                        <ExternalLink size={12} />
+                                                        Visit Original Link
+                                                    </a>
+                                                </div>
+                                            )}
+                                        </div>
                                     </div>
                                 </div>
-                            </div>
+                            </>
                         )}
                     </div>
                 )}
 
                 {/* SPACE A: ECHO (Living Memory) Tab */}
                 {project.status !== "error" && activeTab === "echo" && (
-                    <div className="flex-1 p-8 overflow-y-auto space-y-6 flex flex-col h-full bg-slate-50 animate-in fade-in duration-150">
+                    <div className="flex-1 p-3.5 sm:p-6 md:p-8 overflow-y-auto space-y-6 flex flex-col h-full bg-slate-50 animate-in fade-in duration-150">
                         <div className="max-w-[1000px] w-full mx-auto space-y-6">
                             <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 border-b border-slate-200 pb-4">
                                 <div>
@@ -1388,7 +1422,7 @@ export default function ProjectWorkspacePage({ params }: { params: Promise<{ pro
 
                 {/* SPACE B: MINDSPACE (Visual Thought Canvas) Tab */}
                 {project.status !== "error" && activeTab === "mindspace" && (
-                    <div className="flex-1 p-8 overflow-y-auto space-y-6 flex flex-col h-full bg-slate-50 animate-in fade-in duration-150">
+                    <div className="flex-1 p-3.5 sm:p-6 md:p-8 overflow-y-auto space-y-6 flex flex-col h-full bg-slate-50 animate-in fade-in duration-150">
                         <div className="max-w-[1100px] w-full mx-auto space-y-6">
                             <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 border-b border-slate-200 pb-4">
                                 <div>
@@ -1552,7 +1586,7 @@ export default function ProjectWorkspacePage({ params }: { params: Promise<{ pro
 
                 {/* SPACE C: FORGE (Interactive Artifacts & Workspace) Tab */}
                 {project.status !== "error" && activeTab === "forge" && (
-                    <div className="flex-1 p-8 overflow-y-auto space-y-6 flex flex-col h-full bg-slate-50 animate-in fade-in duration-150">
+                    <div className="flex-1 p-3.5 sm:p-6 md:p-8 overflow-y-auto space-y-6 flex flex-col h-full bg-slate-50 animate-in fade-in duration-150">
                         <div className="max-w-[1100px] w-full mx-auto space-y-6">
                             <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 border-b border-slate-200 pb-4">
                                 <div>
@@ -1652,7 +1686,7 @@ export default function ProjectWorkspacePage({ params }: { params: Promise<{ pro
                                     value={canvasContent}
                                     onChange={(e) => setCanvasContent(e.target.value)}
                                     placeholder="# FORGE Working Artifact&#10;&#10;Type, edit, or copy generated specifications, calculations, or Python code here...&#10;&#10;Example:&#10;import math&#10;print(f'Total Combinations: {math.comb(10, 3)}')"
-                                    className="w-full h-80 p-4 border border-slate-200 font-mono text-xs text-slate-800 rounded bg-slate-50/50 focus:bg-white focus:outline-none focus:border-indigo-500 resize-none leading-relaxed"
+                                    className="w-full h-80 p-4 border border-slate-200 font-mono text-[16px] sm:text-xs text-slate-800 rounded bg-slate-50/50 focus:bg-white focus:outline-none focus:border-indigo-500 resize-none leading-relaxed"
                                 />
 
                                 {/* Python Sandbox Output Console Cell */}
@@ -1703,7 +1737,7 @@ export default function ProjectWorkspacePage({ params }: { params: Promise<{ pro
 
                 {/* STATE 3: Neo4j Knowledge Graph Tab */}
                 {project.status !== "error" && activeTab === "graph" && (
-                    <div className="flex-1 p-8 overflow-y-auto space-y-6 flex flex-col h-full bg-slate-50">
+                    <div className="flex-1 p-3.5 sm:p-6 md:p-8 overflow-y-auto space-y-6 flex flex-col h-full bg-slate-50">
                         <div className="max-w-[1200px] w-full mx-auto space-y-4">
                             <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 border-b border-slate-200 pb-4">
                                 <div>
@@ -1740,7 +1774,7 @@ export default function ProjectWorkspacePage({ params }: { params: Promise<{ pro
                                             placeholder="Search entities, professors, departments, labs..."
                                             value={graphSearchQuery}
                                             onChange={(e) => setGraphSearchQuery(e.target.value)}
-                                            className="w-full pl-8 pr-3 py-1.5 text-xs font-mono border border-slate-200 rounded focus:outline-none focus:border-indigo-500 bg-slate-50/50"
+                                            className="w-full pl-8 pr-3 py-1.5 text-base sm:text-xs font-mono border border-slate-200 rounded focus:outline-none focus:border-indigo-500 bg-slate-50/50"
                                         />
                                     </div>
                                     {graphSearchQuery && (
@@ -1794,7 +1828,7 @@ export default function ProjectWorkspacePage({ params }: { params: Promise<{ pro
                                 <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
                                     {/* Main SVG Graph Canvas (2 Columns) */}
                                     <Card className="lg:col-span-2 rounded-lg border border-slate-200 bg-white p-4 shadow-sm flex flex-col items-center justify-center relative overflow-hidden">
-                                        <div className="w-full border border-slate-100 bg-slate-900/[0.02] relative overflow-hidden h-[540px] rounded flex items-center justify-center">
+                                        <div className="w-full border border-slate-100 bg-slate-900/[0.02] relative overflow-hidden h-[360px] sm:h-[540px] rounded flex items-center justify-center">
                                             <svg
                                                 className="w-full h-full cursor-grab active:cursor-grabbing select-none"
                                                 viewBox="0 0 720 540"
@@ -2149,7 +2183,7 @@ export default function ProjectWorkspacePage({ params }: { params: Promise<{ pro
 
                 {/* STATE 4: Claim Contradictions Tab */}
                 {project.status !== "error" && activeTab === "contradictions" && (
-                    <div className="flex-1 p-8 overflow-y-auto space-y-6 flex flex-col h-full bg-slate-50">
+                    <div className="flex-1 p-3.5 sm:p-6 md:p-8 overflow-y-auto space-y-6 flex flex-col h-full bg-slate-50">
                         <div className="max-w-[800px] w-full mx-auto space-y-4">
                             <div>
                                 <h3 className="text-base font-semibold text-slate-900 tracking-tight">Contradiction & Claim Detector</h3>
@@ -2200,7 +2234,7 @@ export default function ProjectWorkspacePage({ params }: { params: Promise<{ pro
 
                 {/* STATE 5: Version Changes Changelog Tab */}
                 {project.status !== "error" && activeTab === "changes" && (
-                    <div className="flex-1 p-8 overflow-y-auto space-y-6 flex flex-col h-full bg-slate-50">
+                    <div className="flex-1 p-3.5 sm:p-6 md:p-8 overflow-y-auto space-y-6 flex flex-col h-full bg-slate-50">
                         <div className="max-w-[800px] w-full mx-auto space-y-4">
                             <div>
                                 <h3 className="text-base font-semibold text-slate-900 tracking-tight">Change & Version Intelligence</h3>
@@ -2249,7 +2283,7 @@ export default function ProjectWorkspacePage({ params }: { params: Promise<{ pro
 
                 {/* STATE 6: Health Audit & Information Gaps Tab */}
                 {project.status !== "error" && activeTab === "health" && (
-                    <div className="flex-1 p-8 overflow-y-auto space-y-6 flex flex-col h-full bg-slate-50">
+                    <div className="flex-1 p-3.5 sm:p-6 md:p-8 overflow-y-auto space-y-6 flex flex-col h-full bg-slate-50">
                         <div className="max-w-[1000px] w-full mx-auto space-y-6">
                             <div>
                                 <h3 className="text-base font-semibold text-slate-900 tracking-tight">Website Gap & Health Analyzer</h3>
@@ -2266,7 +2300,7 @@ export default function ProjectWorkspacePage({ params }: { params: Promise<{ pro
                                     {/* Crawler Health stats */}
                                     <Card className="rounded-none border border-slate-200 bg-white p-5 shadow-sm space-y-4">
                                         <h4 className="text-xs font-mono font-bold text-slate-800 uppercase tracking-wider">Crawl Quality Metrics</h4>
-                                        <div className="grid grid-cols-2 gap-4">
+                                        <div className="grid grid-cols-2 gap-2.5 sm:gap-4">
                                             <div className="border border-slate-100 p-3 bg-slate-50/50">
                                                 <div className="text-[10px] font-mono text-slate-400 uppercase font-bold">TOTAL PAGES</div>
                                                 <div className="text-xl font-bold text-slate-900 mt-1">{health.metrics.total_pages}</div>
@@ -2334,18 +2368,18 @@ export default function ProjectWorkspacePage({ params }: { params: Promise<{ pro
 
                 {/* STATE 7: Auto Intelligence Reports Tab */}
                 {project.status !== "error" && activeTab === "report" && (
-                    <div className="flex-1 p-8 overflow-y-auto space-y-6 flex flex-col h-full bg-slate-50">
+                    <div className="flex-1 p-3.5 sm:p-6 md:p-8 overflow-y-auto space-y-6 flex flex-col h-full bg-slate-50">
                         <div className="max-w-[800px] w-full mx-auto space-y-6">
-                            <div className="flex justify-between items-end">
+                            <div className="flex flex-col sm:flex-row sm:justify-between sm:items-end gap-3 border-b border-slate-200/80 pb-4">
                                 <div>
                                     <h3 className="text-base font-semibold text-slate-900 tracking-tight">Auto Intelligence Reports</h3>
-                                    <p className="text-xs text-slate-500 font-mono">Compiles executive briefings, technical analyses, or competitive audits.</p>
+                                    <p className="text-xs text-slate-500 font-mono mt-0.5">Compiles executive briefings, technical analyses, or competitive audits.</p>
                                 </div>
-                                <div className="flex flex-wrap gap-2 items-center">
+                                <div className="flex flex-wrap gap-2 items-center w-full sm:w-auto">
                                     <select
                                         value={reportType}
                                         onChange={(e) => setReportType(e.target.value)}
-                                        className="h-9 px-3 border border-slate-200 bg-white text-xs font-mono focus:border-indigo-600 focus:outline-none rounded"
+                                        className="h-9 px-3 border border-slate-200 bg-white text-base sm:text-xs font-mono focus:border-indigo-600 focus:outline-none rounded flex-1 sm:flex-initial"
                                     >
                                         <option value="technical">Technical Report</option>
                                         <option value="executive">Executive Summary</option>
@@ -2428,7 +2462,7 @@ export default function ProjectWorkspacePage({ params }: { params: Promise<{ pro
                 
                 {/* Feature 1: The Socratic Viva Master Arena */}
                 {project.status !== "error" && activeTab === "socratic" && (
-                    <div className="flex-1 p-8 overflow-y-auto bg-slate-50 flex flex-col items-center">
+                    <div className="flex-1 p-3.5 sm:p-6 md:p-8 overflow-y-auto bg-slate-50 flex flex-col items-center">
                         <div className="w-full max-w-4xl">
                             <SocraticVivaModal
                                 isOpen={true}
@@ -2441,7 +2475,7 @@ export default function ProjectWorkspacePage({ params }: { params: Promise<{ pro
 
                 {/* Feature 3: Living Code Twin Sandbox */}
                 {project.status !== "error" && activeTab === "sandbox" && (
-                    <div className="flex-1 p-8 overflow-y-auto bg-slate-50 flex flex-col items-center">
+                    <div className="flex-1 p-3.5 sm:p-6 md:p-8 overflow-y-auto bg-slate-50 flex flex-col items-center">
                         <div className="w-full max-w-4xl space-y-4">
                             <div>
                                 <h3 className="text-lg font-semibold text-slate-900 tracking-tight flex items-center gap-2">
@@ -2458,7 +2492,7 @@ export default function ProjectWorkspacePage({ params }: { params: Promise<{ pro
                 )}
 
                 {project.status !== "error" && activeTab === "investigate" && (
-                    <div className="flex-1 p-8 overflow-y-auto space-y-6 flex flex-col h-full bg-slate-50">
+                    <div className="flex-1 p-3.5 sm:p-6 md:p-8 overflow-y-auto space-y-6 flex flex-col h-full bg-slate-50">
                         <div className="max-w-[800px] w-full mx-auto space-y-6">
                             <div>
                                 <h3 className="text-base font-semibold text-slate-900 tracking-tight">Autonomous Investigation Agent</h3>
@@ -2466,18 +2500,18 @@ export default function ProjectWorkspacePage({ params }: { params: Promise<{ pro
                             </div>
 
                             <Card className="rounded-none border border-slate-200 bg-white p-4 shadow-sm">
-                                <form onSubmit={handleRunInvestigation} className="flex gap-3 items-center">
+                                <form onSubmit={handleRunInvestigation} className="flex flex-col sm:flex-row gap-2.5 sm:gap-3 items-stretch sm:items-center">
                                     <Input
                                         placeholder="Objective: e.g. Analyze pricing structures, security models, or API support..."
                                         value={investigationGoal}
                                         onChange={(e) => setInvestigationGoal(e.target.value)}
-                                        className="h-10 text-sm rounded-none border-slate-200 bg-white flex-1"
+                                        className="h-10 text-base sm:text-sm rounded-none border-slate-200 bg-white flex-1"
                                         disabled={investigationLoading}
                                     />
                                     <Button
                                         type="submit"
                                         disabled={investigationLoading || !investigationGoal.trim()}
-                                        className="bg-indigo-600 hover:bg-indigo-700 text-white font-mono text-xs rounded-none h-10 px-5 gap-1.5 shrink-0"
+                                        className="bg-indigo-600 hover:bg-indigo-700 text-white font-mono text-xs rounded-none h-10 px-5 gap-1.5 shrink-0 w-full sm:w-auto"
                                     >
                                         {investigationLoading ? (
                                             <>
@@ -2538,7 +2572,7 @@ export default function ProjectWorkspacePage({ params }: { params: Promise<{ pro
 
                 {/* STATE 9: Error Workspace State */}
                 {project.status === "error" && (
-                    <div className="flex-1 p-8 overflow-y-auto bg-slate-50 flex items-center justify-center select-none">
+                    <div className="flex-1 p-3.5 sm:p-6 md:p-8 overflow-y-auto bg-slate-50 flex items-center justify-center select-none">
                         <Card className="max-w-[500px] w-full border border-slate-200 bg-white p-6 shadow-sm text-center space-y-5 rounded-none">
                             <div className="mx-auto w-12 h-12 bg-red-500/10 border border-red-200 text-red-600 flex items-center justify-center">
                                 <AlertTriangle size={24} />

@@ -28,12 +28,12 @@ export default function DashboardPage() {
     }, []);
 
     return (
-        <div className="p-8 max-w-[1600px] mx-auto min-h-[calc(100vh-60px)]">
-            <div className="space-y-8">
+        <div className="p-4 sm:p-6 md:p-8 max-w-[1600px] mx-auto min-h-[calc(100vh-60px)]">
+            <div className="space-y-6 sm:space-y-8">
                 {/* Header */}
-                <div className="flex items-center justify-between">
-                    <h1 className="font-display text-3xl">Dashboard</h1>
-                    <div className="text-sm font-mono text-text-muted">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1 sm:gap-4">
+                    <h1 className="font-display text-2xl sm:text-3xl">Dashboard</h1>
+                    <div className="text-xs sm:text-sm font-mono text-text-muted">
                         LAST SYNC: {syncTime || "--:--:--"}
                     </div>
                 </div>

@@ -120,16 +120,16 @@ export default function ProjectsPage() {
     };
 
     return (
-        <div className="p-8 max-w-[1600px] mx-auto min-h-[calc(100vh-60px)] space-y-8">
+        <div className="p-4 sm:p-6 md:p-8 max-w-[1600px] mx-auto min-h-[calc(100vh-60px)] space-y-6 sm:space-y-8">
             {/* Header */}
-            <div className="flex items-center justify-between">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
                 <div>
-                    <h1 className="font-display text-3xl mb-2">Knowledge Projects</h1>
-                    <p className="text-text-muted text-sm">
+                    <h1 className="font-display text-2xl sm:text-3xl mb-1.5 sm:mb-2">Knowledge Projects</h1>
+                    <p className="text-text-muted text-xs sm:text-sm">
                         Build customized search agents by crawling external websites and organizational portals.
                     </p>
                 </div>
-                <Button onClick={() => setModalOpen(true)} className="gap-2 bg-accent hover:bg-accent/80 text-white rounded-none">
+                <Button onClick={() => setModalOpen(true)} className="gap-2 bg-accent hover:bg-accent/80 text-white rounded-none w-full sm:w-auto shrink-0 justify-center">
                     <Plus size={16} />
                     Create Project
                 </Button>
@@ -218,11 +218,11 @@ export default function ProjectsPage() {
 
             {/* Creation Modal */}
             {modalOpen && (
-                <div className="fixed inset-0 bg-background/80 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-                    <div className="bg-surface border border-border w-full max-w-lg p-6 space-y-6 shadow-xl relative animate-in fade-in zoom-in-95 duration-200 rounded-none">
-                        <div className="space-y-2">
-                            <h2 className="text-xl font-display">Create Knowledge Project</h2>
-                            <p className="text-sm text-text-muted">
+                <div className="fixed inset-0 bg-background/80 backdrop-blur-sm z-50 flex items-center justify-center p-3 sm:p-4">
+                    <div className="bg-surface border border-border w-full max-w-lg p-4 sm:p-6 space-y-4 sm:space-y-6 shadow-xl relative animate-in fade-in zoom-in-95 duration-200 rounded-none max-h-[92vh] overflow-y-auto">
+                        <div className="space-y-1 sm:space-y-2">
+                            <h2 className="text-lg sm:text-xl font-display">Create Knowledge Project</h2>
+                            <p className="text-xs sm:text-sm text-text-muted">
                                 Configure the web spider parameters for indexing the domain's public portals.
                             </p>
                         </div>
@@ -335,7 +335,7 @@ export default function ProjectsPage() {
                                             />
                                         </div>
 
-                                        <div className="grid grid-cols-2 gap-3">
+                                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                                             <div className="space-y-1">
                                                 <label className="text-[10px] font-mono text-text-muted uppercase">Username / Email</label>
                                                 <Input
@@ -366,19 +366,19 @@ export default function ProjectsPage() {
                                 </div>
                             )}
 
-                            <div className="flex gap-4 pt-4 justify-end font-mono">
+                            <div className="flex flex-col-reverse sm:flex-row gap-2 sm:gap-4 pt-4 justify-end font-mono">
                                 <Button
                                     type="button"
                                     variant="outline"
                                     onClick={() => setModalOpen(false)}
-                                    className="rounded-none border-border hover:bg-surface-high"
+                                    className="rounded-none border-border hover:bg-surface-high w-full sm:w-auto"
                                 >
                                     Cancel
                                 </Button>
                                 <Button
                                     type="submit"
                                     disabled={formSubmitting}
-                                    className="rounded-none bg-accent hover:bg-accent/80 text-white gap-2"
+                                    className="rounded-none bg-accent hover:bg-accent/80 text-white gap-2 w-full sm:w-auto justify-center"
                                 >
                                     {formSubmitting ? (
                                         <>
