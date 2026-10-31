@@ -1,600 +1,654 @@
-# NEXUS VERIDOCS: COMPLETE TECHNICAL ARCHITECTURE & ENGINEERING BIBLE
-> **The Autonomous Document Intelligence & Multi-Store Retrieval-Augmented Generation (RAG v2) System**  
-> *Author & Lead Architect: Technical Documentation & Systems Blueprint*  
-> *Version: 2.3.4 (Production)*
+# NEXUS VERIDOCS: SYSTEM ARCHITECTURE & DATABASE BLUEPRINT
+> **High-Density Technical Specification, Database Schemas, Mind Maps & Flowcharts**  
+> *Target: System Engineers, CTOs, Tech Leads & Architecture Interviewees*  
+> *Format: High-density diagrams, strict tabular data contracts, mind maps, and zero narrative fluff.*
 
 ---
 
-## 1. Executive System Overview & Vision
-
-**Nexus VeriDocs** is an enterprise-scale, source-grounded autonomous document intelligence engine and multi-project knowledge synthesis platform. It is engineered to solve the most pervasive pathologies of modern Large Language Model (LLM) deployments in mission-critical environments: **factual hallucination, context window exhaustion, latency inflation, rate-limiting bottlenecks, and memory-constrained deployment failures**.
-
-Unlike conventional "toy RAG" implementations that merely embed arbitrary text snippets into an isolated vector database and pass top matches to a single unmanaged LLM endpoint, Nexus VeriDocs is designed as a **polyglot-persistence, hybrid-retrieval, self-healing inference cluster**. It unites:
-1. **Multi-Source Autonomous Ingestion**: Unstructured digital and scanned PDF parsing coupled with a domain-locked recursive asynchronous web crawler.
-2. **Hybrid RAG v2 Retrieval Engine**: Reciprocal Rank Fusion ($k=60$) combining dense semantic vectors (Qdrant Cloud / FAISS) with persistent Okapi BM25 sparse keyword indices.
-3. **Cross-Encoder Precision Reranking & CRAG**: Zero-loss neural relevance scoring and Corrective RAG (CRAG) query rewriting loops.
-4. **Resilient Multi-Key Groq LPU Cluster**: A 10-key dynamic round-robin inference pool governed by leaky Token Buckets, Circuit Breakers, automated key-hopping, and cross-provider cloud fallbacks (Google Gemini 1.5 Flash / OpenRouter).
-5. **Decoupled Binary Storage Architecture**: Total separation of file binaries from transactional databases via Cloudinary CDN, preserving strict zero-RAM container boundaries ($< 512\text{ MB}$ RAM overhead).
-6. **Executive Presentation Layer**: Rich Markdown table structuring, native ordered/unordered hierarchies, and real-time paced streaming frontend built on Next.js 16 App Router and Tailwind CSS.
-
----
-
-## 2. End-to-End System Architecture & Topography
-
-### 2.1 Complete Architectural Blueprint
-
-```mermaid
-flowchart TD
-    subgraph CLIENT["Client Edge Tier (Vercel Edge CDN)"]
-        UI["Next.js 16 App Router (veridoc-frontend)"]
-        AUTH_PAGE["Auth & Google OAuth Callback Handshake"]
-        CHAT_UI["Interactive Streaming Chat & Markdown Parser"]
-        CANVAS["Canvas Workspace (Live Editor & Python Exec)"]
-        FEATURE_MODALS["Truth Lattice / Socratic Viva / What-If Modals"]
-    end
-
-    subgraph INGRESS["API Gateway & Middleware Layer (FastAPI ASGI)"]
-        FASTAPI["FastAPI App (rag-backend/app/main.py)"]
-        CORS_FILTER["Strict Origin CORS Middleware"]
-        SEC_HEADERS["SecurityHeadersMiddleware (HSTS, CSP, X-Frame)"]
-        CORR_ID["CorrelationIdMiddleware (UUID Distributed Tracing)"]
-        SIZE_LIMIT["RequestSizeLimitMiddleware (50 MB Max Ingress)"]
-        AUTH_GUARD["OAuth2 / JWT Verification Guard (security.py)"]
-    end
-
-    subgraph INGESTION["ETL & Autonomous Extraction Pipeline"]
-        UPLOAD_ROUTER["Documents & Project Ingestion (documents.py / project.py)"]
-        CRAWLER["Domain-Locked Async Web Spider (crawler.py)"]
-        PDF_PARSER["PyMuPDF Dual-Mode Extractor (pipeline.py)"]
-        OCR_FALLBACK["Cloud Vision & OCR.Space Fallback"]
-        PARENT_CHILD["Hierarchical Parent-Child Chunking Engine"]
-        CLOUDINARY_GW["Cloudinary Binary Streaming (storage_cloudinary.py)"]
-    end
-
-    subgraph RETRIEVAL["RAG v2 Hybrid Retrieval Pipeline (rag/engine.py)"]
-        QUERY_ROUTER["Intent & Metadata Classifier (router.py)"]
-        HYDE["HyDE Hypothetical Document Expander (hyde.py)"]
-        DENSE_RETRIEVAL["Dense Vector Retrieval (Qdrant / FAISS)"]
-        SPARSE_RETRIEVAL["Sparse Keyword Retrieval (Durable Okapi BM25)"]
-        RRF["Reciprocal Rank Fusion k=60 (fusion.py)"]
-        RERANKER["Cross-Encoder Neural Reranker (reranker.py)"]
-        CRAG["Corrective RAG Relevance Grader (crag.py)"]
-    end
-
-    subgraph INFERENCE["Multi-Model Resilient LLM Pool"]
-        RESILIENT_POOL["ResilientGroqClient (groq_resilience.py)"]
-        KEY_WORKERS["10-Key TokenBucket & CircuitBreaker Worker Pool"]
-        QWEN["Primary: Qwen 2.5 27B (qwen/qwen3.8-27b)"]
-        GPT_120B["Secondary: GPT OSS 120B (openai/gpt-oss-120b)"]
-        GPT_20B["Tertiary: GPT OSS 20B (openai/gpt-oss-20b)"]
-        CLOUD_FALLBACK["Emergency REST: Gemini 1.5 Flash / OpenRouter"]
-    end
-
-    subgraph PERSISTENCE["Polyglot Persistence Tier"]
-        MONGO[("MongoDB Atlas: Metadata, Chunks, Chat, BM25")]
-        QDRANT[("Qdrant Cloud: Multi-Project Dense Vectors")]
-        CLOUDINARY_CDN[("Cloudinary CDN: Raw PDF Binaries & Media Assets")]
-        LOCAL_FAISS["Local FAISS Disk Cache (Ephemeral Rebuildable)"]
-    end
-
-    CLIENT -->|HTTPS / REST / JSON| INGRESS
-    INGRESS --> INGESTION
-    INGRESS --> RETRIEVAL
-    INGESTION --> CLOUDINARY_GW --> CLOUDINARY_CDN
-    INGESTION --> MONGO
-    INGESTION --> QDRANT
-    RETRIEVAL --> DENSE_RETRIEVAL --> QDRANT
-    RETRIEVAL --> SPARSE_RETRIEVAL --> MONGO
-    RETRIEVAL --> RRF --> RERANKER --> CRAG --> INFERENCE
-    INFERENCE --> RESILIENT_POOL --> KEY_WORKERS
-    KEY_WORKERS --> QWEN
-    KEY_WORKERS -.->|Failover| GPT_120B
-    KEY_WORKERS -.->|Failover| GPT_20B
-    KEY_WORKERS -.->|Circuit Tripped| CLOUD_FALLBACK
-```
-
----
-
-## 3. Polyglot Persistence & Data Architecture
-
-A single database paradigm cannot simultaneously optimize relational metadata, vector indexing, transactional state, binary storage, and text search. Nexus VeriDocs uses **4 distinct persistence layers**:
-
-```mermaid
-graph LR
-    subgraph DATA_STORAGE["Polyglot Persistence Layer"]
-        A["MongoDB Atlas<br/>(Document / Transactional)"]
-        B["Qdrant Cloud<br/>(Vector Embeddings)"]
-        C["Cloudinary CDN<br/>(Binary Media Store)"]
-        D["FAISS / Local RAM<br/>(Ephemeral Indices)"]
-    end
-
-    A ---|Stores| A1["Users, Documents, Chunks, History, BM25 Blobs"]
-    B ---|Stores| B1["384-d Cosine Vectors + Payload Metadata"]
-    C ---|Stores| C1["Raw PDF Files, Images, OCR Thumbnails"]
-    D ---|Stores| D1["Fast Document Level In-Memory Indices"]
-```
-
-### 3.1 MongoDB Atlas Schema & Collections (`rag-backend/app/db/mongodb.py`)
-
-All collections are managed asynchronously via **Motor (`AsyncIOMotorClient`)** with non-blocking event-loop integration.
-
-#### 1. `users` Collection
-Stores authentication, credential hashes, and authorization scopes:
-```json
-{
-  "_id": "ObjectId('6722...abc')",
-  "email": "karthik1234@gmail.com",
-  "hashed_password": "$2b$12$e8J4G...hashed_bcrypt_string",
-  "name": "Karthik",
-  "role": "user",
-  "auth_provider": "local", // or "google"
-  "google_id": null,
-  "created_at": "ISODate('2026-10-28T10:00:00.000Z')",
-  "updated_at": "ISODate('2026-10-28T10:00:00.000Z')"
-}
-```
-
-#### 2. `documents` Collection
-Stores metadata for single-file uploads, decoupled from binary payload:
-```json
-{
-  "_id": "doc_6722_xyz",
-  "user_id": "user_id_123",
-  "filename": "computer_science_syllabus.pdf",
-  "file_url": "https://res.cloudinary.com/.../computer_science_syllabus.pdf",
-  "cloudinary_public_id": "nexus_docs/doc_6722_xyz",
-  "file_size": 2415902,
-  "page_count": 48,
-  "status": "ready", // "uploading" | "indexing" | "ready" | "error"
-  "summary": "Official undergraduate syllabus covering core engineering courses...",
-  "created_at": "ISODate('2026-10-28T10:05:00.000Z')"
-}
-```
-
-#### 3. `chunks` Collection
-Stores the segmented text units, parent-child references, and structural attributes:
-```json
-{
-  "_id": "ObjectId('...')",
-  "doc_id": "doc_6722_xyz",
-  "chunk_id": "doc_6722_xyz_c4",
-  "page": 3,
-  "text": "The Department of Computer Science offers B.Tech with an annual intake of 180...",
-  "parent_id": "doc_6722_xyz_p1",
-  "parent_text": "<Binary compressed zlib blob or full parent string>",
-  "embedding_id": 4,
-  "source_name": "computer_science_syllabus.pdf",
-  "url": null,
-  "token_count": 284,
-  "created_at": "ISODate('2026-10-28T10:05:12.000Z')"
-}
-```
-
-#### 4. `projects` Collection
-Manages multi-document, autonomous crawl workspaces:
-```json
-{
-  "_id": "6ae305868d044a0b1ca8f528",
-  "user_id": "user_id_123",
-  "name": "KITSW Knowledge Base",
-  "website_url": "https://kitsw.ac.in",
-  "status": "active", // "crawling" | "indexing" | "active" | "paused" | "error"
-  "pages_crawled": 4,
-  "docs_found": 25,
-  "use_dynamic_crawl": false,
-  "sitemap_url": null,
-  "summary": "Autonomous knowledge base for Kakatiya Institute of Technology & Science...",
-  "created_at": "ISODate('2026-10-29T08:36:22.473Z')",
-  "updated_at": "ISODate('2026-10-29T09:12:00.000Z')"
-}
-```
-
-#### 5. `crawled_pages` Collection
-Durable record of raw web scrapes harvested by the autonomous spider:
-```json
-{
-  "_id": "ObjectId('...')",
-  "project_id": "6ae305868d044a0b1ca8f528",
-  "url": "https://kitsw.ac.in/departments/cse",
-  "title": "Department of Computer Science & Engineering | KITSW",
-  "text_content": "Kakatiya Institute of Technology & Science, Warangal. Faculty members...",
-  "html_snippet": "<div>...</div>",
-  "status_code": 200,
-  "crawled_at": "ISODate('2026-10-29T08:38:14.000Z')"
-}
-```
-
-#### 6. `bm25_indexes` Collection
-Durable MongoDB persistence for the Okapi BM25 inverted keyword index:
-```json
-{
-  "_id": "bm25_6ae305868d044a0b1ca8f528",
-  "doc_id": "6ae305868d044a0b1ca8f528",
-  "index_data": "<Binary zlib compressed pickle of inverted index terms & idf tables>",
-  "num_chunks": 236,
-  "updated_at": "ISODate('2026-10-29T08:45:00.000Z')"
-}
-```
-
-#### 7. `chat_history` Collection
-Multi-turn conversation history retaining sources and verification traces:
-```json
-{
-  "_id": "ObjectId('...')",
-  "user_id": "user_id_123",
-  "doc_id": "6ae305868d044a0b1ca8f528",
-  "question": "What is the highest placement package in CSE?",
-  "answer": "The highest package recorded is 31 LPA offered by Amazon...",
-  "sources": [
-    {
-      "page": 1,
-      "chunk_id": "crawled_6722_1",
-      "snippet": "Highest Package: 31 LPA (Amazon)...",
-      "source_name": "Funds - KITS Warangal Alumni Network",
-      "url": "https://kitsw.ac.in/placements"
-    }
-  ],
-  "evidence_trace": [
-    {
-      "chunk_id": "crawled_6722_1",
-      "page": 1,
-      "score": 0.892,
-      "source": "https://kitsw.ac.in/placements",
-      "snippet": "Placement Statistics 2023-2024: 412 offers, Highest Package: 31 LPA..."
-    }
-  ],
-  "mode": "standard", // "standard" | "debate" | "decision_tree" | "general_ai"
-  "timestamp": "ISODate('2026-10-29T10:30:00.000Z')"
-}
-```
-
-#### 8. `nexus_memories` Collection
-ECHO living context memory storing persistent cross-session facts and user directives:
-```json
-{
-  "_id": "ObjectId('...')",
-  "user_id": "user_id_123",
-  "project_id": "6ae305868d044a0b1ca8f528",
-  "category": "preference", // "fact" | "directive" | "preference"
-  "key": "Focus Area",
-  "value": "Emphasize autonomous AI and robotics research labs in responses",
-  "created_at": "ISODate('2026-10-29T11:00:00.000Z')"
-}
-```
-
----
-
-### 3.2 Qdrant Cloud Vector Database Schema (`rag-backend/app/db/qdrant.py`)
-
-Dense vector search is isolated in **Qdrant Cloud**, preventing heavy vector computation on the API host:
-- **Vector Dimension**: 384 (`sentence-transformers/all-MiniLM-L6-v2` / `BAAI/bge-small-en-v1.5`).
-- **Distance Metric**: `Cosine`.
-- **Collection Partitioning**: `project_{project_id}`.
-- **Payload Schema**:
-  ```json
-  {
-    "chunk_id": "doc_6722_xyz_c4",
-    "embedding_id": 4,
-    "doc_id": "6ae305868d044a0b1ca8f528",
-    "source_name": "KITSW Alumni Network",
-    "url": "https://kitsw.ac.in/funds",
-    "page": 1,
-    "department": "cse",
-    "document_type": "faculty" // "placement" | "syllabus" | "general"
-  }
-  ```
-
----
-
-## 4. Ingestion, Extraction & Autonomous Crawling Engine
-
-### 4.1 Parent-Child Chunking Architecture (`ingestion/pipeline.py`)
-
-Fixed-size chunking forces a trade-off: **Small chunks (100–300 tokens)** yield pinpoint vector accuracy during cosine similarity search, but strip the LLM of necessary surrounding context. **Large chunks (1000–2000 tokens)** preserve context, but dilute vector embeddings with multi-topic noise.
-
-Nexus VeriDocs implements **Hierarchical Parent-Child Chunking**:
-1. **Parent Text**: An entire structural section or logical document block ($1200\text{ tokens}$). Compressed using `zlib` to conserve memory.
-2. **Child Chunks**: The parent block is split into rolling windows ($300\text{ tokens}$ with $50\text{ token}$ overlap).
-3. **Indexing**: Only child chunks are converted into dense vectors and Okapi BM25 terms.
-4. **Context Injection**: During retrieval, when a child chunk passes the reranker, its `parent_id` is resolved. The complete $1200\text{ token}$ parent context is provided to the LLM prompt.
+## 1. Master System Mind Map
 
 ```mermaid
 graph TD
-    DOC["Input Document (PDF / Crawled HTML)"] --> SPLIT["Hierarchical Splitter"]
-    SPLIT --> P1["Parent Block 1 (1200 tokens)"]
-    SPLIT --> P2["Parent Block 2 (1200 tokens)"]
+    %% Core System Node
+    NEXUS["NEXUS VERIDOCS (Core Platform)"]
 
-    P1 --> C1_1["Child Chunk 1 (300 tokens)"]
-    P1 --> C1_2["Child Chunk 2 (300 tokens)"]
-    P1 --> C1_3["Child Chunk 3 (300 tokens)"]
+    %% Branch 1: Ingestion
+    NEXUS --> INGEST["1. Ingestion Engine"]
+    INGEST --> ING_PDF["PyMuPDF Dual-Mode Extractor"]
+    INGEST --> ING_OCR["OCR Fallback (Cloud Vision / OCR.Space)"]
+    INGEST --> ING_SPIDER["Autonomous Web Spider (crawler.py)"]
+    ING_SPIDER --> SPIDER_LOCK["Same-Domain Regex Lock"]
+    ING_SPIDER --> SPIDER_CANON["URL Canonicalization"]
+    ING_SPIDER --> SPIDER_TIMEOUT["8.0s Fast PDF Timeout"]
+    INGEST --> ING_CHUNK["Hierarchical Parent-Child Splitter"]
+    ING_CHUNK --> CHUNK_CHILD["300-token Child (Dense/Sparse Embed)"]
+    ING_CHUNK --> CHUNK_PARENT["1200-token Parent (zlib Compressed Context)"]
+    INGEST --> ING_CDN["Cloudinary Binary Streaming (Zero-RAM)"]
 
-    C1_1 -->|Dense Embed| QDRANT[("Qdrant Vector DB")]
-    C1_1 -->|Sparse Invert| BM25[("Durable BM25")]
+    %% Branch 2: Retrieval
+    NEXUS --> RETRIEVE["2. RAG v2 Hybrid Retrieval"]
+    RETRIEVE --> RET_ROUTER["Semantic Query Router (Department/Type Filters)"]
+    RETRIEVE --> RET_HYDE["HyDE Generator (Hypothetical Embeddings)"]
+    RETRIEVE --> RET_DENSE["Dense Retrieval: Qdrant Cloud (384-d Cosine)"]
+    RETRIEVE --> RET_SPARSE["Sparse Retrieval: Okapi BM25 (MongoDB Atlas)"]
+    RETRIEVE --> RET_FUSION["Reciprocal Rank Fusion (RRF k=60)"]
+    RETRIEVE --> RET_RERANK["Cross-Encoder Neural Reranker (ms-marco-MiniLM)"]
+    RETRIEVE --> RET_CRAG["CRAG Grader (Relevance Check & Query Rewriter)"]
 
-    subgraph RETRIEVAL_TIME["Query Execution"]
-        Q["User Query"] --> SEARCH["Hybrid Search Hits Child C1_1"]
-        SEARCH --> RESOLVE["Lookup Parent ID: P1"]
-        RESOLVE --> LLM["Inject Parent Block P1 into Prompt Context"]
-    end
+    %% Branch 3: Inference Cluster
+    NEXUS --> INFER["3. Multi-Model Inference Cluster"]
+    INFER --> INF_POOL["ResilientGroqClient (10-Key Dynamic Pool)"]
+    INF_POOL --> INF_BUCKET["TokenBucket Rate Limiter (Capacity 50, 10 tok/sec)"]
+    INF_POOL --> INF_CB["CircuitBreaker (3 Failures -> Fast Fail)"]
+    INF_POOL --> INF_HOP["Automated 20s Cooldown Key-Hopping"]
+    INFER --> INF_MODELS["Model Hierarchy"]
+    INF_MODELS --> M_QWEN["Primary: Qwen 2.5 27B (qwen/qwen3.8-27b)"]
+    INF_MODELS --> M_GPT120["Secondary: GPT OSS 120B (Deep Reasoning)"]
+    INF_MODELS --> M_GPT20["Tertiary: GPT OSS 20B (High Throughput)"]
+    INF_MODELS --> M_GEMINI["Emergency REST: Google Gemini 1.5 Flash (1M Context)"]
+
+    %% Branch 4: Polyglot Persistence
+    NEXUS --> DB["4. Polyglot Persistence Layer"]
+    DB --> DB_MONGO["MongoDB Atlas (11 Collections, Document/Transactional)"]
+    DB --> DB_QDRANT["Qdrant Cloud (HNSW Cosine Vector Store)"]
+    DB --> DB_CDN["Cloudinary CDN (PDF & Media Binaries)"]
+    DB --> DB_FAISS["Local Ephemeral FAISS Cache"]
+
+    %% Branch 5: Client Layer
+    NEXUS --> FE["5. Client Edge Layer (Next.js 16)"]
+    FE --> FE_STREAM["Paced Word Streaming Buffer (Batch-3 / 20ms)"]
+    FE --> FE_MD["Custom Markdown Engine (Tables, Hierarchies, Quotes)"]
+    FE --> FE_CANVAS["Canvas Workspace (Live Editor & Sandbox)"]
+    FE --> FE_MODALS["Truth Lattice / Socratic Viva / What-If Modals"]
 ```
-
-### 4.2 Autonomous Web Spider (`ingestion/crawler.py`)
-
-The crawler allows whole-site indexing through autonomous discovery:
-- **Same-Domain Constraint**: A regex lock (`^https?:\/\/(www\.)?kitsw\.ac\.in`) ensures the crawler does not follow outbound links into the open internet.
-- **URL Canonicalization Engine**:
-  - Strips URL fragments (`#section`), trailing slashes, and marketing tracking parameters (`?utm_source=...`).
-  - Converts all URLs to lower-case protocol equivalents, eliminating duplicate indexing.
-- **Fast-Timeout Streaming PDF Downloader**:
-  - Educational and institutional servers frequently host multi-megabyte PDFs over throttled connections.
-  - The crawler downloads files with an **8.0-second HTTPX stream timeout** and a strict **15 MB size ceiling**.
-  - Limits digital extraction to a **maximum of 25 pages**, preventing memory exhaustion while preserving high-value summaries and roster pages.
-- **Resource Cleanup**:
-  - Every batch execution triggers explicit garbage collection and Linux memory trimming:
-    ```python
-    import gc, ctypes
-    gc.collect()
-    try:
-        ctypes.CDLL("libc.so.6").malloc_trim(0)
-    except Exception:
-        pass
-    ```
 
 ---
 
-## 5. RAG v2 Retrieval, Reranking & Verification Pipeline
+## 2. Polyglot Database Architecture & Entity Relationship Diagram
+
+```mermaid
+erDiagram
+    USERS ||--o{ DOCUMENTS : "owns"
+    USERS ||--o{ PROJECTS : "creates"
+    USERS ||--o{ CHAT_HISTORY : "initiates"
+    USERS ||--o{ NEXUS_MEMORIES : "configures"
+    USERS ||--o{ ANALYTICS : "triggers"
+    USERS ||--o{ MEMORY : "maintains"
+
+    DOCUMENTS ||--o{ CHUNKS : "segments_into"
+    DOCUMENTS ||--o| BM25_INDEXES : "indexes_via"
+
+    PROJECTS ||--o{ CRAWL_JOBS : "spawns"
+    PROJECTS ||--o{ CRAWLED_PAGES : "collects"
+    PROJECTS ||--o{ CHUNKS : "indexes_into"
+    PROJECTS ||--o| BM25_INDEXES : "serializes_to"
+    PROJECTS ||--o{ NEXUS_MEMORIES : "scopes"
+
+    USERS {
+        string _id PK "UUID / ObjectId string"
+        string email UK "Indexed unique email"
+        string hashed_password "Bcrypt salted hash"
+        string name "User display name"
+        string role "user | admin"
+        string plan "free | pro | enterprise"
+        string auth_provider "local | google"
+        string google_id "Google OAuth Sub ID"
+        datetime created_at "Account creation timestamp"
+        datetime updated_at "Last modification timestamp"
+    }
+
+    DOCUMENTS {
+        string _id PK "doc_{uuid} unique ID"
+        string user_id FK "References USERS._id"
+        string filename "Original uploaded filename"
+        string file_url "Cloudinary secure CDN HTTPS URL"
+        string cloudinary_public_id "Remote asset public identifier"
+        int file_size "Byte size of file"
+        int page_count "Total pages parsed"
+        string status "uploading | indexing | ready | error"
+        string summary "Hierarchical global LLM summary"
+        int chunk_count "Total child chunks generated"
+        datetime created_at "Upload timestamp"
+        datetime updated_at "Status change timestamp"
+    }
+
+    CHUNKS {
+        string _id PK "ObjectId / unique chunk ID"
+        string doc_id FK "References DOCUMENTS._id or PROJECTS._id"
+        string chunk_id "Sequential ID: {doc_id}_c{index}"
+        int page "Document page number (1-based)"
+        string text "300-token child segment text"
+        string parent_id "Reference: {doc_id}_p{index}"
+        binary parent_text "1200-token zlib-compressed parent"
+        int embedding_id "Monotonic integer mapped to FAISS/Qdrant"
+        string source_name "Filename or web page title"
+        string url "Source URL if crawled"
+        int token_count "Exact sub-word token count"
+        datetime created_at "Chunk generation timestamp"
+    }
+
+    PROJECTS {
+        string _id PK "ObjectId string unique project ID"
+        string user_id FK "References USERS._id"
+        string name "Project label"
+        string website_url "Target seed crawl URL"
+        string status "crawling | indexing | active | paused | error"
+        int pages_crawled "Count of pages scraped"
+        int docs_found "Count of PDFs extracted"
+        bool use_dynamic_crawl "Headless browser toggle"
+        string sitemap_url "Discovered sitemap XML URL"
+        string login_url "Optional authentication gateway"
+        string login_username "Optional encrypted auth username"
+        string login_password "Optional encrypted auth password"
+        string summary "Synthesized multi-doc project overview"
+        datetime created_at "Project creation timestamp"
+        datetime updated_at "Project status update timestamp"
+    }
+
+    CRAWL_JOBS {
+        string _id PK "job_{uuid} unique ID"
+        string project_id FK "References PROJECTS._id"
+        string status "pending | running | completed | failed"
+        int urls_found "URLs discovered in domain"
+        int urls_processed "URLs fetched and parsed"
+        int pages_crawled "HTML pages saved"
+        int docs_found "PDF files downloaded"
+        string error "Error trace if failed"
+        datetime created_at "Job trigger timestamp"
+        datetime updated_at "Job completion timestamp"
+    }
+
+    CRAWLED_PAGES {
+        string _id PK "ObjectId string unique page ID"
+        string project_id FK "References PROJECTS._id"
+        string url UK "Canonicalized page URL"
+        string title "Extracted HTML <title>"
+        string text_content "Sanitized text payload"
+        string html_snippet "Clean structural DOM extract"
+        int status_code "HTTP status (200, 301, etc.)"
+        datetime crawled_at "Scrape timestamp"
+    }
+
+    BM25_INDEXES {
+        string _id PK "bm25_{doc_id or project_id}"
+        string doc_id UK "References DOCUMENTS._id or PROJECTS._id"
+        binary index_data "Serialized Okapi BM25 binary blob"
+        int num_chunks "Corpus chunk capacity count"
+        datetime updated_at "Index compilation timestamp"
+    }
+
+    CHAT_HISTORY {
+        string _id PK "ObjectId string"
+        string user_id FK "References USERS._id"
+        string doc_id FK "References DOCUMENTS._id or PROJECTS._id"
+        string question "User query prompt"
+        string answer "Executive LLM markdown answer"
+        array sources "Array of source citation objects"
+        array evidence_trace "Array of reranked candidate objects"
+        object retrieval_debug "HyDE, BM25, and FAISS timing metrics"
+        string mode "standard | debate | decision_tree | general_ai"
+        datetime timestamp "Chat interaction timestamp"
+    }
+
+    NEXUS_MEMORIES {
+        string _id PK "ObjectId string"
+        string user_id FK "References USERS._id"
+        string project_id FK "References PROJECTS._id or 'global'"
+        string category "fact | directive | preference"
+        string key "Memory index identifier"
+        string value "Persistent instruction string"
+        datetime created_at "Memory registration timestamp"
+        datetime updated_at "Memory update timestamp"
+    }
+
+    MEMORY {
+        string _id PK "ObjectId string"
+        string user_id FK "References USERS._id"
+        string doc_id FK "References DOCUMENTS._id or PROJECTS._id"
+        string memory_summary "Rolling conversation summary buffer"
+        datetime updated_at "Last conversation turn timestamp"
+    }
+
+    ANALYTICS {
+        string _id PK "ObjectId string"
+        string user_id FK "References USERS._id"
+        string doc_id FK "References DOCUMENTS._id or PROJECTS._id"
+        string document_filename "Document label"
+        string question "User query text"
+        array embedding "Query vector float array"
+        datetime timestamp "Event log timestamp"
+    }
+```
+
+---
+
+## 3. Database Collection Field Specifications & Data Dictionary
+
+### Collection 1: `users`
+*Purpose: Authentication, identity resolution, subscription quotas, and access control.*
+- `_id` (`string`, Primary Key): Internal system identifier (MongoDB ObjectId as string).
+- `email` (`string`, Unique Index): RFC 5322 sanitized user email.
+- `hashed_password` (`string`, Nullable): Passlib Bcrypt hash (Cost factor: 12). Null if OAuth.
+- `name` (`string`): User display name.
+- `role` (`string`): Access control scope: `"user"` | `"admin"`.
+- `plan` (`string`): Commercial tier: `"free"` | `"pro"` | `"enterprise"`.
+- `auth_provider` (`string`): Authentication type: `"local"` | `"google"`.
+- `google_id` (`string`, Nullable, Sparse Index): Google Identity `sub` claim identifier.
+- `created_at` (`datetime`): UTC timestamp of account registration.
+- `updated_at` (`datetime`): UTC timestamp of profile modification.
+
+### Collection 2: `documents`
+*Purpose: Single-file upload metadata, Cloudinary CDN pointer, and ingestion status.*
+- `_id` (`string`, Primary Key): Format: `doc_{uuid4}`.
+- `user_id` (`string`, Foreign Key -> `users._id`, Compound Index): Owner of document.
+- `filename` (`string`): Original filename uploaded by user.
+- `file_url` (`string`): Cloudinary HTTPS CDN URL for the raw file.
+- `cloudinary_public_id` (`string`): Cloudinary resource identifier for lifecycle deletion.
+- `file_size` (`int`): Size of the uploaded binary in bytes.
+- `page_count` (`int`): Number of parsed pages from PyMuPDF.
+- `status` (`string`, Indexed): Pipeline lifecycle: `"uploading"` | `"indexing"` | `"ready"` | `"error"`.
+- `summary` (`string`): Pre-computed hierarchical summary of the document.
+- `chunk_count` (`int`): Count of child chunks generated for vector retrieval.
+- `created_at` (`datetime`): Upload start timestamp.
+- `updated_at` (`datetime`): Ingestion completion timestamp.
+
+### Collection 3: `chunks`
+*Purpose: The semantic atomic retrieval units and parent context references.*
+- `_id` (`ObjectId`, Primary Key): MongoDB unique identifier.
+- `doc_id` (`string`, Foreign Key -> `documents._id` / `projects._id`, Compound Index): Parent doc/project.
+- `chunk_id` (`string`, Unique Index): Structured identifier: `{doc_id}_c{embedding_id}`.
+- `page` (`int`): 1-based page number within the original document.
+- `text` (`string`): 300-token child text used for embedding and BM25 tokenization.
+- `parent_id` (`string`, Indexed): Identifier pointing to `{doc_id}_p{index}` parent block.
+- `parent_text` (`binary` / `string`): 1200-token parent block context (zlib-compressed binary or decoded string).
+- `embedding_id` (`int`, Compound Index with `doc_id`): Integer offset mapped to vector stores.
+- `source_name` (`string`): Human-readable source (document filename or page title).
+- `url` (`string`, Nullable): Source web URL if harvested via crawler.
+- `token_count` (`int`): Number of tokens in `text`.
+- `created_at` (`datetime`): Ingestion timestamp.
+
+### Collection 4: `projects`
+*Purpose: Autonomous web crawling targets and multi-document knowledge base workspaces.*
+- `_id` (`string`, Primary Key): 24-character hexadecimal ObjectId string.
+- `user_id` (`string`, Foreign Key -> `users._id`, Compound Index): Project owner.
+- `name` (`string`): Project label (e.g., `"KITSW Knowledge Base"`).
+- `website_url` (`string`): Seed root URL (e.g., `"https://kitsw.ac.in"`).
+- `status` (`string`, Indexed): `"crawling"` | `"indexing"` | `"active"` | `"paused"` | `"error"`.
+- `pages_crawled` (`int`): Total HTML pages processed.
+- `docs_found` (`int`): Total discovered PDF documents ingested into knowledge base.
+- `use_dynamic_crawl` (`bool`): Flag to enable Playwright headless browser rendering.
+- `sitemap_url` (`string`, Nullable): Discovered XML sitemap URL.
+- `login_url` (`string`, Nullable): Target for automated login scripts.
+- `login_username` (`string`, Nullable): Encrypted username credential.
+- `login_password` (`string`, Nullable): Encrypted password credential.
+- `summary` (`string`): Global multi-document executive summary of the knowledge base.
+- `created_at` (`datetime`): Project creation timestamp.
+- `updated_at` (`datetime`): Last crawl/index event timestamp.
+
+### Collection 5: `crawl_jobs`
+*Purpose: Background worker execution metrics and status tracking for web spidering.*
+- `_id` (`string`, Primary Key): Format: `job_{uuid4}`.
+- `project_id` (`string`, Foreign Key -> `projects._id`, Indexed): Target project.
+- `status` (`string`): `"pending"` | `"running"` | `"completed"` | `"failed"`.
+- `urls_found` (`int`): Count of unique internal URLs queued.
+- `urls_processed` (`int`): Count of URLs fetched.
+- `pages_crawled` (`int`): Count of HTML bodies parsed.
+- `docs_found` (`int`): Count of PDFs discovered and passed to ingestion pipeline.
+- `error` (`string`, Nullable): Traceback string if crawl job encountered fatal failure.
+- `created_at` (`datetime`): Job spawn timestamp.
+- `updated_at` (`datetime`): Job termination timestamp.
+
+### Collection 6: `crawled_pages`
+*Purpose: Persisted raw scrape data for exact-text regex fallback and audit trails.*
+- `_id` (`ObjectId`, Primary Key): Unique page identifier.
+- `project_id` (`string`, Foreign Key -> `projects._id`, Compound Index): Parent project.
+- `url` (`string`, Compound Index with `project_id`): Canonicalized URL.
+- `title` (`string`): Document `<title>` tag content.
+- `text_content` (`string`): Extracted, boilerplate-stripped text.
+- `html_snippet` (`string`): Sanitized raw HTML DOM tree segment.
+- `status_code` (`int`): HTTP status code returned during scrape.
+- `crawled_at` (`datetime`): Scrape completion timestamp.
+
+### Collection 7: `bm25_indexes`
+*Purpose: Durable MongoDB storage of inverted keyword indices across ephemeral container restarts.*
+- `_id` (`string`, Primary Key): Format: `bm25_{doc_id}`.
+- `doc_id` (`string`, Foreign Key -> `documents._id` / `projects._id`, Unique Index): Target scope.
+- `index_data` (`binary`): Pickle serialized, zlib-compressed representation of Okapi BM25 term matrices.
+- `num_chunks` (`int`): Total documents/chunks indexed in this binary.
+- `updated_at` (`datetime`): Last build timestamp.
+
+### Collection 8: `chat_history`
+*Purpose: Full persistence of multi-turn user interactions, citations, and evidence traces.*
+- `_id` (`ObjectId`, Primary Key): Unique message interaction ID.
+- `user_id` (`string`, Foreign Key -> `users._id`, Compound Index): Querying user.
+- `doc_id` (`string`, Foreign Key -> `documents._id` / `projects._id`, Compound Index): Target doc/project.
+- `question` (`string`): User input query.
+- `answer` (`string`): LLM generated response in Markdown format.
+- `sources` (`array` of objects): Array of `{ page: int, chunk_id: str, snippet: str, url: str }`.
+- `evidence_trace` (`array` of objects): Reranker scores: `{ chunk_id: str, score: float, source: str }`.
+- `retrieval_debug` (`object`, Nullable): Latency profiles and hit metrics for debug mode.
+- `mode` (`string`): `"standard"` | `"debate"` | `"decision_tree"` | `"general_ai"`.
+- `timestamp` (`datetime`, Indexed): Time of query execution.
+
+### Collection 9: `nexus_memories`
+*Purpose: ECHO living memory storing persistent user preferences and long-term project directives.*
+- `_id` (`ObjectId`, Primary Key): Unique memory ID.
+- `user_id` (`string`, Foreign Key -> `users._id`, Compound Index): User identity.
+- `project_id` (`string`, Compound Index): Project ID scope, or `"global"` for cross-project memory.
+- `category` (`string`): `"fact"` | `"directive"` | `"preference"`.
+- `key` (`string`): Directive identifier (e.g., `"Tone"`, `"Focus Area"`).
+- `value` (`string`): Instruction string injected into LLM system prompts.
+- `created_at` (`datetime`): Memory insertion timestamp.
+- `updated_at` (`datetime`): Memory update timestamp.
+
+### Collection 10: `memory`
+*Purpose: Short-term rolling conversational context buffer.*
+- `_id` (`ObjectId`, Primary Key): Unique memory record ID.
+- `user_id` (`string`, Compound Index with `doc_id`): User identifier.
+- `doc_id` (`string`): Document or project workspace identifier.
+- `memory_summary` (`string`): Compressed summary of recent conversation turns (last 500 chars).
+- `updated_at` (`datetime`): Last conversational update timestamp.
+
+### Collection 11: `analytics`
+*Purpose: Vector analytics, question clustering, and cost-observability logs.*
+- `_id` (`ObjectId`, Primary Key): Unique analytics event ID.
+- `user_id` (`string`, Foreign Key -> `users._id`, Indexed): Querying user.
+- `doc_id` (`string`, Indexed): Target workspace identifier.
+- `document_filename` (`string`): Display name of workspace.
+- `question` (`string`): Prompt text.
+- `embedding` (`array` of floats): 384-dimensional query vector array for clustering.
+- `timestamp` (`datetime`, Indexed): Query execution timestamp.
+
+---
+
+## 4. Qdrant Cloud Vector Store Data Dictionary
+
+*Cluster Interface: `rag-backend/app/db/qdrant.py`*
+
+```
+Collection Name: project_{project_id}
+Metric: Cosine
+Vector Size: 384 dimensions (all-MiniLM-L6-v2)
+HNSW Configuration: m=16, ef_construct=100
+```
+
+| Payload Field | Data Type | Index Type | Purpose |
+| :--- | :--- | :--- | :--- |
+| `chunk_id` | `string` | Keyword | Links vector point to MongoDB `chunks.chunk_id` |
+| `embedding_id` | `int` | Integer | Numeric index for zero-overhead array indexing |
+| `doc_id` | `string` | Keyword | Partition filter for multi-document projects |
+| `source_name`| `string` | Full-text | Filename or web page title for display |
+| `url` | `string` | Keyword | Source web link for clickable citations |
+| `page` | `int` | Integer | Document page number |
+| `department` | `string` | Keyword | Categorical filter (`cse`, `ece`, `eee`, `mech`, etc.) |
+| `document_type`| `string`| Keyword | Intent filter (`faculty`, `placement`, `syllabus`, `general`) |
+
+---
+
+## 5. System Execution Flowcharts & Algorithms
+
+### 5.1 Autonomous Crawler & Ingestion Flowchart
+
+```mermaid
+flowchart TD
+    START([User Initiates Crawl: URL, Page Limit]) --> DB_INIT[Create Project & CrawlJob in MongoDB]
+    DB_INIT --> CRAWLER_START[Spawn Asyncio Crawler Task]
+    CRAWLER_START --> ROBOTS[Fetch /robots.txt & Build Exclusions]
+    ROBOTS --> QUEUE_SEED[Push Normalized Seed URL to Queue]
+    
+    QUEUE_SEED --> QUEUE_CHECK{Queue Empty OR Limit Reached?}
+    QUEUE_CHECK -->|Yes| FINISH_CRAWL[Update Project Status: 'indexing']
+    QUEUE_CHECK -->|No| POP_URL[Pop URL from Queue]
+    
+    POP_URL --> DOMAIN_LOCK{Same Domain Regex Match?}
+    DOMAIN_LOCK -->|No| DISCARD[Discard External URL] --> QUEUE_CHECK
+    DOMAIN_LOCK -->|Yes| FETCH[Async HTTPX GET: Timeout 8.0s]
+    
+    FETCH --> STATUS_CHECK{HTTP Status 200?}
+    STATUS_CHECK -->|No| LOG_ERR[Log Crawl Error] --> QUEUE_CHECK
+    STATUS_CHECK -->|Yes| CONTENT_TYPE{Content-Type?}
+    
+    CONTENT_TYPE -->|text/html| PARSE_HTML[Parse DOM via BeautifulSoup]
+    PARSE_HTML --> EXTRACT_LINKS[Extract & Canonicalize Child Links]
+    EXTRACT_LINKS --> PUSH_QUEUE[Push New Links to Queue]
+    PARSE_HTML --> SAVE_PAGE[Insert into crawled_pages_col]
+    SAVE_PAGE --> QUEUE_CHECK
+    
+    CONTENT_TYPE -->|application/pdf| STREAM_PDF[Stream Download: Max 15MB]
+    STREAM_PDF --> EXTRACT_PDF[PyMuPDF Extract: Cap 25 Pages]
+    EXTRACT_PDF --> CHUNK_GEN[Parent-Child Chunking Engine]
+    CHUNK_GEN --> VECTOR_EMBED[FastEmbed / SentenceTransformers 384-d]
+    VECTOR_EMBED --> UPSERT_QDRANT[Upsert Vectors into Qdrant Cloud]
+    CHUNK_GEN --> BUILD_BM25[Update Durable BM25 Inverted Matrix]
+    BUILD_BM25 --> CLEAN_MEM[ctypes malloc_trim + gc.collect]
+    CLEAN_MEM --> QUEUE_CHECK
+    
+    FINISH_CRAWL --> UPDATE_ACTIVE[Update Project Status: 'active']
+    UPDATE_ACTIVE --> DONE([Crawl & Index Complete])
+```
+
+---
+
+### 5.2 RAG v2 Hybrid Retrieval, Fusion & Inference Flowchart
+
+```mermaid
+flowchart TD
+    Q_START([User Submits Question: question, doc_id]) --> AUTH[Verify User JWT & Plan Limits]
+    AUTH --> PARALLEL_CLASS[Parallel Intent Classification & Router]
+    
+    PARALLEL_CLASS --> META_DETECT[Extract Metadata Filters: department, doc_type]
+    PARALLEL_CLASS --> HYDE_CHECK{Is Question Abstract?}
+    
+    HYDE_CHECK -->|Yes| HYDE_RUN[Generate Hypothetical Document] --> EMBED[Dense Vector Embedding: 384-d]
+    HYDE_CHECK -->|No| EMBED
+    
+    PARALLEL_CLASS --> BM25_TOKENIZE[Tokenize Raw Query for Okapi BM25]
+    
+    EMBED --> DENSE_SEARCH[Qdrant HNSW Search: Top 30 Hits]
+    BM25_TOKENIZE --> SPARSE_SEARCH[Okapi BM25 Sparse Search: Top 30 Hits]
+    
+    DENSE_SEARCH --> RRF_FUSION[Reciprocal Rank Fusion Engine]
+    SPARSE_SEARCH --> RRF_FUSION
+    
+    RRF_FUSION --> RRF_MATH["Calculate RRF Score: Sum( 1 / (60 + Rank) )"]
+    RRF_MATH --> FUSED_TOP["Filter Top 25 Candidates Across Systems"]
+    
+    FUSED_TOP --> RERANKER[Cross-Encoder Neural Reranker: ms-marco-MiniLM]
+    RERANKER --> RERANK_SORT[Sort by Neural Cross-Attention Relevance]
+    RERANK_SORT --> CRAG_EVAL{CRAG Relevance Check: Passing Chunks > 0?}
+    
+    CRAG_EVAL -->|No Passing Chunks| REWRITE[Query Rewrite Loop & Single Re-Retrieval]
+    REWRITE --> CRAG_RETRY{Retry Succeeded?}
+    CRAG_RETRY -->|No| ABSTAIN[Return Grounded Fallback: Insufficient Information]
+    CRAG_RETRY -->|Yes| CONTEXT_ASSEMBLE
+    
+    CRAG_EVAL -->|High/Medium Relevance| CONTEXT_ASSEMBLE[Assemble Context: Parent-Child Blocks]
+    CONTEXT_ASSEMBLE --> INJECT_MEM[Inject ECHO Living Memory & Directives]
+    INJECT_MEM --> GROQ_DISPATCH[Dispatch to 10-Key Resilient Groq Pool]
+    
+    GROQ_DISPATCH --> MODEL_TRY{Model Execution Loop}
+    MODEL_TRY -->|Primary: qwen3.8-27b| EXEC_QWEN[Generate: max_tokens=3500]
+    MODEL_TRY -->|Fallback 1: gpt-oss-120b| EXEC_120B[Generate: max_tokens=3500]
+    MODEL_TRY -->|Fallback 2: gpt-oss-20b| EXEC_20B[Generate: max_tokens=3500]
+    MODEL_TRY -->|All Keys / Models Down| EXEC_GEMINI[Emergency REST: Gemini 1.5 Flash]
+    
+    EXEC_QWEN --> VERIFY[Post-Generation Answer Support Verifier]
+    EXEC_120B --> VERIFY
+    EXEC_20B --> VERIFY
+    EXEC_GEMINI --> VERIFY
+    
+    VERIFY --> DB_PERSIST[Parallel MongoDB Write: chat_history, memory, analytics]
+    DB_PERSIST --> RETURN_RESP([Return Grounded ChatResponse with Citations])
+```
+
+---
+
+### 5.3 10-Key Groq LPU Resilience & Failover State Machine
+
+```mermaid
+stateDiagram-v2
+    [*] --> KeyPool_Initialized : Parse 10 Keys from GROQ_API_KEYS
+
+    state KeyPool_Initialized {
+        Worker_1 : KeyWorker #1 (TokenBucket + CircuitBreaker)
+        Worker_2 : KeyWorker #2 (TokenBucket + CircuitBreaker)
+        Worker_N : KeyWorker #N (TokenBucket + CircuitBreaker)
+    }
+
+    KeyPool_Initialized --> Dispatch_RoundRobin : User Query Received
+    
+    state Dispatch_RoundRobin {
+        Select_Next : Next Worker Index = (current + offset) % Total
+        Check_Cooldown : Is Current Time >= Cooldown Until?
+        Check_Circuit : Is Circuit CLOSED?
+    }
+
+    Dispatch_RoundRobin --> TokenBucket_Acquire : Worker is Available
+    
+    state TokenBucket_Acquire {
+        Check_Tokens : Available Tokens >= 1?
+        Refill_Math : Refill = min(50, tokens + elapsed * 10.0)
+    }
+
+    TokenBucket_Acquire --> Groq_API_Call : Tokens Deducted
+    
+    state Groq_API_Call {
+        Execute_HTTP : POST https://api.groq.com/openai/v1/chat/completions
+    }
+
+    Groq_API_Call --> HTTP_200 : Success Response
+    HTTP_200 --> Reset_Worker : Reset Failure Count & Record Latency
+    Reset_Worker --> [*] : Deliver Completed Markdown
+
+    Groq_API_Call --> HTTP_429 : Rate Limit Exceeded
+    HTTP_429 --> Set_Cooldown : worker.cooldown_until = now + 20.0s
+    Set_Cooldown --> Record_Failure : worker.circuit_breaker.record_failure()
+    Record_Failure --> Dispatch_RoundRobin : Immediate Hop to Next Key Worker
+
+    Groq_API_Call --> Connection_Timeout : APIConnectionError / Network Glitch
+    Connection_Timeout --> Check_Failure_Count : Consecutive Failures >= 3?
+    Check_Failure_Count --> Trip_Circuit : Yes -> State = OPEN
+    Check_Failure_Count --> Dispatch_RoundRobin : No -> Try Next Key Worker
+
+    Trip_Circuit --> Emergency_Cloud_Fallback : All Pool Circuits OPEN
+    
+    state Emergency_Cloud_Fallback {
+        Gemini_REST : Direct REST to Google Gemini 1.5 Flash
+        OpenRouter_REST : Direct REST to OpenRouter Meta-Llama
+    }
+
+    Emergency_Cloud_Fallback --> [*] : Deliver Uninterrupted Response
+```
+
+---
+
+## 6. Authentication, OAuth & API Gateway Flowchart
 
 ```mermaid
 sequenceDiagram
     autonumber
-    actor User
-    participant Router as rag/router.py
-    participant HyDE as rag/hyde.py
-    participant Qdrant as db/qdrant.py
-    participant BM25 as core/bm25.py
-    participant RRF as core/fusion.py
-    participant Rerank as core/reranker.py
-    participant CRAG as rag/crag.py
-    participant Groq as core/llm_groq.py
+    actor User as Client Browser
+    participant FE as veridoc-frontend (Next.js)
+    participant API as rag-backend (FastAPI)
+    participant Google as Google Identity Services
+    participant DB as MongoDB Atlas (users_col)
 
-    User->>Router: "Who is the HoD of CSE and what are their qualifications?"
-    Router->>Router: Detects department="cse", doc_type="faculty"
-    opt Vague or Abstract Query
-        Router->>HyDE: Generate Hypothetical Document
-        HyDE-->>Router: Fictional perfect answer text
-    end
-    par Parallel Retrieval
-        Router->>Qdrant: Dense Vector Search (Top 30, pre-filtered)
-        Router->>BM25: Sparse Keyword Search (Top 30, exact tokens)
-    end
-    Qdrant-->>RRF: Dense Ranking List [d1, d5, d8, ...]
-    BM25-->>RRF: Sparse Ranking List [d8, d2, d1, ...]
-    RRF->>RRF: Compute RRF Scores: Sum( 1 / (60 + rank) )
-    RRF-->>Rerank: Top 25 Fused Candidates
-    Rerank->>Rerank: Cross-Encoder ms-marco-MiniLM Attention
-    Rerank-->>CRAG: Precision Ranked Top 5 Chunks
-    CRAG->>CRAG: Grade Relevance (High / Medium / Low)
-    alt Zero High/Medium Relevance Chunks
-        CRAG->>Router: Query Rewrite & Single Re-Retrieval
-    else Valid Relevance Verified
-        CRAG->>Groq: Generate Grounded Response (max_tokens=3500)
-        Groq-->>User: Executive Markdown Answer with Source Citations
+    Note over User,API: Cold-Start Mitigation Ping
+    User->>FE: Views /login or /register page
+    FE->>API: GET /health (Asynchronous Background Ping)
+    API-->>FE: 200 OK {"status": "ok", "version": "2.3.4"} (Container Awakened)
+
+    alt Standard Email & Password Authentication
+        User->>FE: Submits Email + Password
+        FE->>API: POST /api/auth/login {"email", "password"}
+        API->>DB: Query user by email
+        DB-->>API: User Document (including hashed_password)
+        API->>API: Verify passlib.bcrypt(password, hashed_password)
+        API->>API: Issue JWT Access Token (HS256, 1440 min expiry)
+        API-->>FE: HTTP 200 {"access_token", "token_type": "bearer"}
+        FE->>FE: Store token in secure cookie / localStorage
+        FE->>User: Route to /dashboard
+    else Google OAuth 2.0 Flow
+        User->>FE: Clicks "Sign in with Google"
+        FE->>API: GET /api/auth/google
+        API->>API: Generate cryptographically signed state token
+        API-->>FE: Redirect URL: accounts.google.com/o/oauth2/v2/auth
+        FE->>Google: Authenticate user & grant openid/email/profile scopes
+        Google-->>FE: Redirect /auth/callback?code=AUTH_CODE&state=STATE
+        FE->>API: GET /api/auth/google/callback?code=AUTH_CODE&state=STATE
+        API->>Google: POST /oauth2/v4/token (Exchange code for id_token)
+        Google-->>API: Return id_token & user profile payload
+        API->>DB: Find user by google_id OR email
+        alt User Exists
+            API->>DB: Update last_login timestamp
+        else User Does Not Exist
+            API->>DB: Insert new user {email, name, auth_provider: "google", role: "user"}
+        end
+        API->>API: Issue JWT Access Token (HS256)
+        API-->>FE: Redirect to /dashboard with JWT authentication session
+        FE->>User: Render Authenticated Dashboard Workspace
     end
 ```
 
-### 5.1 Reciprocal Rank Fusion (RRF) Algorithm (`core/fusion.py`)
-
-Combining dense vector scores and sparse keyword scores via a linear weighted sum ($\alpha \cdot S_{\text{dense}} + (1-\alpha) \cdot S_{\text{bm25}}$) is prone to scoring mismatches because:
-- Cosine similarity produces bounded values $[-1.0, 1.0]$.
-- BM25 generates unbounded scores based on query term frequency and corpus size $[0, \infty)$.
-
-**Reciprocal Rank Fusion** bypasses score normalization entirely by operating on rank order:
-
-$$\text{RRF\_Score}(d \in D) = \sum_{m \in M} \frac{1}{k + r_m(d)}$$
-
-Where:
-- $M$ is the set of retrieval systems ($M = \{\text{Qdrant Dense}, \text{Okapi BM25}\}$).
-- $r_m(d)$ is the 1-based rank position of chunk $d$ in retrieval system $m$.
-- $k = 60$ is a constant that suppresses noise from outlier ranks.
-
-### 5.2 Cross-Encoder Neural Reranker (`core/reranker.py`)
-
-- **Bi-Encoder Stage (Fast Retrieval)**: Calculates vectors independently: $\text{CosineSim}(E_Q, E_D)$. Complexity: $\mathcal{O}(N)$ vector operations.
-- **Cross-Encoder Stage (Precision Reranking)**: Feeds query and chunk together into self-attention layers: $\text{Transformer}(Q \oplus D)$. Computes token-level interactions to eliminate semantic false positives before context assembly.
-
 ---
 
-## 6. Multi-Key Groq LPU Cluster & Resilience Layer
-
-To provide sustained high-throughput inference on Groq's high-speed LPU infrastructure without hitting rate limits, Nexus VeriDocs uses an **enterprise resilience engine** in [`core/groq_resilience.py`](file:///c:/Programming/Projects/01_Healthcare-MedTech/chat_base/rag-backend/app/core/groq_resilience.py).
+## 7. Frontend Real-Time Streaming & Markdown Architecture
 
 ```mermaid
-stateDiagram-v2
-    [*] --> Idle_Pool
-    Idle_Pool --> WorkerSelected : Round-Robin Selection
-    WorkerSelected --> TokenBucketAcquire : Check Leaky Bucket
+flowchart TD
+    RESPONSE_ARRIVES([LLM Full Answer Received from Backend]) --> SPLIT[Split Answer String by Word Boundaries: ' ']
+    SPLIT --> BATCH_EVAL{Total Word Count > 150?}
     
-    state WorkerSelected {
-        TokenBucketAcquire --> Dispatch : Tokens Available
-        TokenBucketAcquire --> WaitRefill : Capacity Empty (Block/Yield)
-        WaitRefill --> Dispatch : Refill Rate (10 tok/sec)
-    }
-
-    Dispatch --> API_Call : Execute Groq ChatCompletion
+    BATCH_EVAL -->|Yes: Long Response| CHUNK_3[Batch Window Size = 3 Words]
+    BATCH_EVAL -->|No: Short Response| CHUNK_1[Batch Window Size = 1 Word]
     
-    API_Call --> Success_200 : HTTP 200 OK
-    Success_200 --> ResetFailureCount : CircuitBreaker Success
-    ResetFailureCount --> ReturnResponse : Return Structured Markdown
+    CHUNK_3 --> STREAM_LOOP[Loop: slice words, append to currentText]
+    CHUNK_1 --> STREAM_LOOP
     
-    API_Call --> RateLimit_429 : HTTP 429 RateLimitError
-    RateLimit_429 --> SetCooldown : Cooldown Worker for 20.0s
-    SetCooldown --> KeyHop : Rotate Index -> (idx + 1) % 10
-    KeyHop --> Dispatch : Immediate Retry on Next Healthy Key
+    STREAM_LOOP --> SET_STATE[React setMessages State Update]
+    SET_STATE --> SLEEP[Paced Delay: await sleep 20ms]
+    SLEEP --> CHECK_MORE{More Words Left?}
+    CHECK_MORE -->|Yes| STREAM_LOOP
+    CHECK_MORE -->|No| FLUSH_FINAL[Commit Full String to State]
     
-    API_Call --> ConnectionError : Network Failure / Timeout
-    ConnectionError --> TripCircuit : Consecutive Errors >= 3
-    TripCircuit --> EmergencyFallback : CircuitBreaker OPEN
-    EmergencyFallback --> GeminiFlash : Direct REST to Google Gemini 1.5 Flash
-```
-
-### 6.1 Resilience Features
-1. **10-Key Dynamic Worker Pool**: Rotates requests across all active keys parsed from `GROQ_API_KEYS`.
-2. **Token Bucket Rate Limiting**: Each key worker maintains an isolated token bucket (capacity: 50, refill: 10/sec), preventing burst 429 errors.
-3. **Circuit Breaker Pattern**: If a key encounters 3 consecutive network failures, the circuit breaker opens, temporarily isolating that key worker.
-4. **Zero-Downtime Key Hopping**: When any key hits a 429 rate limit, it is placed on a 20-second cooldown while the active query is retried on the next available key in the pool.
-5. **Multi-Model Hierarchy**:
-   - Primary: `qwen/qwen3.8-27b` (High-speed tabular reasoning).
-   - Secondary: `openai/gpt-oss-120b` (Deep analytical fallback).
-   - Tertiary: `openai/gpt-oss-20b` (High-throughput reasoning fallback).
-   - Quaternary: Direct REST to **Google Gemini 1.5 Flash** (1M token context, zero local RAM).
-
----
-
-## 7. Frontend Architecture & Real-Time UX Engine
-
-The frontend is built using **Next.js 16 (App Router)** and **Tailwind CSS**.
-
-### 7.1 Paced Streaming & Smooth Markdown Parsing (`chat-interface.tsx`)
-
-Naïve character-by-character or token-by-token state updates can trigger 100+ React DOM re-renders per second, causing UI stutter on long answers.
-
-**Chunk-Paced Streaming Implementation**:
-```typescript
-const simulateStreaming = async (fullText: string, aiMsgId: string) => {
-    if (!fullText) return;
-    const words = fullText.split(" ");
-    let currentText = "";
-    // Batch words to maintain frame rates on complex Markdown
-    const chunkSize = words.length > 150 ? 3 : 1;
-    for (let i = 0; i < words.length; i += chunkSize) {
-        const chunk = words.slice(i, i + chunkSize).join(" ");
-        currentText += (i === 0 ? "" : " ") + chunk;
-        setMessages(prev => prev.map(m =>
-            m.id === aiMsgId ? { ...m, content: currentText } : m
-        ));
-        await new Promise(resolve => setTimeout(resolve, 20));
-    }
-    setMessages(prev => prev.map(m =>
-        m.id === aiMsgId ? { ...m, content: fullText } : m
-    ));
-};
-```
-
-### 7.2 Custom Lightweight Markdown Engine
-The frontend includes a targeted Markdown engine in `MarkdownText` that avoids heavy third-party parsing dependencies:
-- **Responsive Table Processing**: Detects and renders GitHub Flavored Markdown (GFM) tables (`|...|`) with horizontal scrolling wrappers.
-- **Ordered & Unordered Hierarchies**: Renders bulleted (`- `) and numbered (`1. `) lists with proper indentation.
-- **Executive Blockquotes**: Renders quotes (`> `) with indigo accent borders and styled backgrounds.
-
----
-
-## 8. Complete Codebase Directory & File Walkthrough
-
-### 8.1 Backend Topography (`rag-backend/app/`)
-
-| File Path | Functional Responsibility & Technical Purpose |
-| :--- | :--- |
-| [`main.py`](file:///c:/Programming/Projects/01_Healthcare-MedTech/chat_base/rag-backend/app/main.py) | **ASGI App Entrypoint**: Configures middlewares (CORS, CorrelationId, SecurityHeaders), registers routers, handles lifespan lifecycle, and exposes `/health`. |
-| [`core/config.py`](file:///c:/Programming/Projects/01_Healthcare-MedTech/chat_base/rag-backend/app/core/config.py) | **Pydantic Settings**: Validates and parses environment variables, API keys, database connection strings, and default thresholds. |
-| [`core/security.py`](file:///c:/Programming/Projects/01_Healthcare-MedTech/chat_base/rag-backend/app/core/security.py) | **Security & JWT Engine**: Handles password hashing (`bcrypt`), JWT token generation and validation, and FastAPI user dependencies (`get_current_user`). |
-| [`core/security_headers.py`](file:///c:/Programming/Projects/01_Healthcare-MedTech/chat_base/rag-backend/app/core/security_headers.py) | **OWASP Security Middleware**: Injects strict HTTP response headers (`HSTS`, `X-Content-Type-Options`, `X-Frame-Options`, `Content-Security-Policy`). |
-| [`core/groq_resilience.py`](file:///c:/Programming/Projects/01_Healthcare-MedTech/chat_base/rag-backend/app/core/groq_resilience.py) | **Multi-Key Inference Pool**: Implements `KeyWorker`, `TokenBucket`, and `CircuitBreaker` across 10 Groq API keys with zero-downtime failover. |
-| [`core/llm_groq.py`](file:///c:/Programming/Projects/01_Healthcare-MedTech/chat_base/rag-backend/app/core/llm_groq.py) | **Inference Orchestrator**: Houses the Executive System Prompt, enforces `max_tokens=3500`, and manages model fallbacks (`qwen2.5` $\rightarrow$ `gpt-oss` $\rightarrow$ `gemini`). |
-| [`core/llm_cloud_fallback.py`](file:///c:/Programming/Projects/01_Healthcare-MedTech/chat_base/rag-backend/app/core/llm_cloud_fallback.py) | **REST Failover Provider**: Direct HTTP calls to Google Gemini 1.5 Flash and OpenRouter, bypassing local CPU/RAM limits. |
-| [`core/embeddings.py`](file:///c:/Programming/Projects/01_Healthcare-MedTech/chat_base/rag-backend/app/core/embeddings.py) | **Vector Generation & FAISS**: Dual support for FastEmbed and SentenceTransformers with automated normalization and FAISS indexing. |
-| [`core/bm25.py`](file:///c:/Programming/Projects/01_Healthcare-MedTech/chat_base/rag-backend/app/core/bm25.py) | **Durable Sparse Keyword Search**: Tokenizes queries and text chunks, computes Okapi BM25 scores, and serializes indices to MongoDB Atlas. |
-| [`core/fusion.py`](file:///c:/Programming/Projects/01_Healthcare-MedTech/chat_base/rag-backend/app/core/fusion.py) | **Reciprocal Rank Fusion (RRF)**: Implements score-agnostic rank combination ($k=60$) across dense and sparse result sets. |
-| [`core/reranker.py`](file:///c:/Programming/Projects/01_Healthcare-MedTech/chat_base/rag-backend/app/core/reranker.py) | **Cross-Encoder Precision Scorer**: Runs cross-attention re-scoring (`ms-marco-MiniLM-L-6-v2`) on candidate retrieval chunks. |
-| [`core/storage_cloudinary.py`](file:///c:/Programming/Projects/01_Healthcare-MedTech/chat_base/rag-backend/app/core/storage_cloudinary.py) | **Cloud CDN Storage**: Streams uploaded PDF binaries directly to Cloudinary, decoupling file storage from MongoDB. |
-| [`db/mongodb.py`](file:///c:/Programming/Projects/01_Healthcare-MedTech/chat_base/rag-backend/app/db/mongodb.py) | **Asynchronous Mongo Client**: Motor connection pool initialization, indexing, and collection accessor factories. |
-| [`db/qdrant.py`](file:///c:/Programming/Projects/01_Healthcare-MedTech/chat_base/rag-backend/app/db/qdrant.py) | **Vector Cloud Interface**: Qdrant Cloud client management, collection creation, point upserts, and payload metadata queries. |
-| [`db/neo4j.py`](file:///c:/Programming/Projects/01_Healthcare-MedTech/chat_base/rag-backend/app/db/neo4j.py) | **Graph Database Connector**: Graph model support for entity relationships, dependencies, and citation graphs. |
-| [`ingestion/crawler.py`](file:///c:/Programming/Projects/01_Healthcare-MedTech/chat_base/rag-backend/app/ingestion/crawler.py) | **Autonomous Async Spider**: Domain-locked web scraper with URL canonicalization, depth bounding, and PDF stream handling. |
-| [`ingestion/pipeline.py`](file:///c:/Programming/Projects/01_Healthcare-MedTech/chat_base/rag-backend/app/ingestion/pipeline.py) | **Extraction Pipeline**: PyMuPDF extraction, OCR fallbacks, and hierarchical Parent-Child chunk generation. |
-| [`rag/engine.py`](file:///c:/Programming/Projects/01_Healthcare-MedTech/chat_base/rag-backend/app/rag/engine.py) | **RAG v2 Orchestration Engine**: Central pipeline executing hybrid retrieval, RRF, reranking, memory assembly, and verification. |
-| [`rag/router.py`](file:///c:/Programming/Projects/01_Healthcare-MedTech/chat_base/rag-backend/app/rag/router.py) | **Semantic Query Router**: Identifies target departments, intent, and document types for targeted metadata filtering. |
-| [`rag/hyde.py`](file:///c:/Programming/Projects/01_Healthcare-MedTech/chat_base/rag-backend/app/rag/hyde.py) | **Hypothetical Document Embeddings**: Generates theoretical answer documents for low-context queries to improve vector recall. |
-| [`rag/crag.py`](file:///c:/Programming/Projects/01_Healthcare-MedTech/chat_base/rag-backend/app/rag/crag.py) | **Corrective RAG Grader**: Evaluates chunk relevance prior to generation and triggers query rewrites on low-confidence matches. |
-| [`api/routes/auth.py`](file:///c:/Programming/Projects/01_Healthcare-MedTech/chat_base/rag-backend/app/api/routes/auth.py) | **Auth Controller**: User registration, login, JWT token issuance, and Google OAuth 2.0 exchange. |
-| [`api/routes/documents.py`](file:///c:/Programming/Projects/01_Healthcare-MedTech/chat_base/rag-backend/app/api/routes/documents.py) | **Document Management Controller**: PDF upload, Cloudinary handoff, status polling, and chunk inspection. |
-| [`api/routes/project.py`](file:///c:/Programming/Projects/01_Healthcare-MedTech/chat_base/rag-backend/app/api/routes/project.py) | **Project Workspace Controller**: Crawl task lifecycle management, knowledge base status, and project configuration. |
-| [`api/routes/chat.py`](file:///c:/Programming/Projects/01_Healthcare-MedTech/chat_base/rag-backend/app/api/routes/chat.py) | **Chat Execution Controller**: Endpoints for single-doc RAG, project knowledge bases, and Open Global Knowledge (General AI). |
-| [`api/routes/features.py`](file:///c:/Programming/Projects/01_Healthcare-MedTech/chat_base/rag-backend/app/api/routes/features.py) | **Advanced Features Controller**: Endpoints for Truth Lattice audits, Socratic Viva sessions, and Canvas transforms. |
-
----
-
-### 8.2 Frontend Topography (`veridoc-frontend/src/`)
-
-| File Path | Functional Responsibility & Technical Purpose |
-| :--- | :--- |
-| [`app/layout.tsx`](file:///c:/Programming/Projects/01_Healthcare-MedTech/chat_base/veridoc-frontend/src/app/layout.tsx) | **Root Application Layout**: Injects global styles, fonts, meta tags, and root React context providers. |
-| [`app/login/page.tsx`](file:///c:/Programming/Projects/01_Healthcare-MedTech/chat_base/veridoc-frontend/src/app/login/page.tsx) | **Login Interface**: User credential authentication with automated backend health warmup ping to prevent cold-start delays. |
-| [`app/dashboard/projects/[project_id]/page.tsx`](file:///c:/Programming/Projects/01_Healthcare-MedTech/chat_base/veridoc-frontend/src/app/dashboard/projects/[project_id]/page.tsx) | **Multi-Tab Project Workspace**: Main interface managing chat, inventory, knowledge graphs, and live crawl metrics. |
-| [`components/chat/chat-interface.tsx`](file:///c:/Programming/Projects/01_Healthcare-MedTech/chat_base/veridoc-frontend/src/components/chat/chat-interface.tsx) | **Chat Interface**: Manages message histories, inline citations, paced word streaming, and Markdown rendering. |
-| [`components/canvas/CanvasWorkspace.tsx`](file:///c:/Programming/Projects/01_Healthcare-MedTech/chat_base/veridoc-frontend/src/components/canvas/CanvasWorkspace.tsx) | **Canvas Workspace**: Side-by-side split screen for real-time Markdown document editing, note taking, and code execution. |
-| [`components/features/TruthLatticeModal.tsx`](file:///c:/Programming/Projects/01_Healthcare-MedTech/chat_base/veridoc-frontend/src/components/features/TruthLatticeModal.tsx) | **Truth Lattice Auditor**: Modal component running cross-model adversarial analysis to identify factual inconsistencies. |
-| [`components/features/SocraticVivaModal.tsx`](file:///c:/Programming/Projects/01_Healthcare-MedTech/chat_base/veridoc-frontend/src/components/features/SocraticVivaModal.tsx) | **Socratic Viva Examiner**: Interactive examination interface testing user understanding via multi-turn questioning. |
-| [`components/features/LivingCodeSandbox.tsx`](file:///c:/Programming/Projects/01_Healthcare-MedTech/chat_base/veridoc-frontend/src/components/features/LivingCodeSandbox.tsx) | **Interactive Code Runner**: Sandboxed Python execution interface for verifying formulas and data directly in the browser. |
-| [`services/chat.service.ts`](file:///c:/Programming/Projects/01_Healthcare-MedTech/chat_base/veridoc-frontend/src/services/chat.service.ts) | **Chat API Client**: Axios client handling queries to single documents, project knowledge bases, and General AI. |
-| [`services/project.service.ts`](file:///c:/Programming/Projects/01_Healthcare-MedTech/chat_base/veridoc-frontend/src/services/project.service.ts) | **Project API Client**: Handles project creation, crawl triggers, status polling, and memory resets. |
-
----
-
-## 9. Data Structures, Algorithms & Computer Science Foundations
-
-To discuss this architecture in technical interviews, connect its implementation choices to core computer science fundamentals:
-
-```
-┌───────────────────────────────────────┬───────────────────────────────────────────┬────────────────────────────────────────────────────────┐
-│ Engineering Feature                   │ Underlying CS Concept / Algorithm         │ Practical Impact in Nexus VeriDocs                     │
-├───────────────────────────────────────┼───────────────────────────────────────────┼────────────────────────────────────────────────────────┤
-│ Reciprocal Rank Fusion (RRF)          │ Non-parametric Rank Aggregation           │ Fuses dense cosine ranks with sparse BM25 scores       │
-│                                       │ Formula: Sum( 1 / (k + rank) )            │ without requiring sensitive score normalization.       │
-├───────────────────────────────────────┼───────────────────────────────────────────┼────────────────────────────────────────────────────────┤
-│ TokenBucket Rate Limiting             │ Leaky Bucket / Token Bucket Algorithm     │ Regulates burst requests and enforces continuous       │
-│                                       │ (Stateful Token Refill Math)              │ request ceilings per key across 10 API keys.           │
-├───────────────────────────────────────┼───────────────────────────────────────────┼────────────────────────────────────────────────────────┤
-│ Circuit Breaker Pattern               │ Finite State Automaton                    │ Prevents cascading network deadlocks by failing fast   │
-│                                       │ (CLOSED -> OPEN -> HALF_OPEN)             │ when cloud LLM endpoints encounter network issues.     │
-├───────────────────────────────────────┼───────────────────────────────────────────┼────────────────────────────────────────────────────────┤
-│ Okapi BM25 Keyword Search             │ Probabilistic Information Retrieval       │ Delivers exact-match keyword ranking sensitive to term │
-│                                       │ Inverse Document Frequency (IDF)          │ frequency, document length, and corpus statistics.     │
-├───────────────────────────────────────┼───────────────────────────────────────────┼────────────────────────────────────────────────────────┤
-│ Dense Vector Embeddings               │ High-Dimensional Spatial Vector Embeddings│ Captures semantic similarity and conceptual meaning   │
-│                                       │ Approximate Nearest Neighbors (HNSW)      │ across 384 dimensions using cosine distance.           │
-├───────────────────────────────────────┼───────────────────────────────────────────┼────────────────────────────────────────────────────────┤
-│ Parent-Child Chunking                 │ Hierarchical N-ary Tree Segmentation      │ Indexes small child nodes for precision retrieval and  │
-│                                       │ Bounded-overlap Sliding Windows           │ returns larger parent nodes for LLM comprehension.     │
-├───────────────────────────────────────┼───────────────────────────────────────────┼────────────────────────────────────────────────────────┤
-│ Zero-RAM Container Management         │ Heap Compaction & Linux Kernel Sycalls    │ Forces glibc to return freed heap memory to the OS,   │
-│                                       │ (ctypes malloc_trim / Python gc)          │ preventing OOM SIGKILLs on 512MB RAM cloud tiers.      │
-├───────────────────────────────────────┼───────────────────────────────────────────┼────────────────────────────────────────────────────────┤
-│ Paced Streaming Buffer                │ Throttling / Batch Windowing Buffer       │ Drops DOM re-render frequency by ~65%, maintaining     │
-│                                       │ (Temporal Array Aggregation)              │ a stable 60 FPS frame rate on long Markdown outputs.   │
-└───────────────────────────────────────┴───────────────────────────────────────────┴────────────────────────────────────────────────────────┘
+    FLUSH_FINAL --> MD_RENDER[MarkdownText Custom Recursive Parser]
+    
+    subgraph PARSER["MarkdownText Rendering Engine"]
+        MD_RENDER --> LINE_SCAN[Scan Lines Sequentially]
+        LINE_SCAN --> CHECK_PIPE{Line starts with '|'?}
+        CHECK_PIPE -->|Yes| ACCUM_TABLE[Accumulate Table Rows]
+        CHECK_PIPE -->|No| FLUSH_TABLE[Flush Table into Responsive Container]
+        
+        LINE_SCAN --> CHECK_LIST{Line starts with '- ' or '* '?}
+        CHECK_LIST -->|Yes| ACCUM_UL[Accumulate Unordered List]
+        CHECK_LIST -->|No| FLUSH_UL[Flush UL Elements]
+        
+        LINE_SCAN --> CHECK_NUM{Line matches regex /^\d+\.\s+/?}
+        CHECK_NUM -->|Yes| ACCUM_OL[Accumulate Ordered List]
+        CHECK_NUM -->|No| FLUSH_OL[Flush OL Elements]
+        
+        LINE_SCAN --> CHECK_QUOTE{Line starts with '> '?}
+        CHECK_QUOTE -->|Yes| RENDER_QUOTE[Render Blockquote with Indigo Accent]
+        
+        LINE_SCAN --> CHECK_HEAD{Line starts with '#', '##', '###'?}
+        CHECK_HEAD -->|Yes| RENDER_HEAD[Render Styled Heading 1, 2, or 3]
+        
+        LINE_SCAN --> INLINE_FORMAT[Parse Inline Bold **text** & Code `tags`]
+    end
+    
+    PARSER --> DOM_COMMIT([Smooth 60 FPS Render Complete Without Lag])
 ```
 
 ---
 
-## 10. Senior Leadership & CTO Interview Playbook
+## 8. Summary of Technical Innovations
 
-### Pitching the System Architecture
-
-> *"Nexus VeriDocs is an enterprise-scale document intelligence platform built around a self-healing, multi-store RAG architecture. Instead of relying on a single vector database and an unmanaged LLM endpoint, we engineered a polyglot persistence system with a hybrid retrieval pipeline. We combine dense semantic vectors in Qdrant with durable Okapi BM25 indices in MongoDB using Reciprocal Rank Fusion ($k=60$) and Cross-Encoder reranking.*
-> 
-> *To eliminate inference latency and rate limits in production, we built a 10-key dynamic Groq LPU cluster managed by individual token buckets and circuit breakers. If a key hits a 429 limit, the pool rotates immediately to the next healthy key with zero user downtime, falling back to Google Gemini 1.5 Flash via REST if necessary.*
-> 
-> *By decoupling binary storage to Cloudinary and tuning heap memory with `malloc_trim`, our backend operates comfortably within strict 512MB RAM container constraints without out-of-memory crashes. The frontend is built on Next.js 16 with paced streaming and custom Markdown table rendering, delivering structured, executive-grade answers backed by exact source citations."*
-
----
-
-### Key Technical Talking Points
-
-1. **On Handling Scale & Production Outages**:
-   - Reference the **512MB RAM constraint**: Explain how decoupling binary storage to Cloudinary and applying `malloc_trim(0)` prevented container crashes.
-   - Reference **rate-limit resilience**: Explain the token bucket and circuit breaker architecture in `groq_resilience.py` that manages a 10-key pool to handle traffic spikes.
-2. **On Retrieval Precision**:
-   - Contrast **single-vector search** with **hybrid RRF**: Explain why pure vector search struggles with exact keywords (acronyms, names, IDs), why BM25 struggles with synonyms, and how Reciprocal Rank Fusion combines both effectively.
-   - Explain **Parent-Child Chunking**: Describe how small 300-token child chunks optimize vector retrieval while 1200-token parent blocks provide full context to the LLM.
-3. **On System Boundaries & Security**:
-   - Highlight **stateless authentication via JWTs**, secure password hashing via `bcrypt`, and the automated frontend health ping that eliminates cold-start 502 errors during OAuth flows.
+| Architecture Pillar | Core Engineering Problem | Nexus VeriDocs Technical Solution |
+| :--- | :--- | :--- |
+| **Persistence** | Bloated Mongo documents & 16MB limit | Cloudinary CDN binary streaming + Qdrant Cloud dense vector offloading. |
+| **Ingestion** | Academic crawlers deadlocking on slow PDFs | Same-domain regex lock + 8.0s HTTPX streaming timeout + 25-page cap. |
+| **Retrieval** | Single-strategy retrieval mismatches | Reciprocal Rank Fusion ($k=60$) combining dense cosine vectors and durable Okapi BM25. |
+| **Reranking** | Bi-encoder semantic false positives | Cross-Encoder neural attention scoring (`ms-marco-MiniLM-L-6-v2`) + CRAG grader. |
+| **LLM Resilience** | Groq free tier 30 RPM rate limits | 10-Key dynamic pool with TokenBucket rate limiting and automated 20s cooldown key-hopping. |
+| **Zero-RAM Execution**| Container OOM SIGKILL on 512MB RAM | Elimination of in-memory model weights + explicit `ctypes malloc_trim(0)` kernel heap compaction. |
+| **Frontend UX** | Token streaming thrashing React DOM | Batch-3 word windowing at 20ms intervals (65% drop in re-renders) + custom GFM parser. |

@@ -28,6 +28,7 @@ class Settings(BaseSettings):
     # ── Storage & Media ─────────────────────────────────────────────────────────
     storage_dir: str = "./storage"
     model_cache_dir: str = "./models"
+    storage_provider: str = "local"  # "local" (100% air-gapped on-prem disk) | "s3" | "cloudinary"
     cloudinary_url: Optional[str] = None
 
     # ── Models ──────────────────────────────────────────────────────────────────
