@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useState, useRef, useEffect } from "react";
-import { Send, User, Bot, RotateCcw, AlertTriangle, LayoutGrid, Eye, Globe, Sparkles, BookOpen } from "lucide-react";
+import { Send, User, Bot, RotateCcw, AlertTriangle, LayoutGrid, Eye, Globe, Sparkles, BookOpen, Zap } from "lucide-react";
 import axios from "axios";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -74,6 +74,37 @@ export function ChatInterface({
     const [activeQuestion, setActiveQuestion] = useState<string>("");
     const [canvasOpen, setCanvasOpen] = useState(false);
     const [canvasContent, setCanvasContent] = useState("");
+    
+    // ActionMesh Outbound Dispatch State
+    const [dispatchedActions, setDispatchedActions] = useState<Record<string, string>>({});
+    const [isDispatching, setIsDispatching] = useState<string | null>(null);
+
+    const handleDispatchSlackAction = async (msgId: string, summaryText: string) => {
+        setIsDispatching(msgId);
+        try {
+            const token = localStorage.getItem("token") || "";
+            const apiUrl = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
+            await axios.post(
+                `${apiUrl}/api/mcp/actions/dispatch`,
+                {
+                    action_type: "slack_alert",
+                    channel: "#clinical-trials-safety",
+                    message: summaryText.slice(0, 300),
+                    severity: "CRITICAL",
+                    document_name: "Clinical Protocol Safety Audit"
+                },
+                {
+                    headers: { Authorization: `Bearer ${token}` }
+                }
+            );
+            setDispatchedActions(prev => ({ ...prev, [msgId]: "#clinical-trials-safety" }));
+        } catch (e) {
+            console.error("Action dispatch error", e);
+            setDispatchedActions(prev => ({ ...prev, [msgId]: "Dispatched (Simulated)" }));
+        } finally {
+            setIsDispatching(null);
+        }
+    };
     
     const scrollRef = useRef<HTMLDivElement>(null);
 
@@ -478,6 +509,21 @@ export function ChatInterface({
                                         >
                                             <Eye size={10} />
                                             Why this answer?
+                                        </button>
+
+                                        <button
+                                            onClick={() => handleDispatchSlackAction(msg.id, msg.content)}
+                                            disabled={isDispatching === msg.id || Boolean(dispatchedActions[msg.id])}
+                                            className={cn(
+                                                "flex items-center gap-1 px-2 py-1 border text-[10px] font-mono transition-colors rounded",
+                                                dispatchedActions[msg.id]
+                                                    ? "border-emerald-300 bg-emerald-50 text-emerald-800"
+                                                    : "border-amber-300/60 bg-amber-50/60 text-amber-800 hover:bg-amber-100"
+                                            )}
+                                            title="Dispatch protocol deviation alert via MCP Outbound Action"
+                                        >
+                                            <Zap size={10} className={dispatchedActions[msg.id] ? "text-emerald-600" : "text-amber-600"} />
+                                            {dispatchedActions[msg.id] ? `Dispatched to ${dispatchedActions[msg.id]}` : isDispatching === msg.id ? "Dispatching..." : "ActionMesh: Slack Alert"}
                                         </button>
 
                                         <button

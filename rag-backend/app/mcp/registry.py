@@ -65,6 +65,65 @@ class MCPRegistry:
                 },
                 "category": "inbound_db",
                 "handler": self._handle_inspect_schema
+            },
+            "send_slack_alert": {
+                "name": "send_slack_alert",
+                "description": (
+                    "Dispatch an urgent clinical trial deviation or contradiction alert to a Slack channel "
+                    "(e.g. #clinical-safety, #regulatory-ops)."
+                ),
+                "parameters": {
+                    "type": "object",
+                    "properties": {
+                        "channel": {
+                            "type": "string",
+                            "description": "Slack channel name (e.g. #clinical-safety)"
+                        },
+                        "message": {
+                            "type": "string",
+                            "description": "Detailed explanation of the protocol discrepancy or violation."
+                        },
+                        "severity": {
+                            "type": "string",
+                            "enum": ["CRITICAL", "HIGH", "MEDIUM", "LOW"],
+                            "description": "Risk severity level"
+                        },
+                        "document_name": {
+                            "type": "string",
+                            "description": "Name of the protocol or filing document"
+                        }
+                    },
+                    "required": ["message", "document_name"]
+                },
+                "category": "outbound_action",
+                "handler": self._handle_send_slack_alert
+            },
+            "dispatch_edc_protocol_hold": {
+                "name": "dispatch_edc_protocol_hold",
+                "description": (
+                    "Issue a recommended protocol screening or enrollment hold to the Electronic Data Capture (EDC) system."
+                ),
+                "parameters": {
+                    "type": "object",
+                    "properties": {
+                        "protocol_id": {
+                            "type": "string",
+                            "description": "Clinical trial protocol identifier (e.g. PROTOCOL-VX-409)"
+                        },
+                        "reason": {
+                            "type": "string",
+                            "description": "Reason for the recommended hold"
+                        },
+                        "affected_sites": {
+                            "type": "array",
+                            "items": {"type": "string"},
+                            "description": "List of clinical trial hospital trial sites"
+                        }
+                    },
+                    "required": ["protocol_id", "reason"]
+                },
+                "category": "outbound_action",
+                "handler": self._handle_edc_hold
             }
         }
 
@@ -125,6 +184,24 @@ class MCPRegistry:
     def _handle_inspect_schema(self, args: Dict[str, Any]) -> Dict[str, Any]:
         return clinical_db_connector.get_schema()
 
+    def _handle_send_slack_alert(self, args: Dict[str, Any]) -> Dict[str, Any]:
+        from app.mcp.actions import outbound_dispatcher
+        return outbound_dispatcher.dispatch_slack_alert_sync(
+            channel=args.get("channel"),
+            message=args.get("message"),
+            severity=args.get("severity", "HIGH"),
+            document_name=args.get("document_name", "Clinical Protocol")
+        )
+
+    def _handle_edc_hold(self, args: Dict[str, Any]) -> Dict[str, Any]:
+        from app.mcp.actions import outbound_dispatcher
+        return outbound_dispatcher.dispatch_edc_protocol_hold_sync(
+            protocol_id=args.get("protocol_id", "PROTOCOL-GENERIC"),
+            reason=args.get("reason", "Protocol discrepancy detected"),
+            affected_sites=args.get("affected_sites")
+        )
+
 
 # Global singleton MCP registry
 mcp_registry = MCPRegistry()
+

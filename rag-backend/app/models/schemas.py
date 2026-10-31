@@ -44,6 +44,10 @@ class DocumentOut(BaseModel):
     uploaded_at: datetime
     status: str  # "processing" | "ready" | "error"
     error_message: Optional[str] = None
+    has_compliance_alerts: Optional[bool] = False
+    compliance_severity: Optional[str] = None
+    compliance_alert_count: Optional[int] = 0
+    compliance_audit_id: Optional[str] = None
 
 
 class DocumentList(BaseModel):

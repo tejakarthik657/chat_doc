@@ -613,6 +613,20 @@ async def ingest_document(
         except Exception:
             pass
 
+        # Step 8.5: Trigger Autonomous Clinical Compliance Watcher (Phase 4 Event-Driven ActionMesh)
+        try:
+            import asyncio
+            from app.mcp.watcher import compliance_watcher
+            asyncio.create_task(
+                compliance_watcher.audit_document_on_ingest(
+                    doc_id=doc_id,
+                    user_id=user_id,
+                    filename=filename
+                )
+            )
+        except Exception as watcher_err:
+            print(f"[Watcher Trigger Warning] Could not spawn background audit: {watcher_err}")
+
         print(f"[Ingestion] Document {filename} ({doc_id}) successfully marked READY in {page_count} pages, {len(chunks)} chunks!")
         return {"status": "ready", "pages": page_count, "chunks": len(chunks)}
 

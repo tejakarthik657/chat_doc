@@ -131,7 +131,11 @@ async def upload_document(
 async def list_documents(user_id: str = Depends(get_current_user)):
     docs = await documents_col().find(
         {"user_id": user_id},
-        {"_id": 1, "filename": 1, "size_mb": 1, "page_count": 1, "uploaded_at": 1, "status": 1, "error_message": 1}
+        {
+            "_id": 1, "filename": 1, "size_mb": 1, "page_count": 1, "uploaded_at": 1,
+            "status": 1, "error_message": 1, "has_compliance_alerts": 1,
+            "compliance_severity": 1, "compliance_alert_count": 1, "compliance_audit_id": 1
+        }
     ).to_list(length=50)
     user = await users_col().find_one({"_id": user_id}, {"storage_used_mb": 1})
 
@@ -144,7 +148,11 @@ async def list_documents(user_id: str = Depends(get_current_user)):
                 page_count=d.get("page_count", 0),
                 uploaded_at=d["uploaded_at"],
                 status=d.get("status", "unknown"),
-                error_message=d.get("error_message")
+                error_message=d.get("error_message"),
+                has_compliance_alerts=d.get("has_compliance_alerts", False),
+                compliance_severity=d.get("compliance_severity"),
+                compliance_alert_count=d.get("compliance_alert_count", 0),
+                compliance_audit_id=d.get("compliance_audit_id")
             )
             for d in docs
         ],
@@ -165,7 +173,11 @@ async def get_document(doc_id: str, user_id: str = Depends(get_current_user)):
         page_count=doc.get("page_count", 0),
         uploaded_at=doc["uploaded_at"],
         status=doc.get("status", "unknown"),
-        error_message=doc.get("error_message")
+        error_message=doc.get("error_message"),
+        has_compliance_alerts=doc.get("has_compliance_alerts", False),
+        compliance_severity=doc.get("compliance_severity"),
+        compliance_alert_count=doc.get("compliance_alert_count", 0),
+        compliance_audit_id=doc.get("compliance_audit_id")
     )
 
 

@@ -77,6 +77,9 @@ def nexus_memories_col():
 def bm25_indexes_col():
     return get_db()["bm25_indexes"]
 
+def compliance_audits_col():
+    return get_db()["compliance_audits"]
+
 
 async def create_indexes():
     """Run asynchronously to handle Atlas handshakes with auto-retry."""
@@ -97,6 +100,7 @@ async def create_indexes():
             await crawl_jobs_col().create_index([("project_id", 1), ("_id", 1)])
             await crawled_pages_col().create_index([("project_id", 1), ("url", 1)], unique=True)
             await bm25_indexes_col().create_index([("doc_id", 1)], unique=True)
+            await compliance_audits_col().create_index([("user_id", 1), ("doc_id", 1)])
             print("[MongoDB Atlas] Production indexes verified successfully.")
             return
         except Exception as e:
