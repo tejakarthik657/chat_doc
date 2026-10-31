@@ -495,6 +495,13 @@ async def answer_question(
         doc_summary = doc.get("summary", "") if doc else ""
         if doc_summary:
             context = f"[GLOBAL DOCUMENT SUMMARY]\n{doc_summary}\n\n---\n\n" + context
+
+        # Step 7.1: Inbound Database MCP Enrichment (Live Clinical/EHR DB)
+        from app.mcp.db_connector import check_and_enrich_with_live_db
+        db_enrichment = check_and_enrich_with_live_db(question)
+        if db_enrichment and db_enrichment.get("detected"):
+            context = f"{db_enrichment['context_block']}\n\n---\n\n" + context
+            print(f"[MCP Inbound DB] Injected live database records for: {question[:50]}")
             
         memory = await get_memory(doc_id, user_id)
 
@@ -550,6 +557,8 @@ async def answer_question(
             }
             for chunk, score in reranked
         ]
+        if db_enrichment and db_enrichment.get("evidence_item"):
+            evidence_trace.insert(0, db_enrichment["evidence_item"])
 
         # Step 10: Persist — run DB writes in parallel using asyncio.gather
         t_db_start = time.perf_counter()
@@ -1092,6 +1101,13 @@ async def answer_project_question(
     project_summary = project.get("summary", "") if project else ""
     if project_summary:
         context = f"[GLOBAL PROJECT SUMMARY]\n{project_summary}\n\n---\n\n" + context
+
+    # Step 5.1: Inbound Database MCP Enrichment (Live Clinical/EHR DB)
+    from app.mcp.db_connector import check_and_enrich_with_live_db
+    db_enrichment = check_and_enrich_with_live_db(question)
+    if db_enrichment and db_enrichment.get("detected"):
+        context = f"{db_enrichment['context_block']}\n\n---\n\n" + context
+        print(f"[MCP Inbound DB] Injected live database records for project query: {question[:50]}")
     
     # 6. Retrieve conversation history memory
     memory = await get_memory(project_id, user_id)
@@ -1178,6 +1194,8 @@ async def answer_project_question(
         }
         for chunk, score in reranked
     ]
+    if db_enrichment and db_enrichment.get("evidence_item"):
+        evidence_trace.insert(0, db_enrichment["evidence_item"])
     
     # 10. Persist to MongoDB — all writes in parallel
     t_db_start = time.perf_counter()

@@ -43,6 +43,7 @@ from app.api.routes.analytics import router as analytics_router
 from app.api.routes.features import router as features_router
 from app.api.routes.project import router as project_router
 from app.api.routes.intelligence import router as intelligence_router
+from app.api.routes.mcp import router as mcp_router
 
 settings = get_settings()
 
@@ -295,6 +296,7 @@ app.include_router(analytics_router)
 app.include_router(features_router)
 app.include_router(project_router)
 app.include_router(intelligence_router)
+app.include_router(mcp_router)
 
 
 # ── Google OAuth Aliases (Handles /auth/google, /api/auth/google, and /api/api/auth/google) ──

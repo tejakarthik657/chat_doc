@@ -152,9 +152,15 @@ export const EvidencePanel: React.FC<EvidencePanelProps> = ({
                   <span className="text-xs font-medium text-slate-800 truncate">
                     {item.source}
                   </span>
-                  <span className="text-[10px] px-1.5 py-0.5 rounded bg-slate-100 text-slate-600 font-mono border border-slate-200">
-                    Pg {item.page}
-                  </span>
+                  {item.chunk_id?.startsWith("mcp_") ? (
+                    <span className="text-[10px] px-1.5 py-0.5 rounded bg-emerald-50 text-emerald-700 font-mono border border-emerald-300 font-semibold flex items-center gap-1">
+                      ⚡ LIVE MCP DB
+                    </span>
+                  ) : (
+                    <span className="text-[10px] px-1.5 py-0.5 rounded bg-slate-100 text-slate-600 font-mono border border-slate-200">
+                      Pg {item.page}
+                    </span>
+                  )}
                 </div>
                 <span
                   className={`text-[10px] font-mono px-2 py-0.5 rounded-full border ${getScoreBadgeClass(
