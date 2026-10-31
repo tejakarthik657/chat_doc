@@ -21,6 +21,8 @@ export interface ChatResponse {
     mode?: string;
     artifact?: any;
     mindspace_nodes?: any[];
+    inference_mode?: string;
+    air_gapped?: boolean;
 }
 
 export interface ChatHistoryItem {
@@ -31,9 +33,14 @@ export interface ChatHistoryItem {
 }
 
 export const chatService = {
-    async sendMessage(docId: string, question: string, strictMode = false) {
+    async sendMessage(docId: string, question: string, strictMode = false, inferenceMode?: string) {
+        const mode = inferenceMode || (typeof window !== "undefined" ? localStorage.getItem("veridoc_inference_mode") || "fast_cloud" : "fast_cloud");
         // Use chatApi (60s timeout) — LLM generation takes 3–15s
-        const response = await chatApi.post<ChatResponse>(`/chat/${docId}`, { question, strict_mode: strictMode });
+        const response = await chatApi.post<ChatResponse>(`/chat/${docId}`, {
+            question,
+            strict_mode: strictMode,
+            inference_mode: mode
+        });
         return response.data;
     },
 

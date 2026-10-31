@@ -25,6 +25,8 @@ interface Message {
     evidence_trace?: any[];
     questionRef?: string;
     isGeneralAI?: boolean;
+    inferenceMode?: string;
+    airGapped?: boolean;
 }
 
 function formatErrorDetail(detail: unknown): string | undefined {
@@ -211,7 +213,9 @@ export function ChatInterface({
                     verificationLabel: response.support_label,
                     verificationConfidence: response.support_confidence,
                     evidence_trace: response.evidence_trace || [],
-                    questionRef: currentInput
+                    questionRef: currentInput,
+                    inferenceMode: response.inference_mode,
+                    airGapped: response.air_gapped
                 } : m
             ));
 
@@ -373,17 +377,29 @@ export function ChatInterface({
                                     {msg.role === "user" ? "You" : (msg.isGeneralAI ? "Global AI Assistant" : "Document Assistant")}
                                 </span>
                                 {msg.role === "assistant" && (
-                                    msg.isGeneralAI ? (
-                                        <span className="text-[10px] bg-indigo-50 text-indigo-700 px-1.5 py-0.5 rounded border border-indigo-200 flex items-center gap-1 font-mono font-medium">
-                                            <Globe size={10} /> GLOBAL WORLD KNOWLEDGE
-                                        </span>
-                                    ) : msg.isGrounded ? (
-                                        <span className="text-[10px] bg-accent/10 text-accent px-1.5 py-0.5 rounded border border-accent/20">GROUNDED</span>
-                                    ) : (
-                                        <span className="text-[10px] bg-red-500/10 text-red-500 px-1.5 py-0.5 rounded border border-red-500/20 flex items-center gap-1">
-                                            <AlertTriangle size={8} /> UNVERIFIED
-                                        </span>
-                                    )
+                                    <>
+                                        {msg.isGeneralAI ? (
+                                            <span className="text-[10px] bg-indigo-50 text-indigo-700 px-1.5 py-0.5 rounded border border-indigo-200 flex items-center gap-1 font-mono font-medium">
+                                                <Globe size={10} /> GLOBAL WORLD KNOWLEDGE
+                                            </span>
+                                        ) : msg.isGrounded ? (
+                                            <span className="text-[10px] bg-accent/10 text-accent px-1.5 py-0.5 rounded border border-accent/20 font-mono">GROUNDED</span>
+                                        ) : (
+                                            <span className="text-[10px] bg-red-500/10 text-red-500 px-1.5 py-0.5 rounded border border-red-500/20 flex items-center gap-1 font-mono">
+                                                <AlertTriangle size={8} /> UNVERIFIED
+                                            </span>
+                                        )}
+
+                                        {msg.airGapped ? (
+                                            <span className="text-[10px] bg-emerald-500/10 text-emerald-700 px-1.5 py-0.5 rounded border border-emerald-500/20 font-mono font-medium">
+                                                🔒 AIR-GAPPED (0 BYTES LEAVE)
+                                            </span>
+                                        ) : (
+                                            <span className="text-[10px] bg-blue-500/10 text-blue-700 px-1.5 py-0.5 rounded border border-blue-500/20 font-mono font-medium">
+                                                ⚡ GROQ LPU (ZDR)
+                                            </span>
+                                        )}
+                                    </>
                                 )}
                                 <span className="text-[10px] text-text-muted">Just now</span>
                             </div>

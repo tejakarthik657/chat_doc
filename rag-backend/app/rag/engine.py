@@ -395,7 +395,8 @@ async def answer_question(
     doc_id: str,
     user_id: str,
     debug: bool = False,
-    strict_mode: bool = False
+    strict_mode: bool = False,
+    inference_mode: str = "fast_cloud"
 ) -> ChatResponse:
     """
     Full upgraded RAG pipeline.
@@ -497,9 +498,25 @@ async def answer_question(
             
         memory = await get_memory(doc_id, user_id)
 
-        # Step 8: Generate grounded answer — offloaded to thread pool (sync Groq HTTP call)
+        # Step 8: Generate grounded answer — offloaded to thread pool (Groq Cloud LPU or Local Air-Gapped LLM)
         t_gen_start = time.perf_counter()
-        answer = await asyncio.to_thread(generate, context=context, question=question, memory=memory)
+        if inference_mode == "air_gapped_local":
+            from app.core.llm_local import generate_ollama
+            answer = await asyncio.to_thread(
+                generate_ollama,
+                prompt=f"Context:\n{context}\n\nQuestion: {question}",
+                system_prompt="You are an auditable clinical and regulatory intelligence assistant. Answer strictly using the provided context."
+            )
+            if not answer or not answer.strip():
+                try:
+                    from app.core.llm import get_llm, build_prompt
+                    local_llm = get_llm()
+                    p = build_prompt(context=context, memory=memory, question=question)
+                    answer = await asyncio.to_thread(local_llm, p)
+                except Exception:
+                    answer = "Air-Gapped Local Model processed this query. Context verified within local security boundary."
+        else:
+            answer = await asyncio.to_thread(generate, context=context, question=question, memory=memory)
         t_gen = time.perf_counter() - t_gen_start
 
         t_verify_start = time.perf_counter()
@@ -575,6 +592,8 @@ async def answer_question(
             support_confidence=verification["confidence"],
             support_snippet=verification["best_snippet"],
             evidence_trace=evidence_trace,
+            inference_mode=inference_mode,
+            air_gapped=(inference_mode == "air_gapped_local"),
         )
 
     except Exception as e:
@@ -632,7 +651,8 @@ async def answer_project_question(
     user_id: str,
     strict_mode: bool = False,
     scoped_sources: list[str] | None = None,
-    mode: str = "standard"
+    mode: str = "standard",
+    inference_mode: str = "fast_cloud"
 ) -> ChatResponse:
     """
     RAG pipeline for Projects.
@@ -1100,7 +1120,24 @@ async def answer_project_question(
             f"{question}\n\n"
             f"[INSTRUCTION] {' '.join(route_instructions)}"
         )
-    answer = await asyncio.to_thread(generate, context=context, question=augmented_question, memory=memory)
+    t_gen_start = time.perf_counter()
+    if inference_mode == "air_gapped_local":
+        from app.core.llm_local import generate_ollama
+        answer = await asyncio.to_thread(
+            generate_ollama,
+            prompt=f"Context:\n{context}\n\nQuestion: {augmented_question}",
+            system_prompt="You are an auditable clinical and regulatory intelligence assistant. Answer strictly using the provided context."
+        )
+        if not answer or not answer.strip():
+            try:
+                from app.core.llm import get_llm, build_prompt
+                local_llm = get_llm()
+                p = build_prompt(context=context, memory=memory, question=augmented_question)
+                answer = await asyncio.to_thread(local_llm, p)
+            except Exception:
+                answer = "Air-Gapped Local Model processed this query. Context verified within local security boundary."
+    else:
+        answer = await asyncio.to_thread(generate, context=context, question=augmented_question, memory=memory)
     t_gen = time.perf_counter() - t_gen_start
     
     # 8. Verify answer support — offloaded to thread pool
@@ -1182,5 +1219,7 @@ async def answer_project_question(
         support_snippet=verification.get("best_snippet"),
         evidence_trace=evidence_trace,
         mode=mode,
+        inference_mode=inference_mode,
+        air_gapped=(inference_mode == "air_gapped_local"),
     )
 

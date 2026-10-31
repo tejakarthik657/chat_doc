@@ -61,6 +61,7 @@ class QuestionRequest(BaseModel):
     reasoning_level: Optional[str] = "balanced"  # fast | balanced | deep
     scope: Optional[str] = "all"  # current | selected | all
     mode: Optional[str] = "standard"  # standard | debate | decision_tree | brutal_review | builder
+    inference_mode: Optional[str] = "fast_cloud"  # fast_cloud | air_gapped_local
 
 
 class GeneralQuestionRequest(BaseModel):
@@ -101,6 +102,8 @@ class ChatResponse(BaseModel):
     mode: Optional[str] = "standard"
     artifact: Optional[dict] = None
     mindspace_nodes: Optional[List[dict]] = None
+    inference_mode: Optional[str] = "fast_cloud"
+    air_gapped: Optional[bool] = False
 
 
 class ChatHistoryItem(BaseModel):

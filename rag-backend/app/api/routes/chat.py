@@ -158,7 +158,8 @@ async def ask_question(
             question=body.question,
             doc_id=doc_id,
             user_id=user_id,
-            strict_mode=body.strict_mode
+            strict_mode=body.strict_mode,
+            inference_mode=getattr(body, "inference_mode", "fast_cloud") or "fast_cloud"
         )
         return response
     except Exception as e:
@@ -239,7 +240,8 @@ async def ask_project_question(
             user_id=user_id,
             strict_mode=body.strict_mode,
             scoped_sources=body.scoped_sources,
-            mode=body.mode or "standard"
+            mode=body.mode or "standard",
+            inference_mode=getattr(body, "inference_mode", "fast_cloud") or "fast_cloud"
         )
         return response
     except Exception as e:
