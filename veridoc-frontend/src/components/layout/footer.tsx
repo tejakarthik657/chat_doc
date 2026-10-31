@@ -6,9 +6,9 @@ export function Footer() {
         <footer className="border-t border-border bg-background pt-12 sm:pt-16 pb-8">
             <div className="max-w-7xl mx-auto px-4 sm:px-6 grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-8 sm:gap-12 mb-12 sm:mb-16">
                 <div className="col-span-1 sm:col-span-2 space-y-4">
-                    <Link href="/" className="font-display text-2xl text-text-primary">DevFrames Synapse</Link>
+                    <Link href="/" className="font-display text-2xl text-text-primary">VeriDoc Synapse</Link>
                     <p className="text-text-muted text-sm max-w-xs leading-relaxed">
-                        DevFrames Synapse is a high-fidelity document intelligence platform for corporate, academic, and governance entities.
+                        Autonomous Clinical & Regulatory Intelligence Platform. Grounded RAG, ActionMesh MCP automations, and live database cross-referencing.
                     </p>
                 </div>
 

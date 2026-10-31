@@ -7,20 +7,20 @@ export function HowItWorks() {
     const steps = [
         {
             id: "01",
-            title: "Ingest Knowledge",
-            description: "Crawl website directories or upload academic, administrative, and compliance PDFs.",
+            title: "Ingest Protocols & Specs",
+            description: "Upload clinical trial protocols, FDA 510(k) filings, and medical manuals with native multi-column table and OCR extraction.",
             icon: Upload,
         },
         {
             id: "02",
-            title: "AI Semantic Indexing",
-            description: "DevFrames Synapse chunks, embeds, and indexes records automatically using hybrid search (Keyword + Semantic).",
+            title: "Hybrid RAG & ActionMesh",
+            description: "VeriDoc indexes isolated vector spaces (Qdrant + BM25) and connects to live operational databases via Inbound MCP.",
             icon: Database,
         },
         {
             id: "03",
-            title: "Cited Query Search",
-            description: "Get precise, grounded answers accompanied by clickable, page-level citations.",
+            title: "Autonomous Audits & Alerts",
+            description: "Automatically audit contradictions, verify patient eligibility, and dispatch Slack/Webhook alerts with exact page receipts.",
             icon: MessageSquare,
         },
     ];

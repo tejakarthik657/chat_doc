@@ -37,7 +37,7 @@ export function Features() {
                     </div>
                     <h2 className="font-display text-3xl sm:text-4xl md:text-5xl tracking-tight leading-tight">It reads between the lines AND reads the lines.</h2>
                     <p className="text-text-secondary text-sm sm:text-base md:text-lg leading-relaxed">
-                        Most AI misses the obvious. Keyword search misses the context. DevFrames Synapse combines vector embeddings with BM25 keyword matching to find the exact needle in the haystack.
+                        Keyword search misses context. Standard vector search misses exact dosage codes and section numbers. VeriDoc Synapse combines dense vector embeddings with BM25 keyword matching and cross-encoder reranking to isolate the exact regulatory clauses.
                     </p>
                 </div>
             </div>
@@ -49,9 +49,9 @@ export function Features() {
                         <Quote size={16} />
                         <span>Zero Hallucinations</span>
                     </div>
-                    <h2 className="font-display text-3xl sm:text-4xl md:text-5xl tracking-tight leading-tight">Every answer has a receipt.</h2>
+                    <h2 className="font-display text-3xl sm:text-4xl md:text-5xl tracking-tight leading-tight">Every answer has an audit receipt.</h2>
                     <p className="text-text-secondary text-sm sm:text-base md:text-lg leading-relaxed">
-                        If we can't find it in the document, we don't invent it. Every claim is backed by a clickable citation that takes you directly to the source paragraph.
+                        If information is missing from the protocol, the model will not invent it. Every claim is bound to a verified citation linking back to the exact page number, chunk ID, and source document.
                     </p>
                 </div>
 
@@ -63,14 +63,14 @@ export function Features() {
                 >
                     <Card className="p-4 sm:p-8 bg-surface/50 flex flex-col gap-3 sm:gap-4">
                         <div className="self-end bg-accent/10 text-accent-light p-3 sm:p-4 rounded-lg rounded-tr-none max-w-[95%] sm:max-w-[80%] text-xs sm:text-sm leading-relaxed">
-                            The policy strictly prohibits use of personal devices for company data.
-                            <span className="ml-2 inline-flex items-center justify-center bg-amber-500/10 text-amber-600 border border-amber-500/20 px-1.5 py-0.5 rounded text-[10px] sm:text-xs font-mono cursor-pointer hover:bg-amber-500/20">[p.7]</span>
+                            Exclusion Criteria: Prior chemotherapy within 28 days of cycle 1 is strictly prohibited.
+                            <span className="ml-2 inline-flex items-center justify-center bg-amber-500/10 text-amber-600 border border-amber-500/20 px-1.5 py-0.5 rounded text-[10px] sm:text-xs font-mono cursor-pointer hover:bg-amber-500/20">[p.14]</span>
                         </div>
 
                         {/* Source snippet popover mock */}
                         <div className="self-end mt-1 sm:mt-2 w-full max-w-[95%] sm:max-w-[80%] bg-amber-500/5 border border-amber-500/20 p-2.5 sm:p-3 rounded text-[11px] sm:text-xs font-mono text-text-secondary">
-                            <div className="text-amber-700 mb-1 font-semibold">[Page 7] Security Policy</div>
-                            <div className="text-text-secondary leading-relaxed">...employees shall not create, store, or access Company Data on <span className="bg-amber-500/10 text-amber-800 font-medium px-1">personal devices</span> under any circumstances...</div>
+                            <div className="text-amber-700 mb-1 font-semibold">[Page 14] Clinical Trial Protocol v2.1</div>
+                            <div className="text-text-secondary leading-relaxed">...patients must have completed all cytotoxic chemotherapy or investigational agents <span className="bg-amber-500/10 text-amber-800 font-medium px-1">at least 28 days</span> prior to registration...</div>
                         </div>
                     </Card>
                 </motion.div>
@@ -90,8 +90,8 @@ export function Features() {
                                 <ShieldAlert size={28} />
                             </div>
                             <div className="space-y-1 sm:space-y-2">
-                                <div className="font-mono text-red-500 font-bold text-xs sm:text-sm">NO INFORMATION FOUND</div>
-                                <div className="text-xs sm:text-sm text-text-muted">I cannot answer this based on the provided documents.</div>
+                                <div className="font-mono text-red-500 font-bold text-xs sm:text-sm">GROUNDED REFUSAL TRIGGERED</div>
+                                <div className="text-xs sm:text-sm text-text-muted">Information not verified in the indexed regulatory filings.</div>
                             </div>
                         </div>
                     </Card>
@@ -100,11 +100,11 @@ export function Features() {
                 <div className="order-1 md:order-2 space-y-4 sm:space-y-6">
                     <div className="inline-flex items-center gap-2 text-red-500 text-xs sm:text-sm font-mono uppercase tracking-wider">
                         <ShieldAlert size={16} />
-                        <span>Refusal Engine</span>
+                        <span>Refusal & Compliance Engine</span>
                     </div>
                     <h2 className="font-display text-3xl sm:text-4xl md:text-5xl tracking-tight leading-tight">It refuses rather than guesses.</h2>
                     <p className="text-text-secondary text-sm sm:text-base md:text-lg leading-relaxed">
-                        When the answer isn't there, DevFrames Synapse admits it. We prioritize silence over plausible-sounding fiction. Ideal for administrative and audit use cases where accuracy is paramount.
+                        When medical facts aren't present in the documents, VeriDoc Synapse explicitly halts generation. We prioritize auditable silence over plausible-sounding hallucination, ensuring clinical and regulatory safety.
                     </p>
                 </div>
             </div>

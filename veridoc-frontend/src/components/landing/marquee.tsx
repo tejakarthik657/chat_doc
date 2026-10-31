@@ -4,12 +4,12 @@ import { motion } from "framer-motion";
 
 export function Marquee() {
     const items = [
-        "SOURCE GROUNDED",
+        "AIR-GAPPED OR ZERO-RETENTION LPU",
         "ZERO HALLUCINATIONS",
-        "CITATION ON EVERY ANSWER",
-        "CPU-SAFE",
-        "PRIVATE BY DESIGN",
-        "FREE TIER AVAILABLE",
+        "EXACT PAGE CITATIONS",
+        "LIVE DATABASE CROSS-REFERENCING",
+        "AUTOMATED PROTOCOL AUDITING",
+        "HIPAA-READY MULTI-TENANCY",
     ];
 
     return (

@@ -30,8 +30,8 @@ const jetbrainsMono = JetBrains_Mono({
 });
 
 export const metadata: Metadata = {
-    title: "NEXUS AI | Intelligence You Can Explore and Use",
-    description: "Autonomous Web Intelligence, Living Memory (ECHO), Spatial Thought Canvas (MINDSPACE), and Live Interactive Artifacts (FORGE).",
+    title: "VeriDoc Synapse | Autonomous Clinical & Regulatory Intelligence",
+    description: "Zero-Hallucination Protocol Auditing, Live Database Verification, and Automated Compliance for Healthcare & Life Sciences.",
     icons: {
         icon: "/favicon.svg",
         shortcut: "/favicon.svg",
