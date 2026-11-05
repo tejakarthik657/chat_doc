@@ -1,5 +1,5 @@
 from pydantic import BaseModel, EmailStr, Field
-from typing import Optional, List, Any
+from typing import Optional, List, Any, Dict
 from datetime import datetime
 from enum import Enum
 
@@ -223,4 +223,127 @@ class CrawlJobOut(BaseModel):
     error_message: Optional[str] = None
     started_at: Optional[datetime] = None
     completed_at: Optional[datetime] = None
+
+
+# ── Multi-Tenant Hospital & Patient Identity Schemas ──────────────────────────
+
+class TenantCreate(BaseModel):
+    id: str = Field(..., description="Unique tenant slug, e.g. 'apollo-001'")
+    name: str = Field(..., min_length=2, max_length=150)
+    status: str = Field("active", description="'active' | 'suspended' | 'trial'")
+    integration_type: str = Field("FHIR_R4", description="'FHIR_R4' | 'SMART_V2'")
+
+
+class TenantOut(BaseModel):
+    id: str
+    name: str
+    status: str
+    integration_type: str
+    created_at: Optional[datetime] = None
+
+
+class HospitalIntegrationCreate(BaseModel):
+    tenant_id: str
+    hospital_name: str
+    fhir_base_url: str
+    identifier_system: str = Field(..., description="Namespace URI, e.g. 'https://apollo.example/mrn'")
+    client_id: str
+    authentication_type: str = Field("private_key_jwt", description="'private_key_jwt' | 'bearer' | 'basic'")
+    enabled: bool = True
+    token_endpoint: Optional[str] = None
+    mpi_endpoint: Optional[str] = None
+
+
+class HospitalIntegrationOut(BaseModel):
+    id: str
+    tenant_id: str
+    hospital_name: str
+    fhir_base_url: str
+    identifier_system: str
+    client_id: str
+    authentication_type: str
+    enabled: bool
+    token_endpoint: Optional[str] = None
+    mpi_endpoint: Optional[str] = None
+
+
+class PatientIdentityMappingCreate(BaseModel):
+    veridoc_patient_id: str = Field(..., description="Internal VD ID e.g. 'VD-P-00104'")
+    tenant_id: str
+    identifier_system: str
+    identifier_value: str = Field(..., description="Hospital MRN e.g. 'AP-104'")
+    fhir_resource_type: str = Field("Patient")
+    fhir_resource_id: str = Field(..., description="FHIR ID e.g. 'patient-783'")
+    mapping_status: str = Field("verified", description="'verified' | 'provisional' | 'revoked'")
+    verification_method: str = Field("authoritative_identifier")
+
+
+class PatientIdentityMappingOut(BaseModel):
+    id: str
+    veridoc_patient_id: str
+    tenant_id: str
+    identifier_system: str
+    identifier_value: str
+    fhir_resource_type: str
+    fhir_resource_id: str
+    mapping_status: str
+    verification_method: str
+    created_at: Optional[datetime] = None
+
+
+class ClinicalTrialSubjectMappingCreate(BaseModel):
+    tenant_id: str
+    trial_id: str = Field(..., description="Trial code e.g. 'NB-204'")
+    site_id: str = Field(..., description="Site identifier e.g. 'site-apollo-01'")
+    subject_id: str = Field(..., description="Protocol Subject ID e.g. 'NB204-AP-0042'")
+    veridoc_patient_id: str
+    mapping_status: str = Field("verified")
+
+
+class ClinicalTrialSubjectMappingOut(BaseModel):
+    id: str
+    tenant_id: str
+    trial_id: str
+    site_id: str
+    subject_id: str
+    veridoc_patient_id: str
+    mapping_status: str
+
+
+class PatientResolveRequest(BaseModel):
+    identifier: str = Field(..., description="Hospital MRN, Trial Subject ID, or VeriDoc Patient ID")
+    tenant_id: Optional[str] = Field(None, description="Target tenant ID if not inferred from session")
+    trial_id: Optional[str] = None
+
+
+class PatientResolveResponse(BaseModel):
+    success: bool
+    tenant_id: str
+    veridoc_patient_id: str
+    hospital_mrn: str
+    fhir_resource_id: str
+    trial_subject_id: Optional[str] = None
+    patient_name: Optional[str] = None
+    verification_method: str
+    error: Optional[str] = None
+
+
+class ClinicalEligibilityEvaluationRequest(BaseModel):
+    identifier: str = Field(..., description="MRN, Subject ID, or VeriDoc Patient ID")
+    tenant_id: Optional[str] = None
+    protocol_id: str = Field("NB-204", description="Clinical trial protocol code")
+
+
+class ClinicalEligibilityEvaluationResponse(BaseModel):
+    success: bool
+    patient_id: str
+    tenant_id: str
+    protocol_id: str
+    eligible: bool
+    violations: List[str]
+    warnings: List[str]
+    biomarkers: Dict[str, Any]
+    provenance: Dict[str, Any]
+    error: Optional[str] = None
+
 

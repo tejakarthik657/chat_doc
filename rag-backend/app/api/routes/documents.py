@@ -88,21 +88,19 @@ async def upload_document(
         {"$inc": {"storage_used_mb": size_mb}}
     )
 
-    # Storage Strategy: For Air-Gapped and Enterprise installations, files remain 100% on encrypted
-    # local disk or private hospital S3. External CDN upload is strictly bypassed unless configured.
-    if settings.storage_provider == "cloudinary" and settings.cloudinary_url:
-        async def upload_cloudinary_bg():
-            try:
-                c_res = await asyncio.to_thread(upload_pdf_to_cloudinary, file_path, f"{user_id}/{doc_id}")
-                if c_res and c_res.get("secure_url"):
-                    await documents_col().update_one(
-                        {"_id": doc_id},
-                        {"$set": {"storage_public_id": c_res.get("public_id"), "file_url": c_res.get("secure_url")}}
-                    )
-            except Exception:
-                pass
+    # Optional non-blocking Cloudinary CDN upload in background
+    async def upload_cloudinary_bg():
+        try:
+            c_res = await asyncio.to_thread(upload_pdf_to_cloudinary, file_path, f"{user_id}/{doc_id}")
+            if c_res and c_res.get("secure_url"):
+                await documents_col().update_one(
+                    {"_id": doc_id},
+                    {"$set": {"storage_public_id": c_res.get("public_id"), "file_url": c_res.get("secure_url")}}
+                )
+        except Exception:
+            pass
 
-        asyncio.create_task(upload_cloudinary_bg())
+    asyncio.create_task(upload_cloudinary_bg())
 
     # ── Launch Ingestion Immediately in background (<1s execution) ───────────
     from app.ingestion.pipeline import ingest_document

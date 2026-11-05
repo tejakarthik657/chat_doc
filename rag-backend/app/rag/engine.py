@@ -496,9 +496,9 @@ async def answer_question(
         if doc_summary:
             context = f"[GLOBAL DOCUMENT SUMMARY]\n{doc_summary}\n\n---\n\n" + context
 
-        # Step 7.1: Inbound Database MCP Enrichment (Live Clinical/EHR DB)
+        # Step 7.1: Inbound Database MCP Enrichment (Live Multi-Tenant Clinical/FHIR EHR)
         from app.mcp.db_connector import check_and_enrich_with_live_db
-        db_enrichment = check_and_enrich_with_live_db(question)
+        db_enrichment = check_and_enrich_with_live_db(question, user_id=user_id)
         if db_enrichment and db_enrichment.get("detected"):
             context = f"{db_enrichment['context_block']}\n\n---\n\n" + context
             print(f"[MCP Inbound DB] Injected live database records for: {question[:50]}")
@@ -1102,9 +1102,9 @@ async def answer_project_question(
     if project_summary:
         context = f"[GLOBAL PROJECT SUMMARY]\n{project_summary}\n\n---\n\n" + context
 
-    # Step 5.1: Inbound Database MCP Enrichment (Live Clinical/EHR DB)
+    # Step 5.1: Inbound Database MCP Enrichment (Live Multi-Tenant Clinical/FHIR EHR)
     from app.mcp.db_connector import check_and_enrich_with_live_db
-    db_enrichment = check_and_enrich_with_live_db(question)
+    db_enrichment = check_and_enrich_with_live_db(question, user_id=user_id)
     if db_enrichment and db_enrichment.get("detected"):
         context = f"{db_enrichment['context_block']}\n\n---\n\n" + context
         print(f"[MCP Inbound DB] Injected live database records for project query: {question[:50]}")

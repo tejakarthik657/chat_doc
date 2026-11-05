@@ -80,6 +80,22 @@ def bm25_indexes_col():
 def compliance_audits_col():
     return get_db()["compliance_audits"]
 
+# ── Multi-Tenant Healthcare & Patient Identity Collections ───────────────────
+def tenants_col():
+    return get_db()["tenants"]
+
+def hospital_integrations_col():
+    return get_db()["hospital_integrations"]
+
+def patient_identity_mappings_col():
+    return get_db()["patient_identity_mappings"]
+
+def clinical_trial_subject_mappings_col():
+    return get_db()["clinical_trial_subject_mappings"]
+
+def clinical_audits_col():
+    return get_db()["clinical_audits"]
+
 
 async def create_indexes():
     """Run asynchronously to handle Atlas handshakes with auto-retry."""
@@ -101,6 +117,25 @@ async def create_indexes():
             await crawled_pages_col().create_index([("project_id", 1), ("url", 1)], unique=True)
             await bm25_indexes_col().create_index([("doc_id", 1)], unique=True)
             await compliance_audits_col().create_index([("user_id", 1), ("doc_id", 1)])
+
+            # Multi-Tenant Patient Identity & Hospital Integrations
+            await tenants_col().create_index("status")
+            await hospital_integrations_col().create_index("tenant_id", unique=True)
+            await patient_identity_mappings_col().create_index(
+                [("tenant_id", 1), ("identifier_system", 1), ("identifier_value", 1)],
+                unique=True
+            )
+            await patient_identity_mappings_col().create_index(
+                [("tenant_id", 1), ("fhir_resource_type", 1), ("fhir_resource_id", 1)],
+                unique=True
+            )
+            await patient_identity_mappings_col().create_index("veridoc_patient_id")
+            await clinical_trial_subject_mappings_col().create_index(
+                [("tenant_id", 1), ("trial_id", 1), ("subject_id", 1)],
+                unique=True
+            )
+            await clinical_trial_subject_mappings_col().create_index("veridoc_patient_id")
+            await clinical_audits_col().create_index([("tenant_id", 1), ("veridoc_patient_id", 1)])
             print("[MongoDB Atlas] Production indexes verified successfully.")
             return
         except Exception as e:

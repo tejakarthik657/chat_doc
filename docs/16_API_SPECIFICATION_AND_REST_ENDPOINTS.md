@@ -1,58 +1,218 @@
-# 16. API Specification & REST Endpoints
+# 16. API Specification & REST / MCP Endpoints: The Network Interface
 
-## 1. REST Endpoints Overview
-
-| Method | Route Path | Description | Access Scope |
-| :--- | :--- | :--- | :--- |
-| `GET` | `/health` | Basic service liveness probe | Public |
-| `POST` | `/api/auth/register` | Register new user account | Public |
-| `POST` | `/api/auth/login` | Authenticate and obtain JWT access token | Public |
-| `GET` | `/api/auth/google` | Initiate Google OAuth 2.0 flow | Public |
-| `GET` | `/api/auth/google/callback` | Exchange OAuth code for JWT session | Public |
-| `POST` | `/api/documents/upload` | Upload PDF file and dispatch ingestion | Authenticated |
-| `GET` | `/api/documents` | List user's indexed documents | Authenticated |
-| `GET` | `/api/documents/{doc_id}` | Fetch document metadata & summary | Authenticated |
-| `POST` | `/api/projects` | Create autonomous web crawling workspace | Authenticated |
-| `GET` | `/api/projects` | List user's project workspaces | Authenticated |
-| `GET` | `/api/projects/{project_id}`| Get crawl status, metrics, and page counts | Authenticated |
-| `POST` | `/api/chat/general` | Query Open Global Knowledge Base | Authenticated |
-| `POST` | `/api/chat/{doc_id}` | Query single document RAG engine | Authenticated |
-| `POST` | `/api/chat/project/{proj_id}`| Query multi-document project knowledge base | Authenticated |
-| `GET` | `/api/chat/{doc_id}/history` | Fetch message history & citations | Authenticated |
-| `DELETE`| `/api/chat/{doc_id}/memory` | Reset conversation memory buffer | Authenticated |
-| `POST` | `/api/features/truth-lattice`| Run adversarial cross-model audit | Authenticated |
-| `POST` | `/api/features/execute-code` | Execute Python script in sandbox | Authenticated |
+> *"A great API is predictable, idempotent where appropriate, self-documenting, and designed for both human frontend consumers and autonomous agentic orchestrators."*
 
 ---
 
-## 2. Core Request & Response Contracts (`models/schemas.py`)
+## 1. Poly-Protocol Gateway Design
 
-### `ChatResponse` Contract
+VeriDoc Synapse exposes three distinct communication protocols over HTTP/HTTPS:
+1. **RESTful HTTP (JSON Payloads)**: Traditional request-response semantics for authentication, project CRUD, file uploads, and analytics.
+2. **Server-Sent Events (SSE)**: Unidirectional, persistent streaming for real-time LLM token generation, citation resolution, and live progress indicators.
+3. **Model Context Protocol (JSON-RPC 2.0 & MCP SSE)**: Standardized open protocol enabling external agents (Claude Desktop, Cursor IDE, LangChain, AutoGen) to inspect clinical schemas, query EHR tables, and dispatch compliance actions.
+
+---
+
+## 2. Master REST & MCP Endpoint Catalog
+
+### A. Authentication & Gateway
+- `GET /health`  
+  *Public*. Health probe and container pre-flight warmup ping. Returns version, database connection health, and uptime.
+- `POST /api/auth/register`  
+  *Public*. Registers a new clinical user. Accepts `{ email, password, full_name, role }`. Returns user object.
+- `POST /api/auth/login`  
+  *Public*. BCrypt authentication. Accepts `{ username, password }` form data. Returns `{ access_token, token_type: "bearer" }`.
+- `GET /api/auth/google`  
+  *Public*. Generates Google OAuth 2.0 authorization URL with cryptographically signed state token.
+- `GET /api/auth/google/callback`  
+  *Public*. OAuth callback exchange. Returns signed JWT.
+
+---
+
+### B. Document Management & Ingestion
+- `POST /api/documents/upload`  
+  *Authenticated*. Multipart file upload. Saves binary to local encrypted volume, executes PyMuPDF parent-child chunking, indexes vectors in Qdrant, and triggers `mcp/watcher.py` asynchronously.
+- `GET /api/documents`  
+  *Authenticated*. Lists all documents for the active project, enriched with `has_compliance_alerts`, page counts, and parsing states.
+- `DELETE /api/documents/{doc_id}`  
+  *Authenticated*. Cascading deletion. Purges raw PDF from storage volume, deletes chunks from MongoDB, and evicts vectors from Qdrant.
+
+---
+
+### C. Conversational Chat & Streaming
+- `POST /api/chat/project/{project_id}`  
+  *Authenticated*. Primary RAG v2 conversational route. Accepts:
+  ```json
+  {
+    "question": "Does Patient #104 violate our exclusion criteria?",
+    "session_id": "sess_84920",
+    "privacy_mode": "fast_cloud",
+    "enable_live_db": true
+  }
+  ```
+  Returns a continuous **Server-Sent Events (SSE)** stream:
+  ```
+  data: {"token": "Based "}
+  data: {"token": "on "}
+  data: {"token": "Protocol "}
+  data: {"citation": {"doc_id": "p3", "filename": "Protocol_v3.pdf", "page": 18}}
+  data: {"action_required": {"type": "EDC_HOLD", "patient_id": 104}}
+  data: [DONE]
+  ```
+
+---
+
+### D. Model Context Protocol (MCP) Subsystem
+- `GET /api/mcp/tools`  
+  *Authenticated*. Returns the catalog of registered MCP tools formatted to Anthropic specifications.
+- `POST /api/mcp/tools/call`  
+  *Authenticated*. Executes a specific tool by name with validated JSON arguments.
+- `POST /api/mcp/database/query`  
+  *Authenticated*. Sandboxed AST-guarded SQL runner executing read-only `SELECT` queries on the clinical database.
+- `GET /api/mcp/database/patients`  
+  *Authenticated*. Returns live cohort screening records with lab biomarkers.
+- `GET /api/mcp/audits`  
+  *Authenticated*. Retrieves historical background compliance audit records generated by `watcher.py`.
+- `POST /api/mcp/actions/dispatch`  
+  *Authenticated*. Dispatches approved Outbound ActionMesh tasks (Slack alerts or EDC protocol holds).
+- **`POST /api/mcp/rpc`**  
+  *Open MCP*. Standard JSON-RPC 2.0 endpoint for external AI agents.
+- **`GET /api/mcp/sse`**  
+  *Open MCP*. Standard Server-Sent Events stream for external agent sessions.
+
+---
+
+## 3. Deep Dive: The Standard MCP JSON-RPC 2.0 Protocol
+
+External agents connect to `POST /api/mcp/rpc` to inspect tools and execute queries.
+
+### 1. Tool Discovery (`tools/list`)
+**Request**:
 ```json
 {
-  "answer": "## Executive Overview\n\nThe Department of CSE...",
-  "sources": [
-    {
-      "page": 1,
-      "chunk_id": "doc_6722_c4",
-      "snippet": "Highest Package: 31 LPA...",
-      "source_name": "KITSW Alumni Network",
-      "url": "https://kitsw.ac.in/funds"
-    }
-  ],
-  "grounded": true,
-  "doc_id": "6ae305868d044a0b1ca8f528",
-  "timestamp": "2026-10-31T23:30:00.000Z",
-  "support_label": "supported",
-  "support_confidence": 0.98,
-  "evidence_trace": [
-    {
-      "chunk_id": "doc_6722_c4",
-      "score": 0.892,
-      "source": "KITSW Alumni Network",
-      "snippet": "Placement Statistics 2023-2024..."
-    }
-  ],
-  "mode": "standard"
+  "jsonrpc": "2.0",
+  "id": 1,
+  "method": "tools/list",
+  "params": {}
 }
 ```
+
+**Response**:
+```json
+{
+  "jsonrpc": "2.0",
+  "id": 1,
+  "result": {
+    "tools": [
+      {
+        "name": "query_clinical_database",
+        "description": "Executes an AST-guarded, read-only SELECT query against live hospital patient EHR tables.",
+        "inputSchema": {
+          "type": "object",
+          "properties": {
+            "sql_query": {
+              "type": "string",
+              "description": "Read-only SQL query (e.g. SELECT * FROM patients WHERE alt_enzyme > 55)"
+            }
+          },
+          "required": ["sql_query"]
+        }
+      },
+      {
+        "name": "get_patient_lab_record",
+        "description": "Retrieves comprehensive biomarker lab values (ALT, Creatinine, Platelets) for a screening subject.",
+        "inputSchema": {
+          "type": "object",
+          "properties": {
+            "patient_id": { "type": "integer", "description": "Unique screening patient ID" }
+          },
+          "required": ["patient_id"]
+        }
+      },
+      {
+        "name": "trigger_compliance_action",
+        "description": "Dispatches high-priority Slack notifications or triggers an EDC trial enrollment freeze.",
+        "inputSchema": {
+          "type": "object",
+          "properties": {
+            "action_type": { "type": "string", "enum": ["SLACK_ALERT", "EDC_HOLD"] },
+            "reason": { "type": "string" },
+            "patient_id": { "type": "integer" }
+          },
+          "required": ["action_type", "reason"]
+        }
+      }
+    ]
+  }
+}
+```
+
+---
+
+### 2. Tool Execution (`tools/call`)
+**Request**:
+```json
+{
+  "jsonrpc": "2.0",
+  "id": 2,
+  "method": "tools/call",
+  "params": {
+    "name": "query_clinical_database",
+    "arguments": {
+      "sql_query": "SELECT patient_id, name, alt_enzyme, trial_status FROM patients WHERE alt_enzyme > 55;"
+    }
+  }
+}
+```
+
+**Response**:
+```json
+{
+  "jsonrpc": "2.0",
+  "id": 2,
+  "result": {
+    "content": [
+      {
+        "type": "text",
+        "text": "[{\"patient_id\": 104, \"name\": \"Marcus Vance\", \"alt_enzyme\": 74.5, \"trial_status\": \"Enrolled\"}]"
+      }
+    ],
+    "isError": false
+  }
+}
+```
+
+---
+
+## 4. Why Server-Sent Events (SSE) Instead of WebSockets for LLM Streaming?
+
+When building streaming chat interfaces, engineers often debate between WebSockets and SSE. We deliberately chose **Server-Sent Events (SSE)** for all inference streaming:
+
+```
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                          SSE vs. WEBSOCKETS FOR AI                          │
+├──────────────────────────┬────────────────────────────┬─────────────────────┤
+│ Dimension                │ Server-Sent Events (SSE)   │ WebSockets          │
+├──────────────────────────┼────────────────────────────┼─────────────────────┤
+│ **Transport Protocol**   │ Standard HTTP/2 or HTTP/1.1│ Bidirectional TCP   │
+│ **Directionality**       │ Unidirectional (Server->UI)│ Bidirectional       │
+│ **Reconnection**         │ Built-in auto-reconnection │ Must code manually  │
+│ **Corporate Firewalls**  │ Passes standard 443/HTTPS  │ Often blocked       │
+│ **Middleware & Tracing** │ Native FastAPI Middlewares │ Bypasses HTTP stack │
+│ **Protocol Simplicity**  │ Simple text/event-stream   │ Complex framing     │
+└──────────────────────────┴────────────────────────────┴─────────────────────┘
+```
+Because the client query is submitted in a single request and the model only needs to push tokens back to the user, the unidirectional stream of SSE is mathematically optimal, lighter on server resources, and seamlessly passes through hospital enterprise firewalls.
+
+---
+
+## 5. CTO Interview Defense: API Architecture & MCP
+
+When an interviewer asks: *"Why did you implement the open Model Context Protocol (MCP) instead of just writing custom internal tool-calling functions?"*, answer:
+
+> *"Custom tool calling creates a proprietary walled garden. If you write internal functions, only your own frontend can talk to your tools.
+> 
+> By implementing the standardized **Model Context Protocol (MCP 2024-11-05)** over JSON-RPC 2.0 (`/api/mcp/rpc`) and SSE (`/api/mcp/sse`), VeriDoc Synapse becomes an open enterprise platform:
+> 1. Any external agent—such as **Claude Desktop**, **Cursor IDE**, or a hospital's internal agentic framework—can instantly connect to our server by adding our URL to their config.
+> 2. The external agent automatically discovers our tools (`query_clinical_database`, `trigger_compliance_action`) and can safely interrogate our hospital EHR database with built-in AST guards.
+> 3. This transforms our platform from a standalone web app into an enterprise clinical intelligence infrastructure layer."*

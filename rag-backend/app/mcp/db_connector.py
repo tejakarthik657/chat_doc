@@ -191,17 +191,127 @@ class DatabaseMCPConnector:
 clinical_db_connector = DatabaseMCPConnector()
 
 
-def check_and_enrich_with_live_db(question: str) -> Optional[Dict[str, Any]]:
+def check_and_enrich_with_live_db(
+    question: str,
+    tenant_id: Optional[str] = None,
+    user_id: Optional[str] = None,
+) -> Optional[Dict[str, Any]]:
     """
-    Detects if a user query references patient lab records, clinical cohorts, or database metrics.
-    If detected, queries the live Database MCP connector and returns structured enrichment context.
+    Detects if a user query references patient lab records, clinical cohorts, or protocol audits.
+    Enforces Multi-Tenant Hospital Identity Resolution:
+    - Resolves authorized organization context (Apollo vs Yashoda vs KIMS)
+    - Distinguishes MRN (AP-104), FHIR ID (patient-783), and Subject ID (NB204-AP-0042)
+    - Returns structured FHIR observation context and protocol eligibility evaluation.
     """
     q_lower = question.lower()
     
-    # 1. Match specific patient ID (e.g. "patient #104", "patient 105", "pt 104")
-    patient_match = re.search(r"\b(?:patient|pt|subject|cohort|id)\s*(?:#|no\.?|id)?\s*(\d+)\b", q_lower)
-    if patient_match:
-        pid = int(patient_match.group(1))
+    # Infer tenant from question context if not explicitly passed
+    detected_tenant = tenant_id
+    if not detected_tenant:
+        if "yashoda" in q_lower or "ys-" in q_lower or "nb204-ys" in q_lower:
+            detected_tenant = "yashoda-001"
+        elif "kims" in q_lower or "km-" in q_lower:
+            detected_tenant = "kims-001"
+        elif "apollo" in q_lower or "ap-" in q_lower or "nb204-ap" in q_lower:
+            detected_tenant = "apollo-001"
+
+    # Match identifiers: Trial Subject ID, MRN, or generic patient ID
+    # Examples: "NB204-AP-0042", "AP-104", "YS-104", "patient #104", "patient 104"
+    subject_match = re.search(r"\b(nb204-[a-z]+-\d+)\b", q_lower)
+    mrn_match = re.search(r"\b([a-z]{2}-\d+)\b", q_lower)
+    generic_match = re.search(r"\b(?:patient|pt|subject|cohort|id)\s*(?:#|no\.?|id)?\s*(\d+)\b", q_lower)
+
+    target_ident = None
+    if subject_match:
+        target_ident = subject_match.group(1).upper()
+    elif mrn_match:
+        target_ident = mrn_match.group(1).upper()
+    elif generic_match:
+        target_ident = generic_match.group(1)
+
+    if target_ident:
+        # Resolve via Clinical MCP Tools
+        try:
+            from app.mcp.clinical_tools import clinical_mcp_tools
+            import asyncio
+
+            async def _run_audit():
+                return await clinical_mcp_tools.audit_patient_eligibility(
+                    identifier=target_ident,
+                    protocol_id="NB-204",
+                    tenant_id=detected_tenant or "apollo-001",
+                    user_id=user_id or "clinician-001",
+                )
+
+            # Safely run in sync context
+            try:
+                loop = asyncio.get_event_loop()
+                if loop.is_running():
+                    import concurrent.futures
+                    with concurrent.futures.ThreadPoolExecutor() as pool:
+                        audit_res = pool.submit(asyncio.run, _run_audit()).result()
+                else:
+                    audit_res = loop.run_until_complete(_run_audit())
+            except RuntimeError:
+                audit_res = asyncio.run(_run_audit())
+
+            if audit_res.get("success"):
+                t_name = audit_res["hospital_name"]
+                p_name = audit_res["patient_name"]
+                mrn = audit_res["hospital_mrn"]
+                fhir_id = audit_res["provenance"]["fhir_resource_id"]
+                sub_id = audit_res.get("trial_subject_id") or "N/A"
+                eligible = audit_res["eligible"]
+                violations = audit_res["violations"]
+                biomarkers = audit_res.get("biomarkers", {})
+
+                # Build clinical context block
+                lines = [
+                    f"[MULTI-TENANT HL7 FHIR IDENTITY & EHR AUDIT]",
+                    f"- Hospital Tenant: {t_name} (Tenant ID: {audit_res['tenant_id']})",
+                    f"- Patient Name: {p_name} | Hospital MRN: {mrn} | FHIR Resource ID: {fhir_id}",
+                    f"- Trial Subject ID: {sub_id} | Trial Protocol: {audit_res['protocol_id']}",
+                    f"- Eligibility Status: {'ELIGIBLE (Passes All Criteria)' if eligible else 'VIOLATES PROTOCOL (Exclusion Criteria Triggered)'}",
+                ]
+                if biomarkers:
+                    lines.append("- Verified Live FHIR Biomarkers:")
+                    for b_key, b_val in biomarkers.items():
+                        lines.append(f"  * {b_key}: {b_val.get('value')} {b_val.get('unit')}")
+
+                if violations:
+                    lines.append("- Protocol Violations Detected:")
+                    for v in violations:
+                        lines.append(f"  ! {v}")
+
+                lines.append(f"- Audit Provenance: ID={audit_res['provenance']['audit_id']}, Method={audit_res['provenance']['verification_method']}")
+                lines.append("[END FHIR CLINICAL RECORD]")
+
+                context_block = "\n".join(lines)
+                snippet = (
+                    f"{t_name} Patient {mrn} ({p_name}): Status={'ELIGIBLE' if eligible else 'VIOLATES PROTOCOL'}. "
+                    f"FHIR ID={fhir_id}. Violations: {'; '.join(violations) if violations else 'None'}."
+                )
+
+                return {
+                    "detected": True,
+                    "patient_id": target_ident,
+                    "tenant_id": audit_res["tenant_id"],
+                    "eligible": eligible,
+                    "context_block": context_block,
+                    "evidence_item": {
+                        "chunk_id": f"fhir_{audit_res['tenant_id']}_{mrn}",
+                        "page": 0,
+                        "score": 1.0,
+                        "source": f"Live FHIR Gateway ({t_name})",
+                        "snippet": snippet,
+                    },
+                }
+        except Exception as e:
+            logger.warning(f"[check_and_enrich_with_live_db] Multi-tenant resolution fallback note: {e}")
+
+    # Fallback to local SQLite database connector if available and not handled above
+    if target_ident and target_ident.isdigit():
+        pid = int(target_ident)
         patient = clinical_db_connector.get_patient(pid)
         if patient:
             context_block = (

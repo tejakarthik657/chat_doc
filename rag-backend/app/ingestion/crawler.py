@@ -7,7 +7,10 @@ import tempfile
 import urllib.robotparser
 from urllib.parse import urlparse, urljoin
 from bs4 import BeautifulSoup
-import trafilatura
+try:
+    import trafilatura
+except ImportError:
+    trafilatura = None
 from datetime import datetime
 from bson import ObjectId
 from typing import Set, List, Dict, Any
@@ -452,25 +455,38 @@ async def crawl_website_task(project_id: str, job_id: str, user_id: str):
                                             file_hash_obj.update(chunk)
                                     file_hash = file_hash_obj.hexdigest()
                                     if os.path.exists(file_path) and os.path.getsize(file_path) > 500:
-                                        cloudinary_file = await asyncio.to_thread(
-                                            upload_pdf_to_cloudinary,
-                                            file_path,
-                                            f"projects/{project_id}/{hashlib.md5(clean_url.encode()).hexdigest()}",
-                                        )
-                                        if not cloudinary_file:
-                                            raise RuntimeError("Durable PDF storage is unavailable")
+                                        import shutil
+                                        if settings.storage_provider == "cloudinary" and settings.cloudinary_url:
+                                            cloudinary_file = await asyncio.to_thread(
+                                                upload_pdf_to_cloudinary,
+                                                file_path,
+                                                f"projects/{project_id}/{hashlib.md5(clean_url.encode()).hexdigest()}",
+                                            )
+                                            file_url = cloudinary_file["secure_url"] if cloudinary_file else file_path
+                                            storage_pub_id = cloudinary_file.get("public_id") if cloudinary_file else None
+                                            storage_prov = "cloudinary"
+                                        else:
+                                            # Local persistent storage for Air-Gapped / Enterprise installations
+                                            local_proj_dir = os.path.join(settings.storage_dir, "projects", project_id)
+                                            os.makedirs(local_proj_dir, exist_ok=True)
+                                            local_dest = os.path.join(local_proj_dir, f"{hashlib.md5(clean_url.encode()).hexdigest()}_{filename}")
+                                            shutil.copy2(file_path, local_dest)
+                                            file_url = local_dest
+                                            storage_pub_id = None
+                                            storage_prov = "local"
+
                                         await crawled_pages_col().update_one(
                                             {"project_id": project_id, "url": clean_url},
                                             {"$set": {
                                                 "title": filename,
-                                                "file_url": cloudinary_file["secure_url"],
-                                                "storage_provider": "cloudinary",
-                                                "storage_public_id": cloudinary_file["public_id"],
+                                                "file_url": file_url,
+                                                "storage_provider": storage_prov,
+                                                "storage_public_id": storage_pub_id,
                                                 "content_hash": file_hash,
                                                 "page_type": "pdf",
                                                 "status": "pending",
                                                 "crawled_at": datetime.utcnow()
-                                            }, "$unset": {"file_path": ""}},
+                                            }},
                                             upsert=True
                                         )
                                         stats["docs_found"] += 1
