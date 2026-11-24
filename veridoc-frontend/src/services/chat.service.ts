@@ -21,6 +21,7 @@ export interface ChatResponse {
     mode?: string;
     artifact?: any;
     mindspace_nodes?: any[];
+    inference_mode?: string;
 }
 
 export interface ChatHistoryItem {

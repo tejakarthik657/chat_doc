@@ -324,7 +324,7 @@ export function ChatInterface({
                     verificationConfidence: response.support_confidence,
                     evidence_trace: response.evidence_trace || [],
                     questionRef: queryText,
-                    inferenceMode: response.inference_mode
+                    inferenceMode: (response as any).inference_mode
                 } : m
             ));
 
