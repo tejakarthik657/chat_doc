@@ -16,7 +16,8 @@ import {
     Cpu, ListFilter, LayoutGrid, Terminal, CheckCircle2, AlertTriangle, Paperclip,
     Trash2, Play, Pause, GitBranch, AlertOctagon, HeartPulse, FileBarChart2, SearchCode, Eye,
     Sparkles, Brain, Compass, Network, Hammer, LayoutTemplate,
-    ZoomIn, ZoomOut, Maximize2, Copy, Download, Code2, Image as ImageIcon, Search
+    ZoomIn, ZoomOut, Maximize2, Copy, Download, Code2, Image as ImageIcon, Search,
+    Volume2, VolumeX, BookOpen, ShieldAlert, ClipboardList, Square
 } from "lucide-react";
 
 import { VoiceInput } from "@/components/chat/VoiceInput";
@@ -26,6 +27,33 @@ import SocraticVivaModal from "@/components/features/SocraticVivaModal";
 import TruthLatticeModal from "@/components/features/TruthLatticeModal";
 import LivingCodeSandbox from "@/components/features/LivingCodeSandbox";
 import WhatIfSimulatorModal from "@/components/features/WhatIfSimulatorModal";
+
+const PROJECT_PROMPT_SUGGESTIONS = [
+    {
+        icon: ClipboardList,
+        iconColor: "text-blue-600 bg-blue-50/80 border-blue-200/80",
+        title: "Summarize Architecture & Objectives",
+        prompt: "Provide an executive summary of this project, detailing primary objectives, architecture, and key findings."
+    },
+    {
+        icon: ShieldAlert,
+        iconColor: "text-amber-600 bg-amber-50/80 border-amber-200/80",
+        title: "Audit Risks & Discrepancies",
+        prompt: "Identify any inconsistencies, conflicting statements, or critical risks mentioned across the crawled documentation."
+    },
+    {
+        icon: Sparkles,
+        iconColor: "text-emerald-600 bg-emerald-50/80 border-emerald-200/80",
+        title: "Synthesize Key Concepts",
+        prompt: "Synthesize the core concepts, methodologies, and definitions established throughout the project sources."
+    },
+    {
+        icon: Search,
+        iconColor: "text-purple-600 bg-purple-50/80 border-purple-200/80",
+        title: "Extract Citations & Evidence",
+        prompt: "Extract the most authoritative citations and references for the main claims in this project dataset."
+    }
+];
 
 
 export default function ProjectWorkspacePage({ params }: { params: Promise<{ project_id: string }> }) {
@@ -131,6 +159,70 @@ export default function ProjectWorkspacePage({ params }: { params: Promise<{ pro
 
     // Report State Actions
     const [copiedReport, setCopiedReport] = useState(false);
+
+    // Claude-style UX Chat State
+    const textareaRef = useRef<HTMLTextAreaElement>(null);
+    const [copiedMsgIdx, setCopiedMsgIdx] = useState<number | null>(null);
+    const [speakingIdx, setSpeakingIdx] = useState<number | null>(null);
+
+    const handleTextareaChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
+        setInput(e.target.value);
+        const textarea = textareaRef.current;
+        if (textarea) {
+            textarea.style.height = "auto";
+            textarea.style.height = `${Math.min(textarea.scrollHeight, 180)}px`;
+        }
+    };
+
+    const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
+        if (e.key === "Enter" && !e.shiftKey) {
+            e.preventDefault();
+            if (input.trim() || attachedImage) {
+                handleSendMessage();
+                if (textareaRef.current) {
+                    textareaRef.current.style.height = "auto";
+                }
+            }
+        }
+    };
+
+    const handleCopyMessage = async (text: string, idx: number) => {
+        try {
+            await navigator.clipboard.writeText(text);
+            setCopiedMsgIdx(idx);
+            setTimeout(() => setCopiedMsgIdx(null), 2000);
+        } catch (err) {
+            console.error("Failed to copy message:", err);
+        }
+    };
+
+    const handleToggleTTS = (text: string, idx: number) => {
+        if (typeof window === "undefined" || !("speechSynthesis" in window)) {
+            alert("Speech synthesis is not supported in this browser.");
+            return;
+        }
+        if (speakingIdx === idx) {
+            window.speechSynthesis.cancel();
+            setSpeakingIdx(null);
+            return;
+        }
+        window.speechSynthesis.cancel();
+        const cleanText = text.replace(/[*_#`\[\]]/g, " ").replace(/\s+/g, " ").trim();
+        const utterance = new SpeechSynthesisUtterance(cleanText);
+        utterance.rate = 1.0;
+        utterance.onend = () => setSpeakingIdx(null);
+        utterance.onerror = () => setSpeakingIdx(null);
+        setSpeakingIdx(idx);
+        window.speechSynthesis.speak(utterance);
+    };
+
+    useEffect(() => {
+        return () => {
+            if (typeof window !== "undefined" && "speechSynthesis" in window) {
+                window.speechSynthesis.cancel();
+            }
+        };
+    }, []);
 
     const scrollToBottom = () => {
         messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -492,6 +584,9 @@ export default function ProjectWorkspacePage({ params }: { params: Promise<{ pro
         if ((!textToSend && !attachedImage) || chatLoading || imageAnalyzing) return;
 
         setInput("");
+        if (textareaRef.current) {
+            textareaRef.current.style.height = "auto";
+        }
         let queryContext = textToSend;
         const currentAttachedImage = attachedImage;
         setAttachedImage(null);
@@ -1060,6 +1155,48 @@ export default function ProjectWorkspacePage({ params }: { params: Promise<{ pro
                                                              </button>
                                                          )}
 
+                                                         {/* 1-Click Copy response */}
+                                                         <button
+                                                             onClick={() => handleCopyMessage(msg.text, i)}
+                                                             className="flex items-center gap-1 px-2.5 py-1 sm:py-0.5 sm:px-2 border border-slate-200 bg-slate-50 text-[10px] font-mono text-slate-700 hover:bg-slate-100 transition-all rounded touch-manipulation active:scale-95"
+                                                             title="Copy response to clipboard"
+                                                         >
+                                                             {copiedMsgIdx === i ? (
+                                                                 <>
+                                                                     <Check size={10} className="text-emerald-600" />
+                                                                     <span className="text-emerald-600 font-semibold">Copied</span>
+                                                                 </>
+                                                             ) : (
+                                                                 <>
+                                                                     <Copy size={10} />
+                                                                     <span>Copy</span>
+                                                                 </>
+                                                             )}
+                                                         </button>
+
+                                                         {/* Read Aloud TTS */}
+                                                         <button
+                                                             onClick={() => handleToggleTTS(msg.text, i)}
+                                                             className={`flex items-center gap-1 px-2.5 py-1 sm:py-0.5 sm:px-2 border text-[10px] font-mono transition-all rounded touch-manipulation active:scale-95 ${
+                                                                 speakingIdx === i
+                                                                     ? "border-amber-300 bg-amber-50 text-amber-800"
+                                                                     : "border-slate-200 bg-slate-50 text-slate-700 hover:bg-slate-100"
+                                                             }`}
+                                                             title={speakingIdx === i ? "Stop narration" : "Read response aloud"}
+                                                         >
+                                                             {speakingIdx === i ? (
+                                                                 <>
+                                                                     <VolumeX size={10} className="text-amber-600" />
+                                                                     <span className="text-amber-700 font-semibold">Stop</span>
+                                                                 </>
+                                                             ) : (
+                                                                 <>
+                                                                     <Volume2 size={10} />
+                                                                     <span>Listen</span>
+                                                                 </>
+                                                             )}
+                                                         </button>
+
                                                          <button
                                                              onClick={() => {
                                                                  setAuditTargetText(msg.text);
@@ -1101,6 +1238,38 @@ export default function ProjectWorkspacePage({ params }: { params: Promise<{ pro
                                         )}
                                     </div>
                                 ))}
+
+                                {/* Claude-Style Suggested Prompts for quick start */}
+                                {messages.length <= 1 && (
+                                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 pt-2 max-w-[800px] w-full mx-auto">
+                                        {PROJECT_PROMPT_SUGGESTIONS.map((item, idx) => {
+                                            const Icon = item.icon;
+                                            return (
+                                                <button
+                                                    key={idx}
+                                                    type="button"
+                                                    onClick={() => {
+                                                        handleSendMessage(undefined, item.prompt);
+                                                    }}
+                                                    className="flex items-start gap-3 p-3 rounded-xl border border-slate-200/80 bg-white/90 hover:bg-white hover:border-indigo-300 hover:shadow-xs transition-all text-left group active:scale-[0.99]"
+                                                >
+                                                    <div className={`p-2 rounded-lg border shrink-0 transition-colors ${item.iconColor}`}>
+                                                        <Icon size={14} />
+                                                    </div>
+                                                    <div className="flex-1 min-w-0">
+                                                        <div className="text-xs font-semibold text-slate-800 group-hover:text-indigo-600 transition-colors truncate">
+                                                            {item.title}
+                                                        </div>
+                                                        <div className="text-[11px] text-slate-500 line-clamp-2 mt-0.5 leading-snug">
+                                                            {item.prompt}
+                                                        </div>
+                                                    </div>
+                                                </button>
+                                            );
+                                        })}
+                                    </div>
+                                )}
+
                                 {chatLoading && (
                                     <div className="flex items-center gap-2 text-xs font-mono text-slate-500 p-4 bg-white border border-slate-200/60 max-w-[800px] w-full mx-auto shadow-sm">
                                         <Loader2 className="animate-spin text-indigo-600" size={14} />
@@ -1159,53 +1328,123 @@ export default function ProjectWorkspacePage({ params }: { params: Promise<{ pro
                                     </div>
                                 )}
 
-                                <form onSubmit={handleSendMessage} onPaste={handlePaste} className="max-w-[800px] mx-auto flex gap-2 sm:gap-3 items-center">
-                                     <div className="flex-1 flex border border-slate-200/60 bg-white focus-within:border-indigo-400 focus-within:ring-1 focus-within:ring-indigo-400 transition-all items-center px-2.5 sm:px-3 gap-1.5 sm:gap-2 rounded-lg">
-                                         <input
-                                             type="file"
-                                             ref={imageInputRef}
-                                             accept="image/*"
-                                             onChange={handleImageSelect}
-                                             className="hidden"
-                                         />
-                                         <button 
-                                             type="button" 
-                                             onClick={() => imageInputRef.current?.click()}
-                                             className="text-slate-400 hover:text-indigo-600 p-1.5 transition-colors active:scale-95"
-                                             title="Attach Image / Screenshot (or paste directly with Ctrl+V)"
-                                         >
-                                             <Paperclip size={16} />
-                                         </button>
-                                         <VoiceInput
-                                             onTranscript={(txt) => setInput(prev => prev ? `${prev} ${txt}` : txt)}
-                                             onSendVoiceQuery={(txt) => handleSendMessage(undefined, txt)}
-                                             isGenerating={chatLoading}
-                                         />
-                                         <Input
-                                             placeholder={`Ask a question or paste screenshot (${selectedSources.length} selected pages)...`}
-                                             value={input}
-                                             onChange={(e) => setInput(e.target.value)}
-                                             className="border-0 focus-visible:ring-0 focus-visible:ring-offset-0 px-1 h-10 bg-transparent text-base sm:text-sm text-slate-900"
-                                             disabled={chatLoading || imageAnalyzing}
-                                         />
-                                     </div>
-                                    <Button
-                                        type="submit"
-                                        disabled={chatLoading || imageAnalyzing || (!input.trim() && !attachedImage)}
-                                        className="bg-indigo-600 hover:bg-indigo-700 text-white gap-1.5 px-3.5 sm:px-6 h-10 rounded-lg shrink-0 font-medium active:scale-95"
-                                    >
-                                        {imageAnalyzing ? (
-                                            <>
-                                                <Loader2 className="animate-spin" size={14} />
-                                                <span className="hidden sm:inline">Analyzing...</span>
-                                            </>
-                                        ) : (
-                                            <>
-                                                <Send size={14} />
-                                                <span className="hidden sm:inline">Submit</span>
-                                            </>
-                                        )}
-                                    </Button>
+                                {/* Claude-Style Chat Input Card */}
+                                <form onSubmit={handleSendMessage} onPaste={handlePaste} className="max-w-[800px] mx-auto space-y-2">
+                                    <div className="rounded-2xl border border-slate-200/80 bg-white shadow-sm focus-within:shadow-md focus-within:border-indigo-400/80 transition-all overflow-hidden">
+                                        {/* Multiline auto-expanding textarea */}
+                                        <div className="p-1">
+                                            <textarea
+                                                ref={textareaRef}
+                                                value={input}
+                                                onChange={handleTextareaChange}
+                                                onKeyDown={handleKeyDown}
+                                                placeholder={
+                                                    chatScope === "general"
+                                                        ? "Ask any open general question... (Shift+Enter for newline)"
+                                                        : `Ask anything about this project (${selectedSources.length} sources active)... (Shift+Enter for newline)`
+                                                }
+                                                rows={1}
+                                                disabled={chatLoading || imageAnalyzing}
+                                                className="w-full bg-transparent border-0 px-3.5 pt-3 pb-2 text-[13px] sm:text-[14px] leading-relaxed text-slate-900 placeholder:text-slate-400 focus:outline-none resize-none min-h-[48px] max-h-44 overflow-y-auto block"
+                                            />
+                                        </div>
+
+                                        {/* Dedicated Bottom Actions Toolbar */}
+                                        <div className="flex items-center justify-between px-2.5 py-1.5 sm:px-3 sm:py-2 bg-slate-50/80 border-t border-slate-100 gap-2 flex-wrap sm:flex-nowrap">
+                                            {/* Left: Attachment, Scope Selector, Voice Dictation */}
+                                            <div className="flex items-center gap-1.5 flex-wrap">
+                                                <input
+                                                    type="file"
+                                                    ref={imageInputRef}
+                                                    accept="image/*"
+                                                    onChange={handleImageSelect}
+                                                    className="hidden"
+                                                />
+                                                <button 
+                                                    type="button" 
+                                                    onClick={() => imageInputRef.current?.click()}
+                                                    className="text-slate-500 hover:text-indigo-600 p-1.5 rounded-lg hover:bg-slate-200/60 transition-colors active:scale-95"
+                                                    title="Attach Image / Screenshot (or paste directly with Ctrl+V)"
+                                                >
+                                                    <Paperclip size={15} />
+                                                </button>
+
+                                                {/* Knowledge Scope Toggle */}
+                                                <div className="flex items-center gap-0.5 p-0.5 bg-slate-200/60 rounded-lg border border-slate-200/80">
+                                                    <button
+                                                        type="button"
+                                                        onClick={() => setChatScope("project")}
+                                                        className={`px-2 py-1 text-[11px] font-medium rounded-md flex items-center gap-1 transition-all active:scale-95 ${
+                                                            chatScope === "project"
+                                                                ? "bg-white text-slate-900 shadow-xs border border-slate-200"
+                                                                : "text-slate-600 hover:text-slate-900"
+                                                        }`}
+                                                        title="Restrict queries to project knowledge dataset and sources"
+                                                    >
+                                                        <BookOpen size={11} className={chatScope === "project" ? "text-indigo-600" : ""} />
+                                                        <span>Project Scope</span>
+                                                    </button>
+                                                    <button
+                                                        type="button"
+                                                        onClick={() => setChatScope("general")}
+                                                        className={`px-2 py-1 text-[11px] font-medium rounded-md flex items-center gap-1 transition-all active:scale-95 ${
+                                                            chatScope === "general"
+                                                                ? "bg-indigo-600 text-white shadow-xs font-medium"
+                                                                : "text-slate-600 hover:text-indigo-600"
+                                                        }`}
+                                                        title="Query Groq Cloud LLM for broad world knowledge"
+                                                    >
+                                                        <Globe size={11} />
+                                                        <span>General AI</span>
+                                                    </button>
+                                                </div>
+
+                                                {/* Voice Dictation with persistent Auto-Send */}
+                                                <VoiceInput
+                                                    onTranscript={(txt) => setInput(prev => prev ? `${prev} ${txt}` : txt)}
+                                                    onSendVoiceQuery={(txt) => handleSendMessage(undefined, txt)}
+                                                    isGenerating={chatLoading}
+                                                />
+                                            </div>
+
+                                            {/* Right: Character count and Submit / Stop button */}
+                                            <div className="flex items-center gap-2 ml-auto shrink-0">
+                                                <span className="text-[10px] font-mono text-slate-400">{input.length} / 2000</span>
+
+                                                <Button
+                                                    type="submit"
+                                                    disabled={chatLoading || imageAnalyzing || (!input.trim() && !attachedImage)}
+                                                    className="bg-indigo-600 hover:bg-indigo-700 text-white gap-1.5 px-3.5 sm:px-4 h-8 rounded-xl font-medium text-xs active:scale-95 transition-all shadow-xs"
+                                                >
+                                                    {imageAnalyzing ? (
+                                                        <>
+                                                            <Loader2 className="animate-spin" size={13} />
+                                                            <span className="hidden sm:inline">Analyzing...</span>
+                                                        </>
+                                                    ) : chatLoading ? (
+                                                        <>
+                                                            <Loader2 className="animate-spin" size={13} />
+                                                            <span className="hidden sm:inline">Generating...</span>
+                                                        </>
+                                                    ) : (
+                                                        <>
+                                                            <Send size={12} />
+                                                            <span className="hidden sm:inline">Send</span>
+                                                        </>
+                                                    )}
+                                                </Button>
+                                            </div>
+                                        </div>
+                                    </div>
+
+                                    <div className="flex justify-between items-center px-1 gap-2">
+                                        <div className="text-[9px] sm:text-[10px] font-mono text-slate-400 truncate">
+                                            {chatScope === "general" ? "Prompting Groq Cloud LLM (Open World Knowledge)" : `Hybrid Vector & Spider Crawl • ${selectedSources.length} sources indexed`}
+                                        </div>
+                                        <div className="text-[9px] sm:text-[10px] font-mono text-slate-400 hidden sm:block">
+                                            Press Enter to send, Shift+Enter for new line
+                                        </div>
+                                    </div>
                                 </form>
                             </div>
                         </div>
@@ -2329,8 +2568,9 @@ export default function ProjectWorkspacePage({ params }: { params: Promise<{ pro
                                                 </div>
                                             </div>
                                         ) : (
-                                            <div className="text-xs text-emerald-700 bg-emerald-500/10 p-3 border border-emerald-100/50 text-center font-mono">
-                                                ✔ 0 broken link errors detected.
+                                            <div className="text-xs text-emerald-700 bg-emerald-500/10 p-3 border border-emerald-100/50 text-center font-mono flex items-center justify-center gap-1.5">
+                                                <CheckCircle2 size={13} className="text-emerald-600" />
+                                                <span>0 broken link errors detected.</span>
                                             </div>
                                         )}
                                     </Card>
