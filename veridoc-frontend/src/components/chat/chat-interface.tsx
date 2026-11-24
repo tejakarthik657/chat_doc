@@ -1,7 +1,10 @@
 "use client";
 
 import React, { useState, useRef, useEffect } from "react";
-import { Send, User, Bot, RotateCcw, AlertTriangle, LayoutGrid, Eye, Globe, Sparkles, BookOpen } from "lucide-react";
+import {
+    Send, User, Bot, RotateCcw, AlertTriangle, LayoutGrid, Eye, Globe, Sparkles, BookOpen,
+    Copy, Check, Volume2, VolumeX, Pencil, ChevronDown, ChevronUp, Square, FileText
+} from "lucide-react";
 import axios from "axios";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -14,6 +17,29 @@ import { VoiceInput } from "@/components/chat/VoiceInput";
 import { EvidencePanel } from "@/components/chat/EvidencePanel";
 import { CanvasWorkspace } from "@/components/canvas/CanvasWorkspace";
 
+const PROMPT_SUGGESTIONS = [
+    {
+        icon: "📋",
+        title: "Summarize Protocol & Objectives",
+        prompt: "Provide an executive summary of this document, highlighting primary objectives, methodology, and key clinical findings."
+    },
+    {
+        icon: "⚠️",
+        title: "Audit Safety & Contraindications",
+        prompt: "What are the reported adverse reactions, contraindications, and critical safety parameters highlighted in this document?"
+    },
+    {
+        icon: "💊",
+        title: "Dosage & Patient Eligibility",
+        prompt: "Detail the dosage regimens, administration schedules, inclusion criteria, and exclusion criteria specified in this document."
+    },
+    {
+        icon: "🔍",
+        title: "Explain Clinical Terminology",
+        prompt: "Identify and explain the key clinical, pharmacological, and regulatory terms mentioned in this document in clear language."
+    }
+];
+
 interface Message {
     id: string;
     role: "user" | "assistant";
@@ -25,6 +51,7 @@ interface Message {
     evidence_trace?: any[];
     questionRef?: string;
     isGeneralAI?: boolean;
+    inferenceMode?: string;
 }
 
 function formatErrorDetail(detail: unknown): string | undefined {
@@ -72,6 +99,94 @@ export function ChatInterface({
     const [activeQuestion, setActiveQuestion] = useState<string>("");
     const [canvasOpen, setCanvasOpen] = useState(false);
     const [canvasContent, setCanvasContent] = useState("");
+
+    // Claude UX Enhancements State
+    const [copiedId, setCopiedId] = useState<string | null>(null);
+    const [speakingId, setSpeakingId] = useState<string | null>(null);
+    const [expandedThoughtId, setExpandedThoughtId] = useState<string | null>(null);
+    const textareaRef = useRef<HTMLTextAreaElement>(null);
+    const stopStreamingRef = useRef<boolean>(false);
+
+    useEffect(() => {
+        return () => {
+            if (typeof window !== "undefined" && "speechSynthesis" in window) {
+                window.speechSynthesis.cancel();
+            }
+        };
+    }, []);
+
+    const handleCopy = async (id: string, text: string) => {
+        try {
+            await navigator.clipboard.writeText(text);
+            setCopiedId(id);
+            setTimeout(() => setCopiedId(null), 2000);
+        } catch (e) {
+            console.error("Failed to copy", e);
+        }
+    };
+
+    const handleToggleSpeech = (id: string, text: string) => {
+        if (typeof window === "undefined" || !("speechSynthesis" in window)) return;
+        if (speakingId === id) {
+            window.speechSynthesis.cancel();
+            setSpeakingId(null);
+            return;
+        }
+        window.speechSynthesis.cancel();
+        const cleanText = text.replace(/[*#_`\[\]()|>-]/g, " ").replace(/\s+/g, " ").trim();
+        const utterance = new SpeechSynthesisUtterance(cleanText);
+        utterance.rate = 1.0;
+        utterance.onend = () => setSpeakingId(null);
+        utterance.onerror = () => setSpeakingId(null);
+        window.speechSynthesis.speak(utterance);
+        setSpeakingId(id);
+    };
+
+    const handleEditUserMessage = (content: string) => {
+        setInput(content);
+        if (textareaRef.current) {
+            textareaRef.current.style.height = "auto";
+            setTimeout(() => {
+                if (textareaRef.current) {
+                    textareaRef.current.style.height = `${Math.min(textareaRef.current.scrollHeight, 180)}px`;
+                    textareaRef.current.focus();
+                }
+            }, 0);
+        }
+    };
+
+    const handleSelectPrompt = (promptText: string) => {
+        setInput(promptText);
+        if (textareaRef.current) {
+            textareaRef.current.style.height = "auto";
+            setTimeout(() => {
+                if (textareaRef.current) {
+                    textareaRef.current.style.height = `${Math.min(textareaRef.current.scrollHeight, 180)}px`;
+                    textareaRef.current.focus();
+                }
+            }, 0);
+        }
+    };
+
+    const handleTextareaChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
+        setInput(e.target.value);
+        if (textareaRef.current) {
+            textareaRef.current.style.height = "auto";
+            textareaRef.current.style.height = `${Math.min(textareaRef.current.scrollHeight, 180)}px`;
+        }
+    };
+
+    const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
+        if (e.key === "Enter" && !e.shiftKey) {
+            e.preventDefault();
+            handleSend();
+        }
+    };
+
+    const handleStopStreaming = () => {
+        stopStreamingRef.current = true;
+        setIsLoading(false);
+    };
     
     const scrollRef = useRef<HTMLDivElement>(null);
 
@@ -113,10 +228,12 @@ export function ChatInterface({
 
     const simulateStreaming = async (fullText: string, aiMsgId: string) => {
         if (!fullText) return;
+        stopStreamingRef.current = false;
         const words = fullText.split(" ");
         let currentText = "";
         const chunkSize = words.length > 150 ? 3 : 1;
         for (let i = 0; i < words.length; i += chunkSize) {
+            if (stopStreamingRef.current) break;
             const chunk = words.slice(i, i + chunkSize).join(" ");
             currentText += (i === 0 ? "" : " ") + chunk;
             setMessages(prev => prev.map(m =>
@@ -124,9 +241,11 @@ export function ChatInterface({
             ));
             await new Promise(resolve => setTimeout(resolve, 20));
         }
-        setMessages(prev => prev.map(m =>
-            m.id === aiMsgId ? { ...m, content: fullText } : m
-        ));
+        if (!stopStreamingRef.current) {
+            setMessages(prev => prev.map(m =>
+                m.id === aiMsgId ? { ...m, content: fullText } : m
+            ));
+        }
     };
 
     const handleAskGeneralAI = async (question: string) => {
@@ -174,19 +293,7 @@ export function ChatInterface({
         }
     };
 
-    const handleSend = async () => {
-        if (!input.trim() || isLoading) return;
-
-        const currentInput = input.trim();
-        const userMsg: Message = { id: Date.now().toString(), role: "user", content: currentInput };
-        setMessages(prev => [...prev, userMsg]);
-        setInput("");
-
-        if (chatMode === "general") {
-            await handleAskGeneralAI(currentInput);
-            return;
-        }
-
+    const executeDocumentQuery = async (queryText: string) => {
         setIsLoading(true);
 
         const aiMsgId = (Date.now() + 1).toString();
@@ -195,12 +302,12 @@ export function ChatInterface({
             role: "assistant",
             content: "",
             isGrounded: true,
-            questionRef: currentInput
+            questionRef: queryText
         };
         setMessages(prev => [...prev, placeholderAiMsg]);
 
         try {
-            const response = await chatService.sendMessage(docId, userMsg.content, strictMode);
+            const response = await chatService.sendMessage(docId, queryText, strictMode);
             setIsLoading(false);
 
             setMessages(prev => prev.map(m =>
@@ -211,7 +318,8 @@ export function ChatInterface({
                     verificationLabel: response.support_label,
                     verificationConfidence: response.support_confidence,
                     evidence_trace: response.evidence_trace || [],
-                    questionRef: currentInput
+                    questionRef: queryText,
+                    inferenceMode: response.inference_mode
                 } : m
             ));
 
@@ -228,8 +336,44 @@ export function ChatInterface({
                 }
             }
             setMessages(prev => prev.map(m =>
-                m.id === aiMsgId ? { ...m, content: errorText, isGrounded: false, questionRef: currentInput } : m
+                m.id === aiMsgId ? { ...m, content: errorText, isGrounded: false, questionRef: queryText } : m
             ));
+        }
+    };
+
+    const handleSend = async () => {
+        if (!input.trim() || isLoading) return;
+
+        const currentInput = input.trim();
+        const userMsg: Message = { id: Date.now().toString(), role: "user", content: currentInput };
+        setMessages(prev => [...prev, userMsg]);
+        setInput("");
+        if (textareaRef.current) {
+            textareaRef.current.style.height = "auto";
+        }
+
+        if (chatMode === "general") {
+            await handleAskGeneralAI(currentInput);
+        } else {
+            await executeDocumentQuery(currentInput);
+        }
+    };
+
+    const handleDirectVoiceSend = async (voiceText: string) => {
+        if (!voiceText.trim() || isLoading) return;
+
+        const currentInput = voiceText.trim();
+        const userMsg: Message = { id: Date.now().toString(), role: "user", content: currentInput };
+        setMessages(prev => [...prev, userMsg]);
+        setInput("");
+        if (textareaRef.current) {
+            textareaRef.current.style.height = "auto";
+        }
+
+        if (chatMode === "general") {
+            await handleAskGeneralAI(currentInput);
+        } else {
+            await executeDocumentQuery(currentInput);
         }
     };
 
@@ -353,7 +497,7 @@ export function ChatInterface({
                         initial={{ opacity: 0, y: 10 }}
                         animate={{ opacity: 1, y: 0 }}
                         className={cn(
-                            "flex gap-2.5 sm:gap-4 max-w-3xl mx-auto w-full",
+                            "flex gap-2.5 sm:gap-4 max-w-3xl mx-auto w-full group",
                             msg.role === "user" ? "flex-row-reverse" : "flex-row"
                         )}
                     >
@@ -372,24 +516,36 @@ export function ChatInterface({
                                 <span className="text-xs font-mono text-text-muted uppercase">
                                     {msg.role === "user" ? "You" : (msg.isGeneralAI ? "Global AI Assistant" : "Document Assistant")}
                                 </span>
+                                {msg.role === "user" && (
+                                    <button
+                                        type="button"
+                                        onClick={() => handleEditUserMessage(msg.content)}
+                                        className="opacity-0 group-hover:opacity-100 transition-opacity p-0.5 text-text-muted hover:text-text-primary rounded"
+                                        title="Edit this question"
+                                    >
+                                        <Pencil size={11} />
+                                    </button>
+                                )}
                                 {msg.role === "assistant" && (
-                                    msg.isGeneralAI ? (
-                                        <span className="text-[10px] bg-indigo-50 text-indigo-700 px-1.5 py-0.5 rounded border border-indigo-200 flex items-center gap-1 font-mono font-medium">
-                                            <Globe size={10} /> GLOBAL WORLD KNOWLEDGE
-                                        </span>
-                                    ) : msg.isGrounded ? (
-                                        <span className="text-[10px] bg-accent/10 text-accent px-1.5 py-0.5 rounded border border-accent/20">GROUNDED</span>
-                                    ) : (
-                                        <span className="text-[10px] bg-red-500/10 text-red-500 px-1.5 py-0.5 rounded border border-red-500/20 flex items-center gap-1">
-                                            <AlertTriangle size={8} /> UNVERIFIED
-                                        </span>
-                                    )
+                                    <>
+                                        {msg.isGeneralAI ? (
+                                            <span className="text-[10px] bg-indigo-50 text-indigo-700 px-1.5 py-0.5 rounded border border-indigo-200 flex items-center gap-1 font-mono font-medium">
+                                                <Globe size={10} /> GLOBAL WORLD KNOWLEDGE
+                                            </span>
+                                        ) : msg.isGrounded ? (
+                                            <span className="text-[10px] bg-accent/10 text-accent px-1.5 py-0.5 rounded border border-accent/20 font-mono">GROUNDED</span>
+                                        ) : (
+                                            <span className="text-[10px] bg-red-500/10 text-red-500 px-1.5 py-0.5 rounded border border-red-500/20 flex items-center gap-1 font-mono">
+                                                <AlertTriangle size={8} /> UNVERIFIED
+                                            </span>
+                                        )}
+                                    </>
                                 )}
                                 <span className="text-[10px] text-text-muted">Just now</span>
                             </div>
 
                             <div className={cn(
-                                "rounded-lg p-4 text-sm leading-relaxed",
+                                "rounded-lg p-4 text-sm leading-relaxed w-full",
                                 msg.role === "user"
                                     ? "bg-surface text-text-primary border border-border"
                                     : "bg-transparent text-text-primary pl-0 pt-0"
@@ -422,51 +578,135 @@ export function ChatInterface({
                                     </div>
                                 )}
 
-                                {msg.role === "assistant" && msg.verificationLabel && (
-                                    <div className="mt-2 text-[11px] text-text-muted">
-                                        Evidence check: {msg.verificationLabel} ({((msg.verificationConfidence || 0) * 100).toFixed(1)}%)
+                                {/* Claude-Style Collapsible Thinking / Verification Drawer */}
+                                {msg.role === "assistant" && msg.content && !isLoading && (
+                                    <div className="w-full mt-3 border border-border/80 rounded-xl overflow-hidden bg-slate-50/60 shadow-2xs">
+                                        <button
+                                            type="button"
+                                            onClick={() => setExpandedThoughtId(prev => prev === msg.id ? null : msg.id)}
+                                            className="w-full flex items-center justify-between px-3 py-2 text-[11px] font-mono text-text-secondary hover:bg-slate-100/70 transition-colors"
+                                        >
+                                            <div className="flex items-center gap-1.5">
+                                                <Sparkles size={11} className="text-accent" />
+                                                <span className="font-semibold text-slate-800">Reasoning & Grounding Trace</span>
+                                                {msg.verificationConfidence !== undefined && (
+                                                    <span className="text-[10px] text-indigo-700 bg-indigo-50 px-1.5 py-0.2 rounded border border-indigo-200 ml-1">
+                                                        {((msg.verificationConfidence || 0) * 100).toFixed(0)}% verified
+                                                    </span>
+                                                )}
+                                            </div>
+                                            {expandedThoughtId === msg.id ? <ChevronUp size={12} /> : <ChevronDown size={12} />}
+                                        </button>
+                                        {expandedThoughtId === msg.id && (
+                                            <div className="p-3 border-t border-border/50 text-[11px] font-mono space-y-2 bg-white">
+                                                <div className="flex items-center justify-between">
+                                                    <span className="text-text-muted">Inference Pipeline:</span>
+                                                    <span className="text-slate-900 font-medium">
+                                                        {msg.inferenceMode || (msg.isGeneralAI ? "Groq LLaMA 3.3 70B (Open Knowledge)" : "Dense Vector RAG + Cohere Rerank")}
+                                                    </span>
+                                                </div>
+                                                <div className="flex items-center justify-between">
+                                                    <span className="text-text-muted">Grounding Status:</span>
+                                                    <span className={msg.isGrounded ? "text-emerald-700 font-medium" : "text-amber-700 font-medium"}>
+                                                        {msg.verificationLabel || (msg.isGrounded ? "Verified Grounded Against Source" : "Unverified / Outside Scope")}
+                                                    </span>
+                                                </div>
+                                                {msg.evidence_trace && msg.evidence_trace.length > 0 && (
+                                                    <div className="pt-2 border-t border-slate-100 flex items-center justify-between">
+                                                        <span className="text-text-muted">Retrieved Chunks:</span>
+                                                        <button
+                                                            type="button"
+                                                            onClick={() => {
+                                                                setActiveEvidenceTrace(msg.evidence_trace || []);
+                                                                setActiveQuestion(msg.questionRef || msg.content);
+                                                                setEvidenceOpen(true);
+                                                            }}
+                                                            className="text-accent hover:underline text-[11px] font-semibold flex items-center gap-1 active:scale-95 transition-all"
+                                                        >
+                                                            <Eye size={11} /> View {msg.evidence_trace.length} Evidence Chunks
+                                                        </button>
+                                                    </div>
+                                                )}
+                                            </div>
+                                        )}
                                     </div>
                                 )}
 
+                                {/* Claude-Style Response Actions Toolbar */}
                                 {msg.role === "assistant" && msg.content && !isLoading && (
-                                    <div className="mt-2 flex items-center gap-2 flex-wrap">
+                                    <div className="mt-2.5 flex items-center gap-1.5 flex-wrap">
+                                        {/* 1-Click Copy */}
+                                        <button
+                                            type="button"
+                                            onClick={() => handleCopy(msg.id, msg.content)}
+                                            className="flex items-center gap-1 px-2 py-1 border border-border/80 hover:bg-slate-100 text-[10px] font-mono text-text-secondary rounded-md transition-colors active:scale-95 shadow-2xs"
+                                            title="Copy message to clipboard"
+                                        >
+                                            {copiedId === msg.id ? (
+                                                <>
+                                                    <Check size={11} className="text-emerald-600" />
+                                                    <span className="text-emerald-700 font-medium">Copied!</span>
+                                                </>
+                                            ) : (
+                                                <>
+                                                    <Copy size={11} />
+                                                    <span>Copy</span>
+                                                </>
+                                            )}
+                                        </button>
+
+                                        {/* Audio Readout (TTS) */}
+                                        <button
+                                            type="button"
+                                            onClick={() => handleToggleSpeech(msg.id, msg.content)}
+                                            className={cn(
+                                                "flex items-center gap-1 px-2 py-1 border text-[10px] font-mono rounded-md transition-colors active:scale-95 shadow-2xs",
+                                                speakingId === msg.id
+                                                    ? "border-rose-300 bg-rose-50 text-rose-700 font-semibold animate-pulse"
+                                                    : "border-border/80 hover:bg-slate-100 text-text-secondary"
+                                            )}
+                                            title={speakingId === msg.id ? "Stop voice readout" : "Listen to audio readout"}
+                                        >
+                                            {speakingId === msg.id ? (
+                                                <>
+                                                    <VolumeX size={11} className="text-rose-600" />
+                                                    <span>Stop Audio</span>
+                                                </>
+                                            ) : (
+                                                <>
+                                                    <Volume2 size={11} />
+                                                    <span>Read Aloud</span>
+                                                </>
+                                            )}
+                                        </button>
+
+                                        {/* Simplify language */}
                                         <Button
                                             variant="ghost"
                                             size="sm"
-                                            className="h-7 px-2 text-[11px]"
+                                            className="h-6 px-2 text-[10px] font-mono rounded-md border border-border/60 hover:bg-slate-100"
                                             onClick={() => handleSimplify(msg.id, msg.content)}
                                         >
-                                            Simplify language
+                                            Simplify
                                         </Button>
 
+                                        {/* Edit in Canvas */}
                                         <button
                                             onClick={() => {
                                                 setCanvasContent(msg.content);
                                                 setCanvasOpen(true);
                                             }}
-                                            className="flex items-center gap-1 px-2 py-1 border border-purple-300/60 bg-purple-50/50 text-[10px] font-mono text-purple-800 hover:bg-purple-100 transition-colors rounded"
+                                            className="flex items-center gap-1 px-2 py-1 border border-purple-300/60 bg-purple-50/50 text-[10px] font-mono text-purple-800 hover:bg-purple-100 transition-colors rounded-md active:scale-95 shadow-2xs"
                                             title="Send this response to Canvas for live editing & export"
                                         >
                                             <LayoutGrid size={10} />
                                             Edit in Canvas
                                         </button>
 
-                                        <button
-                                            onClick={() => {
-                                                setActiveEvidenceTrace(msg.evidence_trace || []);
-                                                setActiveQuestion(msg.questionRef || msg.content);
-                                                setEvidenceOpen(true);
-                                            }}
-                                            className="flex items-center gap-1 px-2 py-1 border border-cyan-300/60 bg-cyan-50/50 text-[10px] font-mono text-cyan-800 hover:bg-cyan-100 transition-colors rounded"
-                                            title="Inspect raw RAG evidence chunks and scores"
-                                        >
-                                            <Eye size={10} />
-                                            Why this answer?
-                                        </button>
-
+                                        {/* Ask General AI */}
                                         <button
                                             onClick={() => handleAskGeneralAI(msg.questionRef || msg.content)}
-                                            className="flex items-center gap-1 px-2 py-1 border border-indigo-300/60 bg-indigo-50/60 text-[10px] font-mono text-indigo-800 hover:bg-indigo-100 transition-colors rounded"
+                                            className="flex items-center gap-1 px-2 py-1 border border-indigo-300/60 bg-indigo-50/60 text-[10px] font-mono text-indigo-800 hover:bg-indigo-100 transition-colors rounded-md active:scale-95 shadow-2xs"
                                             title="Ask General AI directly on this topic"
                                         >
                                             <Globe size={10} />
@@ -478,7 +718,7 @@ export function ChatInterface({
                                 {/* Inline Citations */}
                                 {msg.citations && msg.citations.length > 0 && (
                                     <div className="mt-3 flex flex-wrap gap-2 pt-3 border-t border-border/50">
-                                        <span className="text-xs font-mono text-text-muted mr-1">SOURCES:</span>
+                                        <span className="text-xs font-mono text-text-muted mr-1 flex items-center">SOURCES:</span>
                                         {msg.citations.map((p, i) => (
                                             <Citation key={i} page={p} onClick={() => onCitationClick(p)} />
                                         ))}
@@ -497,96 +737,150 @@ export function ChatInterface({
                         <div className="flex flex-col gap-2">
                             <div className="flex items-center gap-2">
                                 <span className="text-xs font-mono text-text-muted uppercase">Document Assistant</span>
-                                <span className="text-[10px] text-text-muted">Thinking...</span>
+                                <span className="text-[10px] text-text-muted">Thinking & Synthesizing...</span>
                             </div>
                             <div className="flex items-center gap-2 h-8">
                                 <motion.div animate={{ opacity: [0.4, 1, 0.4] }} transition={{ repeat: Infinity, duration: 1.5 }} className="w-2 h-2 bg-accent rounded-full" />
                                 <motion.div animate={{ opacity: [0.4, 1, 0.4] }} transition={{ repeat: Infinity, duration: 1.5, delay: 0.2 }} className="w-2 h-2 bg-accent rounded-full" />
                                 <motion.div animate={{ opacity: [0.4, 1, 0.4] }} transition={{ repeat: Infinity, duration: 1.5, delay: 0.4 }} className="w-2 h-2 bg-accent rounded-full" />
                             </div>
-                            <div className="text-xs font-mono text-accent">Searching document vectors...</div>
+                            <div className="text-xs font-mono text-accent">Searching document vectors & reranking evidence...</div>
                         </div>
                     </div>
                 )}
             </div>
 
             {/* Input Area */}
-            <div className="p-2.5 sm:p-5 bg-background max-w-5xl mx-auto w-full pb-[max(0.75rem,env(safe-area-inset-bottom))] border-t border-border/50 sm:border-0 shrink-0">
-                {/* Knowledge Scope Selector */}
-                <div className="flex items-center justify-between gap-1.5 sm:gap-2 mb-2">
-                    <div className="flex items-center gap-1 p-0.5 bg-slate-100 rounded-lg border border-slate-200 overflow-x-auto no-scrollbar shrink-0">
-                        <button
-                            type="button"
-                            onClick={() => setChatMode("document")}
-                            className={cn(
-                                "px-2.5 py-1 text-[11px] sm:text-xs font-medium rounded-md flex items-center gap-1.5 transition-all shrink-0 active:scale-95",
-                                chatMode === "document"
-                                    ? "bg-white text-slate-900 shadow-xs border border-slate-200"
-                                    : "text-slate-500 hover:text-slate-800"
-                            )}
-                        >
-                            <BookOpen size={12} className={chatMode === "document" ? "text-accent" : ""} />
-                            <span>Document Scope</span>
-                        </button>
-                        <button
-                            type="button"
-                            onClick={() => setChatMode("general")}
-                            className={cn(
-                                "px-2.5 py-1 text-[11px] sm:text-xs font-medium rounded-md flex items-center gap-1.5 transition-all shrink-0 active:scale-95",
-                                chatMode === "general"
-                                    ? "bg-indigo-600 text-white shadow-xs font-medium"
-                                    : "text-slate-500 hover:text-indigo-600"
-                            )}
-                        >
-                            <Globe size={12} />
-                            <span>General AI</span>
-                        </button>
-                    </div>
-
-                    {chatMode === "general" ? (
-                        <span className="text-[10px] sm:text-[11px] font-mono text-indigo-700 bg-indigo-50 px-2 py-0.5 rounded border border-indigo-200 truncate ml-auto">
-                            🌐 Open LLM active
-                        </span>
-                    ) : (
-                        <div className="hidden sm:flex gap-2 items-center ml-auto">
-                            <span className="h-1.5 w-1.5 rounded-full bg-accent" />
-                            <span className="text-[10px] font-mono text-text-muted">VECTOR RAG</span>
-                            <span className="h-1.5 w-1.5 rounded-full bg-accent ml-1" />
-                            <span className="text-[10px] font-mono text-text-muted">RERANKING</span>
+            <div className="p-2.5 sm:p-5 bg-background max-w-4xl mx-auto w-full pb-[max(0.75rem,env(safe-area-inset-bottom))] border-t border-border/50 sm:border-0 shrink-0">
+                {/* Claude-Style Prompt Starter Chips (when conversation is new or empty) */}
+                {messages.length <= 1 && !isLoading && (
+                    <div className="mb-3 animate-in fade-in duration-300">
+                        <div className="flex items-center gap-1.5 mb-2 text-[11px] font-mono text-text-muted">
+                            <Sparkles size={12} className="text-accent" />
+                            <span>Quick review prompts:</span>
                         </div>
-                    )}
-                </div>
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                            {PROMPT_SUGGESTIONS.map((item, idx) => (
+                                <button
+                                    key={idx}
+                                    type="button"
+                                    onClick={() => handleSelectPrompt(item.prompt)}
+                                    className="p-2.5 rounded-xl border border-border/80 bg-surface hover:bg-slate-50 hover:border-accent/40 hover:shadow-xs transition-all text-left flex items-start gap-2.5 group active:scale-[0.99]"
+                                >
+                                    <span className="text-sm p-1 rounded-md bg-slate-100 group-hover:bg-accent/10 transition-colors shrink-0">
+                                        {item.icon}
+                                    </span>
+                                    <div className="min-w-0">
+                                        <div className="text-xs font-semibold text-text-primary group-hover:text-accent transition-colors truncate">
+                                            {item.title}
+                                        </div>
+                                        <div className="text-[11px] text-text-muted truncate">
+                                            {item.prompt}
+                                        </div>
+                                    </div>
+                                </button>
+                            ))}
+                        </div>
+                    </div>
+                )}
 
-                <div className="relative flex items-center bg-surface border border-border rounded-xl px-2 sm:px-3 gap-1.5 sm:gap-2 shadow-2xs focus-within:border-accent focus-within:ring-1 focus-within:ring-accent/20 transition-all">
-                    <VoiceInput
-                        onTranscript={(txt) => setInput(prev => prev ? `${prev} ${txt}` : txt)}
-                        isGenerating={isLoading}
-                    />
-                    <Input
-                        value={input}
-                        onChange={(e) => setInput(e.target.value)}
-                        onKeyDown={(e) => e.key === "Enter" && handleSend()}
-                        placeholder={chatMode === "general" ? "Ask any general question..." : "Ask anything about this document..."}
-                        className="pr-16 sm:pr-24 h-11 sm:h-14 border-0 focus-visible:ring-0 focus-visible:ring-offset-0 bg-transparent text-base sm:text-base text-text-primary px-1"
-                    />
-                    <div className="absolute right-1.5 sm:right-2 top-1/2 -translate-y-1/2">
-                        <Button
-                            size="sm"
-                            variant="primary"
-                            onClick={handleSend}
-                            disabled={!input.trim() || isLoading}
-                            className="h-8 sm:h-9 px-2.5 sm:px-3 text-xs rounded-lg active:scale-95"
-                        >
-                            <Send size={13} className="sm:mr-1.5" />
-                            <span className="hidden sm:inline">Send</span>
-                        </Button>
+                {/* Claude-Style Multi-Line Auto-Growing Input Card */}
+                <div className="flex flex-col bg-surface border border-border focus-within:border-accent/70 focus-within:ring-2 focus-within:ring-accent/15 rounded-2xl shadow-xs transition-all duration-200">
+                    {/* Multiline Textarea */}
+                    <div className="relative w-full">
+                        <textarea
+                            ref={textareaRef}
+                            value={input}
+                            onChange={handleTextareaChange}
+                            onKeyDown={handleKeyDown}
+                            placeholder={chatMode === "general" ? "Ask any open general question... (Shift+Enter for newline)" : "Ask anything about this document... (Shift+Enter for newline)"}
+                            rows={1}
+                            className="w-full bg-transparent border-0 px-3.5 pt-3 pb-2 text-[13px] sm:text-[14px] leading-relaxed text-text-primary placeholder:text-text-muted focus:outline-none resize-none min-h-[48px] max-h-44 overflow-y-auto block"
+                        />
+                    </div>
+
+                    {/* Dedicated Bottom Actions Toolbar */}
+                    <div className="flex items-center justify-between px-2.5 py-1.5 sm:px-3 sm:py-2 bg-slate-50/70 border-t border-border/50 gap-2 flex-wrap sm:flex-nowrap">
+                        {/* Left: Scope Selector & Voice Controls */}
+                        <div className="flex items-center gap-1.5 flex-wrap">
+                            {/* Knowledge Scope Selector */}
+                            <div className="flex items-center gap-0.5 p-0.5 bg-slate-200/60 rounded-lg border border-slate-200/80">
+                                <button
+                                    type="button"
+                                    onClick={() => setChatMode("document")}
+                                    className={cn(
+                                        "px-2 py-1 text-[11px] font-medium rounded-md flex items-center gap-1 transition-all active:scale-95",
+                                        chatMode === "document"
+                                            ? "bg-white text-slate-900 shadow-xs border border-slate-200"
+                                            : "text-slate-600 hover:text-slate-900"
+                                    )}
+                                    title="Restrict queries to document context and evidence"
+                                >
+                                    <BookOpen size={11} className={chatMode === "document" ? "text-accent" : ""} />
+                                    <span>Doc Scope</span>
+                                </button>
+                                <button
+                                    type="button"
+                                    onClick={() => setChatMode("general")}
+                                    className={cn(
+                                        "px-2 py-1 text-[11px] font-medium rounded-md flex items-center gap-1 transition-all active:scale-95",
+                                        chatMode === "general"
+                                            ? "bg-indigo-600 text-white shadow-xs font-medium"
+                                            : "text-slate-600 hover:text-indigo-600"
+                                    )}
+                                    title="Query Groq Cloud LLM for broad world knowledge"
+                                >
+                                    <Globe size={11} />
+                                    <span>General AI</span>
+                                </button>
+                            </div>
+
+                            {/* Voice Dictation with persistent Auto-Send */}
+                            <VoiceInput
+                                onTranscript={(txt) => setInput(prev => prev ? `${prev} ${txt}` : txt)}
+                                onSendVoiceQuery={(txt) => handleDirectVoiceSend(txt)}
+                                isGenerating={isLoading}
+                            />
+                        </div>
+
+                        {/* Right: Character count and Send / Stop button */}
+                        <div className="flex items-center gap-2 ml-auto shrink-0">
+                            <span className="text-[10px] font-mono text-text-muted">{input.length} / 1000</span>
+
+                            {isLoading ? (
+                                <Button
+                                    size="sm"
+                                    variant="danger"
+                                    onClick={handleStopStreaming}
+                                    className="h-8 px-3 text-xs rounded-xl flex items-center gap-1.5 shadow-xs animate-pulse"
+                                    title="Stop generation"
+                                >
+                                    <Square size={11} className="fill-current" />
+                                    <span>Stop</span>
+                                </Button>
+                            ) : (
+                                <Button
+                                    size="sm"
+                                    variant="primary"
+                                    onClick={() => handleSend()}
+                                    disabled={!input.trim()}
+                                    className="h-8 px-3 sm:px-3.5 text-xs rounded-xl flex items-center gap-1.5 shadow-xs active:scale-95 transition-all"
+                                >
+                                    <Send size={12} />
+                                    <span className="hidden sm:inline">Send</span>
+                                </Button>
+                            )}
+                        </div>
                     </div>
                 </div>
+
                 <div className="flex justify-between items-center mt-1.5 px-1 gap-2">
                     <div className="text-[9px] sm:text-[10px] font-mono text-text-muted truncate">
-                        {chatMode === "general" ? "Prompting Groq Cloud LLM (Open Knowledge)" : "Document vector chunks & hybrid search"}
+                        {chatMode === "general" ? "Prompting Groq Cloud LLM (Open World Knowledge)" : "Hybrid Dense Vector + Cohere Rerank • Grounded verification active"}
                     </div>
-                    <div className="text-[9px] sm:text-[10px] font-mono text-text-muted shrink-0">{input.length} / 1000</div>
+                    <div className="text-[9px] sm:text-[10px] font-mono text-text-muted hidden sm:block">
+                        Press Enter to send, Shift+Enter for new line
+                    </div>
                 </div>
             </div>
 

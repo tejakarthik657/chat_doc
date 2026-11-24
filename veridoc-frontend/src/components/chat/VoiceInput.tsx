@@ -19,8 +19,23 @@ export const VoiceInput: React.FC<VoiceInputProps> = ({
   const [isRecordingCloud, setIsRecordingCloud] = useState(false);
   const [isTranscribing, setIsTranscribing] = useState(false);
   const [speechSupported, setSpeechSupported] = useState(true);
-  const [autoSend, setAutoSend] = useState(false);
+  const [autoSend, setAutoSend] = useState(() => {
+    if (typeof window !== "undefined") {
+      return localStorage.getItem("voice_auto_send") === "true";
+    }
+    return false;
+  });
   const [statusMessage, setStatusMessage] = useState<string | null>(null);
+
+  const toggleAutoSend = () => {
+    setAutoSend((prev) => {
+      const next = !prev;
+      if (typeof window !== "undefined") {
+        localStorage.setItem("voice_auto_send", String(next));
+      }
+      return next;
+    });
+  };
 
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const audioChunksRef = useRef<Blob[]>([]);
@@ -213,39 +228,40 @@ export const VoiceInput: React.FC<VoiceInputProps> = ({
             ? "Transcribing voice via Groq Whisper..."
             : isActive
             ? "Listening... Click to stop and finish"
-            : "Speak to dictation (Groq Whisper Turbo)"
+            : "Voice dictation (Groq Whisper Turbo)"
         }
-        className={`h-8 w-8 sm:h-9 sm:w-9 rounded-lg transition-all duration-200 flex items-center justify-center relative shrink-0 active:scale-95 ${
+        className={`h-7 w-7 sm:h-8 sm:w-8 rounded-lg transition-all duration-200 flex items-center justify-center relative shrink-0 active:scale-95 ${
           isTranscribing
-            ? "bg-amber-50 text-amber-600 border border-amber-300"
+            ? "bg-amber-50 text-amber-600 border border-amber-300 shadow-xs"
             : isActive
             ? "bg-rose-500 text-white animate-pulse shadow-md shadow-rose-200 border border-rose-600"
-            : "bg-slate-100 hover:bg-slate-200 text-slate-600 hover:text-indigo-600 border border-slate-200"
+            : "bg-slate-100 hover:bg-slate-200/80 text-slate-600 hover:text-indigo-600 border border-slate-200/80"
         }`}
       >
         {isTranscribing ? (
-          <Loader2 className="w-4 h-4 animate-spin text-amber-600" />
+          <Loader2 className="w-3.5 h-3.5 animate-spin text-amber-600" />
         ) : isActive ? (
           <div className="flex items-center gap-1">
-            <Radio className="w-4 h-4 animate-ping text-white" />
+            <Radio className="w-3.5 h-3.5 animate-ping text-white" />
           </div>
         ) : (
-          <Mic className="w-4 h-4" />
+          <Mic className="w-3.5 h-3.5" />
         )}
       </button>
 
       <button
         type="button"
-        onClick={() => setAutoSend(!autoSend)}
-        title={autoSend ? "Auto-Send: ON (Submits query right after speech ends)" : "Auto-Send: OFF"}
-        className={`h-8 px-2 sm:h-9 sm:px-2.5 rounded-lg text-xs flex items-center gap-1 border transition-all shrink-0 active:scale-95 ${
+        onClick={toggleAutoSend}
+        title={autoSend ? "Auto-Send: ON (Submits query automatically after speech)" : "Auto-Send: OFF"}
+        className={`h-7 px-2 sm:h-8 sm:px-2.5 rounded-lg text-xs flex items-center gap-1 border transition-all shrink-0 active:scale-95 ${
           autoSend
-            ? "bg-indigo-50 text-indigo-700 border-indigo-300 font-semibold"
-            : "bg-slate-100 text-slate-600 border-slate-200 hover:bg-slate-200"
+            ? "bg-indigo-50 text-indigo-700 border-indigo-300 font-semibold shadow-2xs"
+            : "bg-slate-100 text-slate-500 border-slate-200/80 hover:bg-slate-200/70 hover:text-slate-700"
         }`}
       >
         <Sparkles className="w-3 h-3 text-indigo-500" />
-        <span className="text-[10px] font-medium hidden sm:inline text-slate-700">Auto-Send</span>
+        <span className="text-[11px] font-medium hidden sm:inline">Auto-Send</span>
+        {autoSend && <span className="h-1.5 w-1.5 rounded-full bg-indigo-600 animate-pulse ml-0.5" />}
       </button>
 
       {/* Floating Status & Fallback Indicator */}
