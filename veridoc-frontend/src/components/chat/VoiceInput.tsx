@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useState, useEffect, useRef } from "react";
-import { Mic, MicOff, Sparkles, Loader2, Radio } from "lucide-react";
+import { Mic, MicOff, Sparkles, Loader2, Radio, X } from "lucide-react";
 import api from "@/lib/api";
 
 interface VoiceInputProps {
@@ -278,9 +278,10 @@ export const VoiceInput: React.FC<VoiceInputProps> = ({
           <button
             type="button"
             onClick={() => setStatusMessage(null)}
-            className="text-slate-400 hover:text-white text-xs font-bold leading-none px-1"
+            className="text-slate-400 hover:text-white p-0.5 rounded transition-colors"
+            title="Dismiss"
           >
-            ×
+            <X size={11} />
           </button>
         </div>
       )}

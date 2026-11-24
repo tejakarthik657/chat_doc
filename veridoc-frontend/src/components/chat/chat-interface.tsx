@@ -3,7 +3,8 @@
 import React, { useState, useRef, useEffect } from "react";
 import {
     Send, User, Bot, RotateCcw, AlertTriangle, LayoutGrid, Eye, Globe, Sparkles, BookOpen,
-    Copy, Check, Volume2, VolumeX, Pencil, ChevronDown, ChevronUp, Square, FileText
+    Copy, Check, Volume2, VolumeX, Pencil, ChevronDown, ChevronUp, Square, FileText,
+    ClipboardList, ShieldAlert, Pill, Search
 } from "lucide-react";
 import axios from "axios";
 import { Button } from "@/components/ui/button";
@@ -19,22 +20,26 @@ import { CanvasWorkspace } from "@/components/canvas/CanvasWorkspace";
 
 const PROMPT_SUGGESTIONS = [
     {
-        icon: "📋",
+        icon: ClipboardList,
+        iconColor: "text-blue-600 bg-blue-50/80 border-blue-200/80",
         title: "Summarize Protocol & Objectives",
         prompt: "Provide an executive summary of this document, highlighting primary objectives, methodology, and key clinical findings."
     },
     {
-        icon: "⚠️",
+        icon: ShieldAlert,
+        iconColor: "text-amber-600 bg-amber-50/80 border-amber-200/80",
         title: "Audit Safety & Contraindications",
         prompt: "What are the reported adverse reactions, contraindications, and critical safety parameters highlighted in this document?"
     },
     {
-        icon: "💊",
+        icon: Pill,
+        iconColor: "text-emerald-600 bg-emerald-50/80 border-emerald-200/80",
         title: "Dosage & Patient Eligibility",
         prompt: "Detail the dosage regimens, administration schedules, inclusion criteria, and exclusion criteria specified in this document."
     },
     {
-        icon: "🔍",
+        icon: Search,
+        iconColor: "text-purple-600 bg-purple-50/80 border-purple-200/80",
         title: "Explain Clinical Terminology",
         prompt: "Identify and explain the key clinical, pharmacological, and regulatory terms mentioned in this document in clear language."
     }
@@ -760,26 +765,29 @@ export function ChatInterface({
                             <span>Quick review prompts:</span>
                         </div>
                         <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                            {PROMPT_SUGGESTIONS.map((item, idx) => (
-                                <button
-                                    key={idx}
-                                    type="button"
-                                    onClick={() => handleSelectPrompt(item.prompt)}
-                                    className="p-2.5 rounded-xl border border-border/80 bg-surface hover:bg-slate-50 hover:border-accent/40 hover:shadow-xs transition-all text-left flex items-start gap-2.5 group active:scale-[0.99]"
-                                >
-                                    <span className="text-sm p-1 rounded-md bg-slate-100 group-hover:bg-accent/10 transition-colors shrink-0">
-                                        {item.icon}
-                                    </span>
-                                    <div className="min-w-0">
-                                        <div className="text-xs font-semibold text-text-primary group-hover:text-accent transition-colors truncate">
-                                            {item.title}
+                            {PROMPT_SUGGESTIONS.map((item, idx) => {
+                                const IconComponent = item.icon;
+                                return (
+                                    <button
+                                        key={idx}
+                                        type="button"
+                                        onClick={() => handleSelectPrompt(item.prompt)}
+                                        className="p-2.5 rounded-xl border border-border/80 bg-surface hover:bg-slate-50 hover:border-accent/40 hover:shadow-xs transition-all text-left flex items-start gap-2.5 group active:scale-[0.99]"
+                                    >
+                                        <span className={cn("p-1.5 rounded-lg border flex items-center justify-center shrink-0 transition-all group-hover:scale-105", item.iconColor)}>
+                                            <IconComponent size={14} />
+                                        </span>
+                                        <div className="min-w-0">
+                                            <div className="text-xs font-semibold text-text-primary group-hover:text-accent transition-colors truncate">
+                                                {item.title}
+                                            </div>
+                                            <div className="text-[11px] text-text-muted truncate">
+                                                {item.prompt}
+                                            </div>
                                         </div>
-                                        <div className="text-[11px] text-text-muted truncate">
-                                            {item.prompt}
-                                        </div>
-                                    </div>
-                                </button>
-                            ))}
+                                    </button>
+                                );
+                            })}
                         </div>
                     </div>
                 )}
