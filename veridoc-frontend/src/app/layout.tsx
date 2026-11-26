@@ -2,6 +2,7 @@ import type { Metadata, Viewport } from "next";
 import { Instrument_Serif, DM_Sans, JetBrains_Mono } from "next/font/google";
 import "./globals.css";
 import clsx from "clsx";
+import { ToastProvider } from "@/components/ui/toast-provider";
 
 export const viewport: Viewport = {
     width: "device-width",
@@ -9,7 +10,7 @@ export const viewport: Viewport = {
     maximumScale: 5,
     userScalable: true,
     viewportFit: "cover",
-    themeColor: "#F8F6F0",
+    themeColor: "#0b1d36",
 };
 
 
@@ -54,7 +55,7 @@ export default function RootLayout({
                     "font-sans bg-background text-text-primary antialiased selection:bg-accent selection:text-surface"
                 )}
             >
-                {children}
+                <ToastProvider>{children}</ToastProvider>
             </body>
         </html>
     );

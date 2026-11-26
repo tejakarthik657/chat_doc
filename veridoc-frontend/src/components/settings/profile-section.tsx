@@ -115,7 +115,7 @@ export function ProfileSection() {
                                 </div>
                             </div>
 
-                            {error && <p className="text-sm text-red-500" role="alert">{error}</p>}
+                            {error && <p className="text-sm text-blue-500" role="alert">{error}</p>}
                             {success && <p className="text-sm text-accent-success" role="status">{success}</p>}
 
                             <div className="flex justify-end border-t border-border pt-4">
@@ -127,7 +127,7 @@ export function ProfileSection() {
                     </CardContent>
                 </Card>
             ) : (
-                <p className="text-sm text-red-500" role="alert">{error}</p>
+                <p className="text-sm text-blue-500" role="alert">{error}</p>
             )}
         </div>
     );

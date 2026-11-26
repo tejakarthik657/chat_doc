@@ -232,14 +232,14 @@ export const VoiceInput: React.FC<VoiceInputProps> = ({
         }
         className={`h-7 w-7 sm:h-8 sm:w-8 rounded-lg transition-all duration-200 flex items-center justify-center relative shrink-0 active:scale-95 ${
           isTranscribing
-            ? "bg-amber-50 text-amber-600 border border-amber-300 shadow-xs"
+            ? "bg-blue-50 text-blue-600 border border-blue-300 shadow-xs"
             : isActive
-            ? "bg-rose-500 text-white animate-pulse shadow-md shadow-rose-200 border border-rose-600"
-            : "bg-slate-100 hover:bg-slate-200/80 text-slate-600 hover:text-indigo-600 border border-slate-200/80"
+            ? "bg-blue-500 text-white animate-pulse shadow-md shadow-blue-200 border border-blue-600"
+            : "bg-slate-100 hover:bg-slate-200/80 text-slate-600 hover:text-blue-600 border border-slate-200/80"
         }`}
       >
         {isTranscribing ? (
-          <Loader2 className="w-3.5 h-3.5 animate-spin text-amber-600" />
+          <Loader2 className="w-3.5 h-3.5 animate-spin text-blue-600" />
         ) : isActive ? (
           <div className="flex items-center gap-1">
             <Radio className="w-3.5 h-3.5 animate-ping text-white" />
@@ -255,24 +255,24 @@ export const VoiceInput: React.FC<VoiceInputProps> = ({
         title={autoSend ? "Auto-Send: ON (Submits query automatically after speech)" : "Auto-Send: OFF"}
         className={`h-7 px-2 sm:h-8 sm:px-2.5 rounded-lg text-xs flex items-center gap-1 border transition-all shrink-0 active:scale-95 ${
           autoSend
-            ? "bg-indigo-50 text-indigo-700 border-indigo-300 font-semibold shadow-2xs"
+            ? "bg-blue-50 text-blue-700 border-blue-300 font-semibold shadow-2xs"
             : "bg-slate-100 text-slate-500 border-slate-200/80 hover:bg-slate-200/70 hover:text-slate-700"
         }`}
       >
-        <Sparkles className="w-3 h-3 text-indigo-500" />
+        <Sparkles className="w-3 h-3 text-blue-500" />
         <span className="text-[11px] font-medium hidden sm:inline">Auto-Send</span>
-        {autoSend && <span className="h-1.5 w-1.5 rounded-full bg-indigo-600 animate-pulse ml-0.5" />}
+        {autoSend && <span className="h-1.5 w-1.5 rounded-full bg-blue-600 animate-pulse ml-0.5" />}
       </button>
 
       {/* Floating Status & Fallback Indicator */}
       {statusMessage && (
         <div className="absolute bottom-full left-0 mb-2 w-[calc(100vw-2rem)] sm:w-64 max-w-xs p-2 bg-slate-900/90 backdrop-blur-md text-white border border-slate-700 rounded-lg text-[11px] shadow-lg flex items-start gap-1.5 z-50 animate-in fade-in">
           {isTranscribing ? (
-            <Loader2 className="w-3.5 h-3.5 text-indigo-400 shrink-0 mt-0.5 animate-spin" />
+            <Loader2 className="w-3.5 h-3.5 text-blue-400 shrink-0 mt-0.5 animate-spin" />
           ) : isActive ? (
-            <Radio className="w-3.5 h-3.5 text-rose-400 shrink-0 mt-0.5 animate-pulse" />
+            <Radio className="w-3.5 h-3.5 text-blue-400 shrink-0 mt-0.5 animate-pulse" />
           ) : (
-            <Sparkles className="w-3.5 h-3.5 text-indigo-400 shrink-0 mt-0.5" />
+            <Sparkles className="w-3.5 h-3.5 text-blue-400 shrink-0 mt-0.5" />
           )}
           <div className="flex-1 font-mono text-[10px] leading-relaxed">{statusMessage}</div>
           <button

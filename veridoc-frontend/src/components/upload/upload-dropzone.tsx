@@ -179,7 +179,7 @@ export function UploadDropzone() {
                         >
                             <div className="flex items-center justify-between p-4 bg-surface border border-border rounded-lg">
                                 <div className="flex items-center gap-3">
-                                    <div className="h-10 w-10 bg-red-500/10 text-red-500 rounded flex items-center justify-center">
+                                    <div className="h-10 w-10 bg-blue-500/10 text-blue-500 rounded flex items-center justify-center">
                                         <FileText size={20} />
                                     </div>
                                     <div>
@@ -223,11 +223,11 @@ export function UploadDropzone() {
                             animate={{ opacity: 1 }}
                             className="text-center py-8"
                         >
-                            <div className="mx-auto h-20 w-20 bg-red-500/20 text-red-500 rounded-full flex items-center justify-center mb-6">
+                            <div className="mx-auto h-20 w-20 bg-blue-500/20 text-blue-500 rounded-full flex items-center justify-center mb-6">
                                 <AlertTriangle size={40} />
                             </div>
                             <h2 className="font-display text-3xl mb-2">Upload Failed</h2>
-                            <p className="text-red-400 mb-8">
+                            <p className="text-blue-400 mb-8">
                                 {errorMsg}
                             </p>
 

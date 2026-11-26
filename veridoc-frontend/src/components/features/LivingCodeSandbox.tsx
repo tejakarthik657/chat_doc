@@ -61,9 +61,9 @@ export default function LivingCodeSandbox({
             {/* Toolbar */}
             <div className="flex flex-wrap items-center justify-between gap-2.5 px-3 sm:px-4 py-2.5 sm:py-3 bg-slate-50 dark:bg-slate-800/60 border-b border-slate-200 dark:border-slate-800">
                 <div className="flex items-center gap-2 min-w-0">
-                    <Code2 className="w-4 h-4 text-emerald-600 dark:text-emerald-400 shrink-0" />
+                    <Code2 className="w-4 h-4 text-blue-600 dark:text-blue-400 shrink-0" />
                     <span className="text-xs font-bold text-slate-800 dark:text-slate-200 truncate">{title}</span>
-                    <span className="px-2 py-0.5 rounded text-[10px] font-mono bg-emerald-100 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-300 shrink-0">
+                    <span className="px-2 py-0.5 rounded text-[10px] font-mono bg-blue-100 text-blue-700 dark:bg-blue-950 dark:text-blue-300 shrink-0">
                         AST Verified
                     </span>
                 </div>
@@ -74,7 +74,7 @@ export default function LivingCodeSandbox({
                         onClick={() => setShowTests(!showTests)}
                         className={`px-2.5 py-1.5 sm:py-1 rounded-lg text-xs font-medium border transition-all touch-manipulation active:scale-95 ${
                             showTests 
-                                ? "bg-indigo-50 border-indigo-200 text-indigo-700 dark:bg-indigo-950 dark:border-indigo-800 dark:text-indigo-300"
+                                ? "bg-blue-50 border-blue-200 text-blue-700 dark:bg-blue-950 dark:border-blue-800 dark:text-blue-300"
                                 : "border-slate-200 text-slate-600 dark:border-slate-700 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800"
                         }`}
                     >
@@ -84,7 +84,7 @@ export default function LivingCodeSandbox({
                     <button
                         onClick={handleRun}
                         disabled={isRunning}
-                        className="px-3 sm:px-3.5 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-semibold flex items-center gap-1.5 shadow-sm transition-all disabled:opacity-50 touch-manipulation active:scale-95"
+                        className="px-3 sm:px-3.5 py-1.5 rounded-lg bg-blue-600 hover:bg-blue-700 text-white text-xs font-semibold flex items-center gap-1.5 shadow-sm transition-all disabled:opacity-50 touch-manipulation active:scale-95"
                     >
                         {isRunning ? (
                             <>
@@ -109,13 +109,13 @@ export default function LivingCodeSandbox({
                         value={code}
                         onChange={(e) => setCode(e.target.value)}
                         rows={6}
-                        className="w-full font-mono text-[16px] sm:text-xs p-3 rounded-xl bg-slate-950 text-emerald-400 border border-slate-800 focus:outline-none focus:ring-1 focus:ring-emerald-500 leading-relaxed"
+                        className="w-full font-mono text-[16px] sm:text-xs p-3 rounded-xl bg-slate-950 text-blue-400 border border-slate-800 focus:outline-none focus:ring-1 focus:ring-blue-500 leading-relaxed"
                     />
                 </div>
 
                 {showTests && (
                     <div className="space-y-1">
-                        <label className="text-[10px] font-mono uppercase text-indigo-500 font-semibold block">
+                        <label className="text-[10px] font-mono uppercase text-blue-500 font-semibold block">
                             Automated Assertions / Test Cases
                         </label>
                         <textarea
@@ -123,7 +123,7 @@ export default function LivingCodeSandbox({
                             onChange={(e) => setTests(e.target.value)}
                             rows={3}
                             placeholder="assert func(x) == expected"
-                            className="w-full font-mono text-[16px] sm:text-xs p-3 rounded-xl bg-slate-950 text-indigo-300 border border-indigo-900/40 focus:outline-none focus:ring-1 focus:ring-indigo-500 leading-relaxed"
+                            className="w-full font-mono text-[16px] sm:text-xs p-3 rounded-xl bg-slate-950 text-blue-300 border border-blue-900/40 focus:outline-none focus:ring-1 focus:ring-blue-500 leading-relaxed"
                         />
                     </div>
                 )}
@@ -136,8 +136,8 @@ export default function LivingCodeSandbox({
                         <div className="flex items-center gap-3">
                             <span className={`flex items-center gap-1 text-xs font-bold px-2.5 py-0.5 rounded-full ${
                                 result.status === "PASSED"
-                                    ? "bg-green-100 text-green-700 dark:bg-green-950 dark:text-green-300"
-                                    : "bg-red-100 text-red-700 dark:bg-red-950 dark:text-red-300"
+                                    ? "bg-blue-100 text-blue-700 dark:bg-blue-950 dark:text-blue-300"
+                                    : "bg-blue-100 text-blue-700 dark:bg-blue-950 dark:text-blue-300"
                             }`}>
                                 {result.status === "PASSED" ? (
                                     <CheckCircle2 className="w-3.5 h-3.5" />
@@ -165,10 +165,10 @@ export default function LivingCodeSandbox({
                             <Terminal className="w-3 h-3" /> Console Output
                         </div>
                         {result.stdout && (
-                            <pre className="text-emerald-400 whitespace-pre-wrap">{result.stdout}</pre>
+                            <pre className="text-blue-400 whitespace-pre-wrap">{result.stdout}</pre>
                         )}
                         {result.stderr && (
-                            <pre className="text-red-400 whitespace-pre-wrap">{result.stderr}</pre>
+                            <pre className="text-blue-400 whitespace-pre-wrap">{result.stderr}</pre>
                         )}
                         {!result.stdout && !result.stderr && (
                             <span className="text-slate-500 italic">Program finished with return code {result.returncode} (No output).</span>

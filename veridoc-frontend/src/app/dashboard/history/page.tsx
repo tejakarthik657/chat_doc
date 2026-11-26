@@ -103,22 +103,22 @@ export default function HistoryPage() {
                     </div>
 
                     <div className="bg-surface/50 border border-border rounded-xl p-4 flex items-center gap-4">
-                        <div className="h-10 w-10 rounded-lg bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-center text-emerald-400">
+                        <div className="h-10 w-10 rounded-lg bg-blue-500/10 border border-blue-500/20 flex items-center justify-center text-blue-400">
                             <Sparkles className="h-5 w-5" />
                         </div>
                         <div>
                             <div className="text-xs font-mono text-text-muted uppercase tracking-wider">Today's Queries</div>
-                            <div className="text-2xl font-bold text-emerald-400">{stats?.questions_today || 0}</div>
+                            <div className="text-2xl font-bold text-blue-400">{stats?.questions_today || 0}</div>
                         </div>
                     </div>
 
                     <div className="bg-surface/50 border border-border rounded-xl p-4 flex items-center gap-4">
-                        <div className="h-10 w-10 rounded-lg bg-cyan-500/10 border border-cyan-500/20 flex items-center justify-center text-cyan-400">
+                        <div className="h-10 w-10 rounded-lg bg-blue-500/10 border border-blue-500/20 flex items-center justify-center text-blue-400">
                             <Database className="h-5 w-5" />
                         </div>
                         <div>
                             <div className="text-xs font-mono text-text-muted uppercase tracking-wider">Indexed Documents</div>
-                            <div className="text-2xl font-bold text-cyan-400">{stats?.total_documents || 0}</div>
+                            <div className="text-2xl font-bold text-blue-400">{stats?.total_documents || 0}</div>
                         </div>
                     </div>
                 </div>

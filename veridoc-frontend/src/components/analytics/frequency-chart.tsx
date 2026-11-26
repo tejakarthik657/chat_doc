@@ -34,10 +34,10 @@ export function FrequencyChart({ data = [], dailyLimit = 0 }: FrequencyChartProp
                         <div className="relative flex h-[160px] items-end justify-between gap-2">
                             {dailyLimit > 0 && (
                                 <div
-                                    className="absolute inset-x-0 z-10 flex justify-end border-t border-dashed border-amber-500/40"
+                                    className="absolute inset-x-0 z-10 flex justify-end border-t border-dashed border-blue-500/40"
                                     style={{ bottom: `${limitPosition}%` }}
                                 >
-                                    <span className="-mt-2 bg-surface px-1 text-[10px] font-mono text-amber-500">
+                                    <span className="-mt-2 bg-surface px-1 text-[10px] font-mono text-blue-500">
                                         DAILY LIMIT ({dailyLimit})
                                     </span>
                                 </div>

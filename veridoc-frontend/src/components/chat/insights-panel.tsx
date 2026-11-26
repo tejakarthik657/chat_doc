@@ -48,7 +48,7 @@ export function InsightsPanel({ docId }: { docId: string }) {
                 </div>
             )}
 
-            {error && <div className="text-red-400 text-sm">{error}</div>}
+            {error && <div className="text-blue-400 text-sm">{error}</div>}
 
             {!loading && insights && (
                 <>

@@ -1,53 +1,14 @@
-import { useState, useEffect } from "react";
-import { Search, Bell, LogOut, CheckCircle2, AlertCircle, Clock, Menu } from "lucide-react";
+import { useState } from "react";
+import { Search, Bell, LogOut, Menu } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { authService } from "@/services/auth.service";
 import { cn } from "@/lib/utils";
 import { useSearch } from "@/lib/contexts/search-context";
 
-interface Notification {
-    id: string;
-    title: string;
-    message: string;
-    type: "info" | "success" | "warning";
-    timestamp: Date;
-    read: boolean;
-}
-
 export function TopBar() {
     const { searchQuery, setSearchQuery, toggleMobileNav } = useSearch();
-    const [notifications, setNotifications] = useState<Notification[]>([
-        {
-            id: "1",
-            title: "Welcome to Threadwell",
-            message: "Start by capturing a source, then ask across what you’ve saved.",
-            type: "info",
-            timestamp: new Date(),
-            read: false
-        }
-    ]);
     const [showNotifications, setShowNotifications] = useState(false);
-
-    // Mock real-time notification
-    useEffect(() => {
-        const timer = setTimeout(() => {
-            setNotifications(prev => [
-                {
-                    id: "2",
-                    title: "Your space is ready",
-                    message: "Add a source whenever you’re ready to begin.",
-                    type: "success",
-                    timestamp: new Date(),
-                    read: false
-                },
-                ...prev
-            ]);
-        }, 5000);
-        return () => clearTimeout(timer);
-    }, []);
-
-    const unreadCount = notifications.filter(n => !n.read).length;
 
     return (
         <header className="h-[60px] border-b border-border bg-background/80 backdrop-blur-md fixed top-0 right-0 left-0 md:left-[240px] z-30 flex items-center px-2.5 sm:px-6 gap-2 sm:gap-4 transition-all duration-300">
@@ -90,9 +51,6 @@ export function TopBar() {
                         aria-label="Notifications"
                     >
                         <Bell className="h-4.5 w-4.5 sm:h-5 sm:w-5" />
-                        {unreadCount > 0 && (
-                            <span className="absolute top-1.5 right-1.5 h-2 w-2 bg-accent rounded-full border border-background" />
-                        )}
                     </Button>
 
                     {showNotifications && (
@@ -104,41 +62,13 @@ export function TopBar() {
                                 aria-label="Close notifications backdrop"
                             />
                             <div className="fixed sm:absolute right-2 sm:right-0 top-[64px] sm:top-auto sm:mt-2 w-[calc(100vw-1rem)] sm:w-80 max-w-sm bg-surface border border-border shadow-2xl rounded-xl overflow-hidden animate-in fade-in zoom-in-95 duration-200 z-50">
-                                <div className="p-3.5 border-b border-border flex justify-between items-center bg-surface-high/30">
-                                    <h3 className="font-medium text-sm">Notifications</h3>
-                                    <Button variant="ghost" size="sm" className="h-7 text-[10px] uppercase font-mono px-2" onClick={() => setNotifications(n => n.map(x => ({ ...x, read: true })))}>
-                                        Mark all read
-                                    </Button>
+                                <div className="border-b border-border bg-surface-high/40 px-4 py-3">
+                                    <h3 className="text-sm font-semibold">Notifications</h3>
                                 </div>
-                                <div className="max-h-[60vh] sm:max-h-96 overflow-y-auto">
-                                    {notifications.length === 0 ? (
-                                        <div className="p-8 text-center text-text-muted text-xs">
-                                            No new notifications
-                                        </div>
-                                    ) : (
-                                        notifications.map(n => (
-                                            <div key={n.id} className={cn(
-                                                "p-3.5 border-b border-border/50 last:border-0 hover:bg-surface-high/30 transition-colors cursor-pointer relative",
-                                                !n.read && "bg-accent/5"
-                                            )}>
-                                                {!n.read && <div className="absolute left-0 top-0 bottom-0 w-0.5 bg-accent" />}
-                                                <div className="flex gap-2.5">
-                                                    <div className="mt-0.5 shrink-0">
-                                                        {n.type === "success" && <CheckCircle2 size={14} className="text-green-500" />}
-                                                        {n.type === "info" && <Clock size={14} className="text-accent" />}
-                                                        {n.type === "warning" && <AlertCircle size={14} className="text-amber-500" />}
-                                                    </div>
-                                                    <div className="space-y-1 min-w-0 flex-1">
-                                                        <p className="text-xs sm:text-sm font-medium leading-tight">{n.title}</p>
-                                                        <p className="text-xs text-text-muted leading-relaxed break-words">{n.message}</p>
-                                                        <p className="text-[10px] text-text-muted font-mono uppercase">
-                                                            {new Date(n.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-                                                        </p>
-                                                    </div>
-                                                </div>
-                                            </div>
-                                        ))
-                                    )}
+                                <div className="px-6 py-10 text-center">
+                                    <Bell className="mx-auto mb-3 h-5 w-5 text-blue-500" />
+                                    <p className="text-sm font-medium text-text-primary">You’re all caught up</p>
+                                    <p className="mt-1 text-xs text-text-muted">New updates will appear here.</p>
                                 </div>
                             </div>
                         </>

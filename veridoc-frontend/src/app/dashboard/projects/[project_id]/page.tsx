@@ -37,19 +37,19 @@ const PROJECT_PROMPT_SUGGESTIONS = [
     },
     {
         icon: ShieldAlert,
-        iconColor: "text-amber-600 bg-amber-50/80 border-amber-200/80",
+        iconColor: "text-blue-600 bg-blue-50/80 border-blue-200/80",
         title: "Audit Risks & Discrepancies",
         prompt: "Identify any inconsistencies, conflicting statements, or critical risks mentioned across the crawled documentation."
     },
     {
         icon: Sparkles,
-        iconColor: "text-emerald-600 bg-emerald-50/80 border-emerald-200/80",
+        iconColor: "text-blue-600 bg-blue-50/80 border-blue-200/80",
         title: "Synthesize Key Concepts",
         prompt: "Synthesize the core concepts, methodologies, and definitions established throughout the project sources."
     },
     {
         icon: Search,
-        iconColor: "text-purple-600 bg-purple-50/80 border-purple-200/80",
+        iconColor: "text-blue-600 bg-blue-50/80 border-blue-200/80",
         title: "Extract Citations & Evidence",
         prompt: "Extract the most authoritative citations and references for the main claims in this project dataset."
     }
@@ -727,7 +727,7 @@ export default function ProjectWorkspacePage({ params }: { params: Promise<{ pro
         return (
             <div className="h-[calc(100vh-60px)] flex items-center justify-center bg-slate-50">
                 <div className="flex flex-col items-center gap-3">
-                    <Loader2 className="animate-spin text-indigo-600" size={32} />
+                    <Loader2 className="animate-spin text-blue-600" size={32} />
                     <span className="text-xs font-mono text-slate-500 tracking-wider">OPENING WORKSPACE ENV...</span>
                 </div>
             </div>
@@ -737,7 +737,7 @@ export default function ProjectWorkspacePage({ params }: { params: Promise<{ pro
     if (error || !project) {
         return (
             <div className="p-8 max-w-md mx-auto space-y-6 text-center pt-24 min-h-[calc(100vh-60px)] bg-slate-50">
-                <div className="p-4 bg-red-500/10 border border-red-200/50 text-red-600 inline-block rounded-none shadow-md shadow-red-500/5">
+                <div className="p-4 bg-blue-500/10 border border-blue-200/50 text-blue-600 inline-block rounded-none shadow-md shadow-blue-500/5">
                     <AlertTriangle size={48} />
                 </div>
                 <div className="space-y-2">
@@ -774,12 +774,12 @@ export default function ProjectWorkspacePage({ params }: { params: Promise<{ pro
                         className="lg:hidden flex items-center gap-1 px-2 py-1 text-xs font-mono rounded border border-slate-200 bg-white hover:bg-slate-100 text-slate-700 shrink-0 active:scale-95 transition-all"
                         title="Toggle Context Inventory"
                     >
-                        <ListFilter size={13} className="text-indigo-600" />
+                        <ListFilter size={13} className="text-blue-600" />
                         <span className="hidden sm:inline">Docs</span>
                     </button>
                     <div className="h-4 w-px bg-slate-200 hidden sm:block" />
                     <h2 className="text-xs sm:text-sm font-semibold truncate text-slate-900 flex items-center gap-1.5 sm:gap-2 tracking-tight max-w-[120px] sm:max-w-xs">
-                        <Database size={13} className="text-indigo-600 shrink-0" />
+                        <Database size={13} className="text-blue-600 shrink-0" />
                         <span className="truncate">{project.name}</span>
                     </h2>
                     <Badge variant={project.status === "active" ? "success" : "info"} className="rounded-none uppercase text-[8px] sm:text-[9px] font-mono px-1.5 sm:px-2 py-0.5 shrink-0">
@@ -797,7 +797,7 @@ export default function ProjectWorkspacePage({ params }: { params: Promise<{ pro
                                     onClick={() => setReasoningLevel(level)}
                                     className={`px-1.5 sm:px-2 py-0.5 rounded capitalize transition-all ${
                                         reasoningLevel === level
-                                            ? "bg-indigo-600 text-white font-semibold shadow-xs"
+                                            ? "bg-blue-600 text-white font-semibold shadow-xs"
                                             : "text-slate-500 hover:text-slate-900"
                                     }`}
                                 >
@@ -813,7 +813,7 @@ export default function ProjectWorkspacePage({ params }: { params: Promise<{ pro
                                 onClick={() => setChatScope("project")}
                                 className={`flex items-center gap-1 px-2 sm:px-2.5 py-0.5 rounded transition-all ${
                                     chatScope === "project"
-                                        ? "bg-white text-indigo-700 shadow-xs font-semibold"
+                                        ? "bg-white text-blue-700 shadow-xs font-semibold"
                                         : "text-slate-500 hover:text-slate-900"
                                 }`}
                                 title="Limit answers exclusively to this project's crawled documents and pages"
@@ -827,7 +827,7 @@ export default function ProjectWorkspacePage({ params }: { params: Promise<{ pro
                                 onClick={() => setChatScope("general")}
                                 className={`flex items-center gap-1 px-2 sm:px-2.5 py-0.5 rounded transition-all ${
                                     chatScope === "general"
-                                        ? "bg-indigo-600 text-white shadow-xs font-semibold"
+                                        ? "bg-blue-600 text-white shadow-xs font-semibold"
                                         : "text-slate-500 hover:text-slate-900"
                                 }`}
                                 title="Query Groq LLM general world knowledge without document restrictions"
@@ -841,7 +841,7 @@ export default function ProjectWorkspacePage({ params }: { params: Promise<{ pro
                         {/* Canvas Workspace Button */}
                         <button
                             onClick={() => setCanvasOpen(true)}
-                            className="flex items-center gap-1 text-[10px] sm:text-[11px] font-mono px-2 sm:px-2.5 py-1 transition-all border border-purple-200 bg-purple-50 text-purple-700 hover:bg-purple-100/80 rounded shrink-0"
+                            className="flex items-center gap-1 text-[10px] sm:text-[11px] font-mono px-2 sm:px-2.5 py-1 transition-all border border-blue-200 bg-blue-50 text-blue-700 hover:bg-blue-100/80 rounded shrink-0"
                             title="Open side-by-side interactive Canvas Workspace"
                         >
                             <LayoutGrid size={11} />
@@ -852,8 +852,8 @@ export default function ProjectWorkspacePage({ params }: { params: Promise<{ pro
                         <button
                             onClick={() => setStrictMode(!strictMode)}
                             className={`flex items-center gap-1 text-[10px] sm:text-[11px] font-mono px-1.5 sm:px-2.5 py-1 transition-all border shrink-0 ${
-                                strictMode 
-                                    ? "bg-amber-500/10 border-amber-300/40 text-amber-700" 
+                                strictMode
+                                    ? "bg-blue-500/10 border-blue-300/40 text-blue-700"
                                     : "border-slate-200 bg-white text-slate-500 hover:text-slate-900 hover:bg-slate-50"
                             }`}
                             title="Strict mode restricts answering if confidence threshold is too low"
@@ -878,8 +878,8 @@ export default function ProjectWorkspacePage({ params }: { params: Promise<{ pro
                             variant="ghost"
                             className={`text-[10px] sm:text-xs h-7 px-2 gap-1 font-mono rounded-none border shrink-0 ${
                                 project.status === "crawling"
-                                    ? "bg-amber-500/10 border-amber-300/40 text-amber-700 hover:bg-amber-500/20"
-                                    : "bg-emerald-500/10 border-emerald-300/40 text-emerald-700 hover:bg-emerald-500/20"
+                                    ? "bg-blue-500/10 border-blue-300/40 text-blue-700 hover:bg-blue-500/20"
+                                    : "bg-blue-500/10 border-blue-300/40 text-blue-700 hover:bg-blue-500/20"
                             }`}
                         >
                             {project.status === "crawling" ? (
@@ -898,7 +898,7 @@ export default function ProjectWorkspacePage({ params }: { params: Promise<{ pro
                     <Button
                         onClick={handleDeleteProject}
                         variant="ghost"
-                        className="text-[10px] sm:text-xs h-7 px-1.5 sm:px-2 gap-1 font-mono rounded-none text-red-500 hover:text-red-700 hover:bg-red-50 shrink-0"
+                        className="text-[10px] sm:text-xs h-7 px-1.5 sm:px-2 gap-1 font-mono rounded-none text-blue-500 hover:text-blue-700 hover:bg-blue-50 shrink-0"
                         title="Delete Project"
                     >
                         <Trash2 size={11} />
@@ -912,20 +912,20 @@ export default function ProjectWorkspacePage({ params }: { params: Promise<{ pro
                 <div className="bg-slate-950 text-slate-200 px-3 sm:px-6 py-2 flex flex-col sm:flex-row sm:items-center justify-between gap-2 shrink-0 border-b border-slate-800 shadow-sm z-20">
                     <div className="flex items-center gap-2 sm:gap-3 flex-wrap">
                         <span className="relative flex h-2.5 w-2.5 shrink-0">
-                            <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
-                            <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-emerald-500"></span>
+                            <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-blue-400 opacity-75"></span>
+                            <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-blue-500"></span>
                         </span>
                         <span className="text-[11px] sm:text-xs font-mono font-medium tracking-tight text-slate-200">
                             Pipeline: <strong className="text-white">{crawlStatus?.urls_processed || 0}</strong> visited • <strong className="text-white">{inventory.pdfs.length}</strong> PDFs • <strong className="text-white">{inventory.web_pages.length}</strong> Web
                         </span>
-                        <span className="text-[9px] bg-emerald-500/15 text-emerald-400 border border-emerald-500/30 px-2 py-0.5 font-mono uppercase tracking-wider rounded-full font-bold">
+                        <span className="text-[9px] bg-blue-500/15 text-blue-400 border border-blue-500/30 px-2 py-0.5 font-mono uppercase tracking-wider rounded-full font-bold">
                             Live RAG Ready
                         </span>
                     </div>
                     <div className="flex items-center gap-2 sm:gap-3 text-xs font-mono shrink-0">
                         <span className="text-slate-400 font-medium text-[11px]">{getProgressPercent()}% complete</span>
                         <div className="w-20 sm:w-28 h-1.5 bg-slate-800 rounded-full overflow-hidden border border-slate-700">
-                            <div className="h-full bg-gradient-to-r from-indigo-500 to-emerald-400 transition-all duration-300" style={{ width: `${getProgressPercent()}%` }} />
+                            <div className="h-full bg-gradient-to-r from-blue-500 to-blue-400 transition-all duration-300" style={{ width: `${getProgressPercent()}%` }} />
                         </div>
                     </div>
                 </div>
@@ -955,16 +955,16 @@ export default function ProjectWorkspacePage({ params }: { params: Promise<{ pro
                             onClick={() => setActiveTab(t.id)}
                             className={`h-9 px-3.5 text-xs font-medium rounded-lg transition-all flex items-center gap-2 whitespace-nowrap shrink-0 cursor-pointer ${
                                 isActive
-                                    ? "bg-indigo-50 text-indigo-700 dark:bg-indigo-950/70 dark:text-indigo-300 font-semibold shadow-xs border border-indigo-200/70"
+                                    ? "bg-blue-50 text-blue-700 dark:bg-blue-950/70 dark:text-blue-300 font-semibold shadow-xs border border-blue-200/70"
                                     : "text-slate-600 hover:text-slate-900 hover:bg-slate-100/80 border border-transparent"
                             }`}
                         >
-                            <Icon size={14} className={isActive ? "text-indigo-600" : "text-slate-400"} />
+                            <Icon size={14} className={isActive ? "text-blue-600" : "text-slate-400"} />
                             <span>{t.label}</span>
                             {t.badge && (
                                 <span className={`text-[9px] px-1.5 py-0.5 rounded-full font-mono font-bold uppercase tracking-wider ${
-                                    isActive 
-                                        ? "bg-indigo-200/80 text-indigo-800 dark:bg-indigo-900 dark:text-indigo-200" 
+                                    isActive
+                                        ? "bg-blue-200/80 text-blue-800 dark:bg-blue-900 dark:text-blue-200"
                                         : "bg-slate-100 text-slate-500"
                                 }`}>
                                     {t.badge}
@@ -993,7 +993,7 @@ export default function ProjectWorkspacePage({ params }: { params: Promise<{ pro
                                     <div className="p-4 border-b border-slate-200/60 space-y-3 bg-slate-50/50">
                                         <div className="flex items-center justify-between">
                                             <span className="text-xs font-mono font-bold text-slate-800 uppercase tracking-wider flex items-center gap-1">
-                                                <ListFilter size={12} className="text-indigo-600" />
+                                                <ListFilter size={12} className="text-blue-600" />
                                                 Context Inventory
                                             </span>
                                             <button 
@@ -1014,7 +1014,7 @@ export default function ProjectWorkspacePage({ params }: { params: Promise<{ pro
                                         <div className="flex gap-2 text-[10px] font-mono">
                                             <button 
                                                 onClick={() => toggleAllSources(true)}
-                                                className="text-indigo-600 hover:underline"
+                                                className="text-blue-600 hover:underline"
                                             >
                                                 Select All
                                             </button>
@@ -1045,7 +1045,7 @@ export default function ProjectWorkspacePage({ params }: { params: Promise<{ pro
                                                             type="checkbox"
                                                             checked={selectedSources.includes(pdf.url)}
                                                             onChange={() => toggleSource(pdf.url)}
-                                                            className="mt-0.5 accent-indigo-600 cursor-pointer"
+                                                            className="mt-0.5 accent-blue-600 cursor-pointer"
                                                         />
                                                         <span className="text-slate-700 font-medium truncate group-hover:text-slate-900" title={pdf.title}>
                                                             {pdf.title}
@@ -1074,7 +1074,7 @@ export default function ProjectWorkspacePage({ params }: { params: Promise<{ pro
                                                             type="checkbox"
                                                             checked={selectedSources.includes(page.url)}
                                                             onChange={() => toggleSource(page.url)}
-                                                            className="mt-0.5 accent-indigo-600 cursor-pointer"
+                                                            className="mt-0.5 accent-blue-600 cursor-pointer"
                                                         />
                                                         <span className="text-slate-700 font-medium truncate group-hover:text-slate-900" title={page.title}>
                                                             {page.title}
@@ -1122,18 +1122,18 @@ export default function ProjectWorkspacePage({ params }: { params: Promise<{ pro
                                             /* Elegant, glassmorphic white card for AI answers */
                                             <Card className="rounded-none border border-slate-200/60 bg-white/90 backdrop-blur-sm shadow-sm hover:shadow-md transition-shadow p-5 space-y-3 w-full">
                                                 {msg.isImageAnalysis ? (
-                                                    <div className="flex items-center gap-1.5 px-2.5 py-1 text-[10px] font-mono border w-fit bg-indigo-500/10 border-indigo-300/40 text-indigo-800 font-bold rounded">
-                                                        <ImageIcon size={11} className="text-indigo-600" />
+                                                    <div className="flex items-center gap-1.5 px-2.5 py-1 text-[10px] font-mono border w-fit bg-blue-500/10 border-blue-300/40 text-blue-800 font-bold rounded">
+                                                        <ImageIcon size={11} className="text-blue-600" />
                                                         IMAGE ANALYSIS (GROQ VISION)
                                                     </div>
                                                 ) : msg.isGeneralAI ? (
-                                                    <div className="flex items-center gap-1.5 px-2.5 py-1 text-[10px] font-mono border w-fit bg-indigo-500/10 border-indigo-300/40 text-indigo-800 font-bold rounded">
-                                                        <Globe size={11} className="text-indigo-600" />
+                                                    <div className="flex items-center gap-1.5 px-2.5 py-1 text-[10px] font-mono border w-fit bg-blue-500/10 border-blue-300/40 text-blue-800 font-bold rounded">
+                                                        <Globe size={11} className="text-blue-600" />
                                                         WORLD KNOWLEDGE (GROQ)
                                                     </div>
                                                 ) : msg.support_confidence !== undefined && msg.support_confidence !== null && (
-                                                    <div className="flex items-center gap-1.5 px-2.5 py-1 text-[10px] font-mono border w-fit bg-emerald-500/10 border-emerald-300/40 text-emerald-800 font-bold rounded">
-                                                        <CheckCircle2 size={11} className="text-emerald-600" />
+                                                    <div className="flex items-center gap-1.5 px-2.5 py-1 text-[10px] font-mono border w-fit bg-blue-500/10 border-blue-300/40 text-blue-800 font-bold rounded">
+                                                        <CheckCircle2 size={11} className="text-blue-600" />
                                                         {(msg.support_confidence * 100).toFixed(1)}% GROUNDED {msg.support_label ? `(${msg.support_label.toUpperCase()})` : ""}
                                                     </div>
                                                 )}
@@ -1143,15 +1143,15 @@ export default function ProjectWorkspacePage({ params }: { params: Promise<{ pro
 
                                                 {/* Fallback Banner to General AI if answer not in knowledge base */}
                                                 {!msg.isGeneralAI && (msg.text.includes("couldn't find") || msg.text.includes("not found") || msg.text.includes("no relevant information")) && (
-                                                    <div className="mt-3 p-3 bg-indigo-50/80 border border-indigo-200/60 rounded flex items-center justify-between gap-3 text-xs">
-                                                        <div className="flex items-center gap-2 text-indigo-900">
-                                                            <Globe size={14} className="text-indigo-600 shrink-0" />
+                                                    <div className="mt-3 p-3 bg-blue-50/80 border border-blue-200/60 rounded flex items-center justify-between gap-3 text-xs">
+                                                        <div className="flex items-center gap-2 text-blue-900">
+                                                            <Globe size={14} className="text-blue-600 shrink-0" />
                                                             <span>Answer not found in project documents? You can query General AI directly.</span>
                                                         </div>
                                                         <Button
                                                             size="sm"
                                                             onClick={() => handleAskGeneralAI(msg.questionRef || msg.text)}
-                                                            className="bg-indigo-600 hover:bg-indigo-700 text-white font-mono text-[11px] h-7 px-3 shrink-0"
+                                                            className="bg-blue-600 hover:bg-blue-700 text-white font-mono text-[11px] h-7 px-3 shrink-0"
                                                         >
                                                             Ask General AI
                                                         </Button>
@@ -1166,7 +1166,7 @@ export default function ProjectWorkspacePage({ params }: { params: Promise<{ pro
                                                                 <button
                                                                     key={idx}
                                                                     onClick={() => setActiveCitation(src)}
-                                                                    className="flex items-center gap-1 px-2.5 py-1 border border-indigo-200/50 bg-indigo-500/5 text-[10px] font-mono text-indigo-700 hover:bg-indigo-500/10 hover:border-indigo-300 transition-colors cursor-pointer"
+                                                                    className="flex items-center gap-1 px-2.5 py-1 border border-blue-200/50 bg-blue-500/5 text-[10px] font-mono text-blue-700 hover:bg-blue-500/10 hover:border-blue-300 transition-colors cursor-pointer"
                                                                 >
                                                                     <FileText size={10} />
                                                                     {(src.source_name || "Source").substring(0, 15)}...
@@ -1181,7 +1181,7 @@ export default function ProjectWorkspacePage({ params }: { params: Promise<{ pro
                                                          {msg.questionRef && !msg.isGeneralAI && (
                                                              <button
                                                                  onClick={() => handleAskGeneralAI(msg.questionRef!)}
-                                                                 className="flex items-center gap-1 px-2.5 py-1 sm:py-0.5 sm:px-2 border border-indigo-300/60 bg-indigo-50/70 text-[10px] font-mono text-indigo-700 hover:bg-indigo-100 transition-all rounded font-medium touch-manipulation active:scale-95"
+                                                                 className="flex items-center gap-1 px-2.5 py-1 sm:py-0.5 sm:px-2 border border-blue-300/60 bg-blue-50/70 text-[10px] font-mono text-blue-700 hover:bg-blue-100 transition-all rounded font-medium touch-manipulation active:scale-95"
                                                                  title="Query General AI (Groq) for this question with broader world knowledge"
                                                              >
                                                                  <Globe size={10} />
@@ -1197,8 +1197,8 @@ export default function ProjectWorkspacePage({ params }: { params: Promise<{ pro
                                                          >
                                                              {copiedMsgIdx === i ? (
                                                                  <>
-                                                                     <Check size={10} className="text-emerald-600" />
-                                                                     <span className="text-emerald-600 font-semibold">Copied</span>
+                                                                     <Check size={10} className="text-blue-600" />
+                                                                     <span className="text-blue-600 font-semibold">Copied</span>
                                                                  </>
                                                              ) : (
                                                                  <>
@@ -1213,15 +1213,15 @@ export default function ProjectWorkspacePage({ params }: { params: Promise<{ pro
                                                              onClick={() => handleToggleTTS(msg.text, i)}
                                                              className={`flex items-center gap-1 px-2.5 py-1 sm:py-0.5 sm:px-2 border text-[10px] font-mono transition-all rounded touch-manipulation active:scale-95 ${
                                                                  speakingIdx === i
-                                                                     ? "border-amber-300 bg-amber-50 text-amber-800"
+                                                                     ? "border-blue-300 bg-blue-50 text-blue-800"
                                                                      : "border-slate-200 bg-slate-50 text-slate-700 hover:bg-slate-100"
                                                              }`}
                                                              title={speakingIdx === i ? "Stop narration" : "Read response aloud"}
                                                          >
                                                              {speakingIdx === i ? (
                                                                  <>
-                                                                     <VolumeX size={10} className="text-amber-600" />
-                                                                     <span className="text-amber-700 font-semibold">Stop</span>
+                                                                     <VolumeX size={10} className="text-blue-600" />
+                                                                     <span className="text-blue-700 font-semibold">Stop</span>
                                                                  </>
                                                              ) : (
                                                                  <>
@@ -1237,7 +1237,7 @@ export default function ProjectWorkspacePage({ params }: { params: Promise<{ pro
                                                                  setAuditQuery(msg.questionRef || "Verify factual reliability");
                                                                  setTruthLatticeOpen(true);
                                                              }}
-                                                             className="flex items-center gap-1 px-2.5 py-1 sm:py-0.5 sm:px-2 border border-emerald-300/60 bg-emerald-50/70 text-[10px] font-mono text-emerald-800 hover:bg-emerald-100 transition-all rounded font-medium touch-manipulation active:scale-95"
+                                                             className="flex items-center gap-1 px-2.5 py-1 sm:py-0.5 sm:px-2 border border-blue-300/60 bg-blue-50/70 text-[10px] font-mono text-blue-800 hover:bg-blue-100 transition-all rounded font-medium touch-manipulation active:scale-95"
                                                              title="Run Truth Lattice dual-model adversarial red team audit"
                                                          >
                                                              <ShieldCheck size={10} />
@@ -1248,7 +1248,7 @@ export default function ProjectWorkspacePage({ params }: { params: Promise<{ pro
                                                                  setCanvasContent(msg.text);
                                                                  setCanvasOpen(true);
                                                              }}
-                                                             className="flex items-center gap-1 px-2.5 py-1 sm:py-0.5 sm:px-2 border border-purple-300/60 bg-purple-50/50 text-[10px] font-mono text-purple-800 hover:bg-purple-100 transition-all rounded touch-manipulation active:scale-95"
+                                                             className="flex items-center gap-1 px-2.5 py-1 sm:py-0.5 sm:px-2 border border-blue-300/60 bg-blue-50/50 text-[10px] font-mono text-blue-800 hover:bg-blue-100 transition-all rounded touch-manipulation active:scale-95"
                                                              title="Send this response to Canvas for live editing & export"
                                                          >
                                                              <LayoutGrid size={10} />
@@ -1260,7 +1260,7 @@ export default function ProjectWorkspacePage({ params }: { params: Promise<{ pro
                                                                  setActiveEvidenceTrace(msg.evidence_trace || []);
                                                                  setEvidenceOpen(true);
                                                              }}
-                                                             className="flex items-center gap-1 px-2.5 py-1 sm:py-0.5 sm:px-2 border border-cyan-300/60 bg-cyan-50/50 text-[10px] font-mono text-cyan-800 hover:bg-cyan-100 transition-all rounded touch-manipulation active:scale-95"
+                                                             className="flex items-center gap-1 px-2.5 py-1 sm:py-0.5 sm:px-2 border border-blue-300/60 bg-blue-50/50 text-[10px] font-mono text-blue-800 hover:bg-blue-100 transition-all rounded touch-manipulation active:scale-95"
                                                              title="Inspect raw RAG evidence chunks and scores"
                                                          >
                                                              <Eye size={10} />
@@ -1277,9 +1277,9 @@ export default function ProjectWorkspacePage({ params }: { params: Promise<{ pro
                                     <div
                                         role="status"
                                         aria-live="polite"
-                                        className="max-w-[800px] w-full mx-auto rounded-none border border-indigo-200/70 bg-white/90 p-5 shadow-sm"
+                                        className="max-w-[800px] w-full mx-auto rounded-none border border-blue-200/70 bg-white/90 p-5 shadow-sm"
                                     >
-                                        <div className="mb-4 flex items-center gap-2 text-xs font-medium text-indigo-700">
+                                        <div className="mb-4 flex items-center gap-2 text-xs font-medium text-blue-700">
                                             <Loader2 className="animate-spin" size={14} />
                                             Carefully analyzing your image and reading visible details…
                                         </div>
@@ -1306,13 +1306,13 @@ export default function ProjectWorkspacePage({ params }: { params: Promise<{ pro
                                                     onClick={() => {
                                                         handleSendMessage(undefined, item.prompt);
                                                     }}
-                                                    className="flex items-start gap-3 p-3 rounded-xl border border-slate-200/80 bg-white/90 hover:bg-white hover:border-indigo-300 hover:shadow-xs transition-all text-left group active:scale-[0.99]"
+                                                    className="flex items-start gap-3 p-3 rounded-xl border border-slate-200/80 bg-white/90 hover:bg-white hover:border-blue-300 hover:shadow-xs transition-all text-left group active:scale-[0.99]"
                                                 >
                                                     <div className={`p-2 rounded-lg border shrink-0 transition-colors ${item.iconColor}`}>
                                                         <Icon size={14} />
                                                     </div>
                                                     <div className="flex-1 min-w-0">
-                                                        <div className="text-xs font-semibold text-slate-800 group-hover:text-indigo-600 transition-colors truncate">
+                                                        <div className="text-xs font-semibold text-slate-800 group-hover:text-blue-600 transition-colors truncate">
                                                             {item.title}
                                                         </div>
                                                         <div className="text-[11px] text-slate-500 line-clamp-2 mt-0.5 leading-snug">
@@ -1327,7 +1327,7 @@ export default function ProjectWorkspacePage({ params }: { params: Promise<{ pro
 
                                 {chatLoading && (
                                     <div className="flex items-center gap-2 text-xs font-mono text-slate-500 p-4 bg-white border border-slate-200/60 max-w-[800px] w-full mx-auto shadow-sm">
-                                        <Loader2 className="animate-spin text-indigo-600" size={14} />
+                                        <Loader2 className="animate-spin text-blue-600" size={14} />
                                         GENERATING CITATION-GROUNDED RESPONSE VIA GROQ...
                                     </div>
                                 )}
@@ -1353,7 +1353,7 @@ export default function ProjectWorkspacePage({ params }: { params: Promise<{ pro
                                             title={m.hint}
                                             className={`px-2.5 py-1 rounded-full border transition-all text-[11px] shrink-0 whitespace-nowrap active:scale-95 ${
                                                 responseMode === m.id
-                                                    ? "bg-indigo-600 text-white border-indigo-600 font-semibold shadow-xs"
+                                                    ? "bg-blue-600 text-white border-blue-600 font-semibold shadow-xs"
                                                     : "bg-white text-slate-600 border-slate-200 hover:border-slate-300 hover:bg-slate-50"
                                             }`}
                                         >
@@ -1364,8 +1364,8 @@ export default function ProjectWorkspacePage({ params }: { params: Promise<{ pro
 
                                 {/* Attached Image Preview Chip */}
                                 {attachedImage && (
-                                    <div className="max-w-[800px] mx-auto flex items-center gap-2 p-2 bg-indigo-50/80 border border-indigo-200 rounded-lg animate-in fade-in">
-                                        <div className="w-10 h-10 rounded border border-indigo-300 overflow-hidden relative shrink-0 bg-white">
+                                    <div className="max-w-[800px] mx-auto flex items-center gap-2 p-2 bg-blue-50/80 border border-blue-200 rounded-lg animate-in fade-in">
+                                        <div className="w-10 h-10 rounded border border-blue-300 overflow-hidden relative shrink-0 bg-white">
                                             <img src={attachedImage.previewUrl} alt="attachment" className="w-full h-full object-cover" />
                                         </div>
                                         <div className="flex-1 min-w-0">
@@ -1375,7 +1375,7 @@ export default function ProjectWorkspacePage({ params }: { params: Promise<{ pro
                                         <button
                                             type="button"
                                             onClick={() => setAttachedImage(null)}
-                                            className="p-1 text-slate-400 hover:text-rose-600 rounded active:scale-95"
+                                            className="p-1 text-slate-400 hover:text-blue-600 rounded active:scale-95"
                                             title="Remove attachment"
                                         >
                                             <X size={14} />
@@ -1385,7 +1385,7 @@ export default function ProjectWorkspacePage({ params }: { params: Promise<{ pro
 
                                 {/* Claude-Style Chat Input Card */}
                                 <form onSubmit={handleSendMessage} onPaste={handlePaste} className="max-w-[800px] mx-auto space-y-2">
-                                    <div className="rounded-2xl border border-slate-200/80 bg-white shadow-sm focus-within:shadow-md focus-within:border-indigo-400/80 transition-all overflow-hidden">
+                                    <div className="rounded-2xl border border-slate-200/80 bg-white shadow-sm focus-within:shadow-md focus-within:border-blue-400/80 transition-all overflow-hidden">
                                         {/* Multiline auto-expanding textarea */}
                                         <div className="p-1">
                                             <textarea
@@ -1418,7 +1418,7 @@ export default function ProjectWorkspacePage({ params }: { params: Promise<{ pro
                                                 <button 
                                                     type="button" 
                                                     onClick={() => imageInputRef.current?.click()}
-                                                    className="text-slate-500 hover:text-indigo-600 p-1.5 rounded-lg hover:bg-slate-200/60 transition-colors active:scale-95"
+                                                    className="text-slate-500 hover:text-blue-600 p-1.5 rounded-lg hover:bg-slate-200/60 transition-colors active:scale-95"
                                                     title="Attach Image / Screenshot (or paste directly with Ctrl+V)"
                                                 >
                                                     <Paperclip size={15} />
@@ -1436,7 +1436,7 @@ export default function ProjectWorkspacePage({ params }: { params: Promise<{ pro
                                                         }`}
                                                         title="Restrict queries to project knowledge dataset and sources"
                                                     >
-                                                        <BookOpen size={11} className={chatScope === "project" ? "text-indigo-600" : ""} />
+                                                        <BookOpen size={11} className={chatScope === "project" ? "text-blue-600" : ""} />
                                                         <span>Project Scope</span>
                                                     </button>
                                                     <button
@@ -1444,8 +1444,8 @@ export default function ProjectWorkspacePage({ params }: { params: Promise<{ pro
                                                         onClick={() => setChatScope("general")}
                                                         className={`px-2 py-1 text-[11px] font-medium rounded-md flex items-center gap-1 transition-all active:scale-95 ${
                                                             chatScope === "general"
-                                                                ? "bg-indigo-600 text-white shadow-xs font-medium"
-                                                                : "text-slate-600 hover:text-indigo-600"
+                                                                ? "bg-blue-600 text-white shadow-xs font-medium"
+                                                                : "text-slate-600 hover:text-blue-600"
                                                         }`}
                                                         title="Query Groq Cloud LLM for broad world knowledge"
                                                     >
@@ -1469,7 +1469,7 @@ export default function ProjectWorkspacePage({ params }: { params: Promise<{ pro
                                                 <Button
                                                     type="submit"
                                                     disabled={chatLoading || imageAnalyzing || (!input.trim() && !attachedImage)}
-                                                    className="bg-indigo-600 hover:bg-indigo-700 text-white gap-1.5 px-3.5 sm:px-4 h-8 rounded-xl font-medium text-xs active:scale-95 transition-all shadow-xs"
+                                                    className="bg-blue-600 hover:bg-blue-700 text-white gap-1.5 px-3.5 sm:px-4 h-8 rounded-xl font-medium text-xs active:scale-95 transition-all shadow-xs"
                                                 >
                                                     {imageAnalyzing ? (
                                                         <>
@@ -1516,7 +1516,7 @@ export default function ProjectWorkspacePage({ params }: { params: Promise<{ pro
                                 <div className="fixed inset-y-0 right-0 z-50 w-full sm:w-[360px] lg:static lg:z-auto lg:w-[340px] border-l border-slate-200/60 bg-white flex flex-col shrink-0 min-h-0 shadow-2xl lg:shadow-md animate-in slide-in-from-right duration-200">
                                     <div className="h-[56px] px-4 border-b border-slate-200/60 flex items-center justify-between bg-slate-50/50">
                                         <span className="text-xs font-mono font-bold text-slate-800 uppercase tracking-wider flex items-center gap-1">
-                                            <Info size={12} className="text-indigo-600" />
+                                            <Info size={12} className="text-blue-600" />
                                             Source Inspector
                                         </span>
                                         <button 
@@ -1539,7 +1539,7 @@ export default function ProjectWorkspacePage({ params }: { params: Promise<{ pro
                                         </div>
 
                                         {/* High-Fidelity Soft Mint Green Segment Box */}
-                                        <div className="p-3.5 sm:p-4 bg-emerald-500/5 border border-emerald-200/50 font-sans text-xs leading-relaxed text-emerald-800 font-medium whitespace-pre-wrap select-text rounded">
+                                        <div className="p-3.5 sm:p-4 bg-blue-500/5 border border-blue-200/50 font-sans text-xs leading-relaxed text-blue-800 font-medium whitespace-pre-wrap select-text rounded">
                                             &ldquo;{activeCitation.snippet}&rdquo;
                                         </div>
 
@@ -1553,7 +1553,7 @@ export default function ProjectWorkspacePage({ params }: { params: Promise<{ pro
                                             )}
                                             <div className="flex justify-between border-b border-slate-50 pb-1.5">
                                                 <span>CONFIDENCE MATCH</span>
-                                                <span className="text-emerald-700 font-bold">92.4%</span>
+                                                <span className="text-blue-700 font-bold">92.4%</span>
                                             </div>
                                             
                                             {activeCitation.url && (
@@ -1562,7 +1562,7 @@ export default function ProjectWorkspacePage({ params }: { params: Promise<{ pro
                                                         href={activeCitation.url}
                                                         target="_blank"
                                                         rel="noopener noreferrer"
-                                                        className="w-full flex items-center justify-center gap-1.5 border border-indigo-200 bg-indigo-500/5 hover:bg-indigo-500/10 py-2.5 text-indigo-700 text-xs font-mono font-medium transition-all rounded active:scale-95"
+                                                        className="w-full flex items-center justify-center gap-1.5 border border-blue-200 bg-blue-500/5 hover:bg-blue-500/10 py-2.5 text-blue-700 text-xs font-mono font-medium transition-all rounded active:scale-95"
                                                     >
                                                         <ExternalLink size={12} />
                                                         Visit Original Link
@@ -1584,7 +1584,7 @@ export default function ProjectWorkspacePage({ params }: { params: Promise<{ pro
                             <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 border-b border-slate-200 pb-4">
                                 <div>
                                     <h3 className="text-lg font-semibold text-slate-900 tracking-tight flex items-center gap-2">
-                                        <Brain className="text-indigo-600" size={20} />
+                                        <Brain className="text-blue-600" size={20} />
                                         ECHO — The AI That Evolves With You
                                     </h3>
                                     <p className="text-xs text-slate-500 font-mono mt-1">
@@ -1592,7 +1592,7 @@ export default function ProjectWorkspacePage({ params }: { params: Promise<{ pro
                                     </p>
                                 </div>
                                 <div className="flex items-center gap-2">
-                                    <span className="px-2.5 py-1 bg-indigo-50 border border-indigo-200 text-indigo-700 text-xs font-mono font-semibold rounded-full flex items-center gap-1">
+                                    <span className="px-2.5 py-1 bg-blue-50 border border-blue-200 text-blue-700 text-xs font-mono font-semibold rounded-full flex items-center gap-1">
                                         <Sparkles size={12} />
                                         {echoMemories.length} Active Memories
                                     </span>
@@ -1655,7 +1655,7 @@ export default function ProjectWorkspacePage({ params }: { params: Promise<{ pro
                                         />
                                     </div>
                                     <div className="sm:col-span-1">
-                                        <Button type="submit" className="w-full h-9 bg-indigo-600 hover:bg-indigo-700 text-white text-xs">
+                                        <Button type="submit" className="w-full h-9 bg-blue-600 hover:bg-blue-700 text-white text-xs">
                                             Add
                                         </Button>
                                     </div>
@@ -1666,7 +1666,7 @@ export default function ProjectWorkspacePage({ params }: { params: Promise<{ pro
                             {echoLoading ? (
                                 <div className="h-48 bg-white border border-slate-200 flex items-center justify-center">
                                     <div className="flex items-center gap-2 text-xs font-mono text-slate-500">
-                                        <Loader2 className="animate-spin text-indigo-600" size={16} />
+                                        <Loader2 className="animate-spin text-blue-600" size={16} />
                                         Loading Living Memory Graph...
                                     </div>
                                 </div>
@@ -1679,10 +1679,10 @@ export default function ProjectWorkspacePage({ params }: { params: Promise<{ pro
                             ) : (
                                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                                     {echoMemories.map((m, idx) => (
-                                        <Card key={m.id || idx} className="p-4 border border-slate-200/80 bg-white hover:border-indigo-300 transition-all flex flex-col justify-between">
+                                        <Card key={m.id || idx} className="p-4 border border-slate-200/80 bg-white hover:border-blue-300 transition-all flex flex-col justify-between">
                                             <div className="space-y-2">
                                                 <div className="flex items-center justify-between">
-                                                    <Badge variant="secondary" className="text-[10px] font-mono capitalize border-indigo-200 text-indigo-700 bg-indigo-50/50">
+                                                    <Badge variant="secondary" className="text-[10px] font-mono capitalize border-blue-200 text-blue-700 bg-blue-50/50">
                                                         {m.category || "fact"}
                                                     </Badge>
                                                     <button
@@ -1694,7 +1694,7 @@ export default function ProjectWorkspacePage({ params }: { params: Promise<{ pro
                                                                 console.error("Delete memory failed:", err);
                                                             }
                                                         }}
-                                                        className="text-slate-400 hover:text-red-600 transition-colors p-1"
+                                                        className="text-slate-400 hover:text-blue-600 transition-colors p-1"
                                                         title="Delete this memory"
                                                     >
                                                         <Trash2 size={13} />
@@ -1721,7 +1721,7 @@ export default function ProjectWorkspacePage({ params }: { params: Promise<{ pro
                             <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 border-b border-slate-200 pb-4">
                                 <div>
                                     <h3 className="text-lg font-semibold text-slate-900 tracking-tight flex items-center gap-2">
-                                        <Compass className="text-indigo-600" size={20} />
+                                        <Compass className="text-blue-600" size={20} />
                                         MINDSPACE — The Conversation You Can Explore
                                     </h3>
                                     <p className="text-xs text-slate-500 font-mono mt-1">
@@ -1753,7 +1753,7 @@ export default function ProjectWorkspacePage({ params }: { params: Promise<{ pro
                             {mindspaceLoading ? (
                                 <div className="h-[450px] bg-white border border-slate-200 flex items-center justify-center">
                                     <div className="flex flex-col items-center gap-2 text-xs font-mono text-slate-500">
-                                        <Loader2 className="animate-spin text-indigo-600" size={24} />
+                                        <Loader2 className="animate-spin text-blue-600" size={24} />
                                         Synthesizing MINDSPACE Thought Nodes & Evidence...
                                     </div>
                                 </div>
@@ -1780,7 +1780,7 @@ export default function ProjectWorkspacePage({ params }: { params: Promise<{ pro
                                                     onClick={() => setSelectedMindNode(node)}
                                                     className={`p-4 border transition-all cursor-pointer relative overflow-hidden ${
                                                         selectedMindNode?.id === node.id
-                                                            ? "border-indigo-600 bg-indigo-50/20 shadow-sm ring-1 ring-indigo-400"
+                                                            ? "border-blue-600 bg-blue-50/20 shadow-sm ring-1 ring-blue-400"
                                                             : "border-slate-200 bg-white hover:border-slate-300 hover:shadow-xs"
                                                     }`}
                                                 >
@@ -1789,7 +1789,7 @@ export default function ProjectWorkspacePage({ params }: { params: Promise<{ pro
                                                             <Badge variant="secondary" className="text-[10px] font-mono capitalize border-slate-200">
                                                                 {node.category || "Concept"}
                                                             </Badge>
-                                                            <span className="text-[10px] font-mono text-emerald-700 bg-emerald-50 px-1.5 py-0.5 rounded border border-emerald-200">
+                                                            <span className="text-[10px] font-mono text-blue-700 bg-blue-50 px-1.5 py-0.5 rounded border border-blue-200">
                                                                 {node.evidence_count || 1} cited sources
                                                             </span>
                                                         </div>
@@ -1813,7 +1813,7 @@ export default function ProjectWorkspacePage({ params }: { params: Promise<{ pro
                                                 <div className="space-y-2 max-h-48 overflow-y-auto">
                                                     {mindspaceData.edges.map((edge, eIdx) => (
                                                         <div key={edge.id || eIdx} className="flex items-center text-xs font-mono text-slate-600 bg-slate-50 px-3 py-1.5 border border-slate-100 gap-2">
-                                                            <span className="font-semibold text-indigo-700">{edge.source}</span>
+                                                            <span className="font-semibold text-blue-700">{edge.source}</span>
                                                             <span className="text-slate-400 text-[10px]">&mdash; [{edge.relation}] &rarr;</span>
                                                             <span className="font-semibold text-slate-800">{edge.target}</span>
                                                         </div>
@@ -1826,9 +1826,9 @@ export default function ProjectWorkspacePage({ params }: { params: Promise<{ pro
                                     {/* Right: Selected Node Evidence & Branch Inspector */}
                                     <div className="lg:col-span-4">
                                         {selectedMindNode ? (
-                                            <Card className="p-5 border border-indigo-200 bg-white shadow-sm space-y-4 sticky top-6">
+                                            <Card className="p-5 border border-blue-200 bg-white shadow-sm space-y-4 sticky top-6">
                                                 <div className="border-b border-slate-100 pb-3">
-                                                    <span className="text-[10px] font-mono text-indigo-600 uppercase font-bold tracking-wider">
+                                                    <span className="text-[10px] font-mono text-blue-600 uppercase font-bold tracking-wider">
                                                         Node Inspector & Evidence
                                                     </span>
                                                     <h4 className="text-base font-bold text-slate-900 tracking-tight mt-1">
@@ -1850,7 +1850,7 @@ export default function ProjectWorkspacePage({ params }: { params: Promise<{ pro
                                                             setInput(`Explore deeper evidence and implications about '${selectedMindNode.label}'`);
                                                             setActiveTab("chat");
                                                         }}
-                                                        className="w-full bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-mono gap-1.5 h-9"
+                                                        className="w-full bg-blue-600 hover:bg-blue-700 text-white text-xs font-mono gap-1.5 h-9"
                                                     >
                                                         <GitBranch size={13} />
                                                         Branch Idea Into Chat
@@ -1885,7 +1885,7 @@ export default function ProjectWorkspacePage({ params }: { params: Promise<{ pro
                             <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 border-b border-slate-200 pb-4">
                                 <div>
                                     <h3 className="text-lg font-semibold text-slate-900 tracking-tight flex items-center gap-2">
-                                        <Hammer className="text-indigo-600" size={20} />
+                                        <Hammer className="text-blue-600" size={20} />
                                         FORGE — The AI That Builds While You Talk
                                     </h3>
                                     <p className="text-xs text-slate-500 font-mono mt-1">
@@ -1895,7 +1895,7 @@ export default function ProjectWorkspacePage({ params }: { params: Promise<{ pro
                                 <div className="flex items-center gap-2">
                                     <Button
                                         onClick={() => setCanvasOpen(true)}
-                                        className="h-8 text-xs font-mono gap-1.5 bg-indigo-600 hover:bg-indigo-700 text-white"
+                                        className="h-8 text-xs font-mono gap-1.5 bg-blue-600 hover:bg-blue-700 text-white"
                                     >
                                         <LayoutTemplate size={12} />
                                         Open Floating Canvas
@@ -1911,10 +1911,10 @@ export default function ProjectWorkspacePage({ params }: { params: Promise<{ pro
                                         setResponseMode("builder");
                                         setActiveTab("chat");
                                     }}
-                                    className="p-4 border border-slate-200 hover:border-indigo-400 bg-white transition-all cursor-pointer shadow-xs group"
+                                    className="p-4 border border-slate-200 hover:border-blue-400 bg-white transition-all cursor-pointer shadow-xs group"
                                 >
-                                    <span className="text-[10px] font-mono font-bold text-indigo-600 uppercase tracking-wider block mb-1">Builder Tool</span>
-                                    <h4 className="text-sm font-semibold text-slate-900 group-hover:text-indigo-600 transition-colors">Launch Plan & Checklist</h4>
+                                    <span className="text-[10px] font-mono font-bold text-blue-600 uppercase tracking-wider block mb-1">Builder Tool</span>
+                                    <h4 className="text-sm font-semibold text-slate-900 group-hover:text-blue-600 transition-colors">Launch Plan & Checklist</h4>
                                     <p className="text-xs text-slate-500 mt-1">Generates an interactive markdown task list with progress tracking.</p>
                                 </Card>
 
@@ -1924,10 +1924,10 @@ export default function ProjectWorkspacePage({ params }: { params: Promise<{ pro
                                         setResponseMode("brutal_review");
                                         setActiveTab("chat");
                                     }}
-                                    className="p-4 border border-slate-200 hover:border-indigo-400 bg-white transition-all cursor-pointer shadow-xs group"
+                                    className="p-4 border border-slate-200 hover:border-blue-400 bg-white transition-all cursor-pointer shadow-xs group"
                                 >
-                                    <span className="text-[10px] font-mono font-bold text-amber-600 uppercase tracking-wider block mb-1">Audit Tool</span>
-                                    <h4 className="text-sm font-semibold text-slate-900 group-hover:text-amber-600 transition-colors">Risk Pre-Mortem Audit</h4>
+                                    <span className="text-[10px] font-mono font-bold text-blue-600 uppercase tracking-wider block mb-1">Audit Tool</span>
+                                    <h4 className="text-sm font-semibold text-slate-900 group-hover:text-blue-600 transition-colors">Risk Pre-Mortem Audit</h4>
                                     <p className="text-xs text-slate-500 mt-1">Stresses system assumptions and pinpoints vulnerabilities.</p>
                                 </Card>
 
@@ -1937,10 +1937,10 @@ export default function ProjectWorkspacePage({ params }: { params: Promise<{ pro
                                         setResponseMode("decision_tree");
                                         setActiveTab("chat");
                                     }}
-                                    className="p-4 border border-slate-200 hover:border-indigo-400 bg-white transition-all cursor-pointer shadow-xs group"
+                                    className="p-4 border border-slate-200 hover:border-blue-400 bg-white transition-all cursor-pointer shadow-xs group"
                                 >
-                                    <span className="text-[10px] font-mono font-bold text-emerald-600 uppercase tracking-wider block mb-1">Logic Tool</span>
-                                    <h4 className="text-sm font-semibold text-slate-900 group-hover:text-emerald-600 transition-colors">Decision Tree Builder</h4>
+                                    <span className="text-[10px] font-mono font-bold text-blue-600 uppercase tracking-wider block mb-1">Logic Tool</span>
+                                    <h4 className="text-sm font-semibold text-slate-900 group-hover:text-blue-600 transition-colors">Decision Tree Builder</h4>
                                     <p className="text-xs text-slate-500 mt-1">Maps conditional branching scenarios based on constraints.</p>
                                 </Card>
                             </div>
@@ -1950,7 +1950,7 @@ export default function ProjectWorkspacePage({ params }: { params: Promise<{ pro
                                 <div className="flex flex-wrap items-center justify-between border-b border-slate-100 pb-3 gap-2">
                                     <div className="flex items-center gap-2">
                                         <span className="text-xs font-mono font-bold text-slate-700 uppercase tracking-wider flex items-center gap-1.5">
-                                            <LayoutTemplate size={14} className="text-indigo-600" />
+                                            <LayoutTemplate size={14} className="text-blue-600" />
                                             Active Deliverable Draft & Working Notes
                                         </span>
                                         <span className="text-[10px] font-mono text-slate-400">• Auto-saved</span>
@@ -1959,7 +1959,7 @@ export default function ProjectWorkspacePage({ params }: { params: Promise<{ pro
                                         <Button
                                             onClick={() => handleRunPythonCode()}
                                             disabled={codeRunning || !canvasContent.trim()}
-                                            className="h-7 text-xs font-mono gap-1.5 bg-emerald-600 hover:bg-emerald-700 text-white px-3"
+                                            className="h-7 text-xs font-mono gap-1.5 bg-blue-600 hover:bg-blue-700 text-white px-3"
                                             title="Safely run calculations or script in isolated Python 3.11 sandbox"
                                         >
                                             {codeRunning ? (
@@ -1980,7 +1980,7 @@ export default function ProjectWorkspacePage({ params }: { params: Promise<{ pro
                                     value={canvasContent}
                                     onChange={(e) => setCanvasContent(e.target.value)}
                                     placeholder="# FORGE Working Artifact&#10;&#10;Type, edit, or copy generated specifications, calculations, or Python code here...&#10;&#10;Example:&#10;import math&#10;print(f'Total Combinations: {math.comb(10, 3)}')"
-                                    className="w-full h-80 p-4 border border-slate-200 font-mono text-[16px] sm:text-xs text-slate-800 rounded bg-slate-50/50 focus:bg-white focus:outline-none focus:border-indigo-500 resize-none leading-relaxed"
+                                    className="w-full h-80 p-4 border border-slate-200 font-mono text-[16px] sm:text-xs text-slate-800 rounded bg-slate-50/50 focus:bg-white focus:outline-none focus:border-blue-500 resize-none leading-relaxed"
                                 />
 
                                 {/* Python Sandbox Output Console Cell */}
@@ -1988,13 +1988,13 @@ export default function ProjectWorkspacePage({ params }: { params: Promise<{ pro
                                     <div className="p-4 bg-slate-950 text-slate-100 rounded-lg border border-slate-800 font-mono text-xs space-y-2 animate-in fade-in">
                                         <div className="flex items-center justify-between border-b border-slate-800 pb-2">
                                             <div className="flex items-center gap-2">
-                                                <Terminal size={14} className="text-emerald-400" />
-                                                <span className="text-[11px] font-bold text-emerald-400">PYTHON 3.11 EXECUTION RESULT</span>
+                                                <Terminal size={14} className="text-blue-400" />
+                                                <span className="text-[11px] font-bold text-blue-400">PYTHON 3.11 EXECUTION RESULT</span>
                                                 <span className="text-[10px] text-slate-400">({codeOutput.duration_ms}ms)</span>
                                             </div>
                                             <div className="flex items-center gap-2">
                                                 <span className={`text-[9px] px-1.5 py-0.5 rounded font-bold uppercase ${
-                                                    codeOutput.returncode === 0 ? "bg-emerald-500/20 text-emerald-400" : "bg-rose-500/20 text-rose-400"
+                                                    codeOutput.returncode === 0 ? "bg-blue-500/20 text-blue-400" : "bg-blue-500/20 text-blue-400"
                                                 }`}>
                                                     {codeOutput.returncode === 0 ? "Success" : "Exit Code " + codeOutput.returncode}
                                                 </span>
@@ -2009,15 +2009,15 @@ export default function ProjectWorkspacePage({ params }: { params: Promise<{ pro
                                         {codeOutput.stdout && (
                                             <div>
                                                 <div className="text-[10px] text-slate-400 uppercase font-bold tracking-wider mb-1">Standard Output:</div>
-                                                <pre className="text-emerald-300 whitespace-pre-wrap select-all font-mono text-xs bg-slate-900/60 p-2.5 rounded border border-slate-800/80">
+                                                <pre className="text-blue-300 whitespace-pre-wrap select-all font-mono text-xs bg-slate-900/60 p-2.5 rounded border border-slate-800/80">
                                                     {codeOutput.stdout}
                                                 </pre>
                                             </div>
                                         )}
                                         {codeOutput.stderr && (
                                             <div>
-                                                <div className="text-[10px] text-rose-400 uppercase font-bold tracking-wider mb-1">Standard Error:</div>
-                                                <pre className="text-rose-300 whitespace-pre-wrap select-all font-mono text-xs bg-rose-950/30 p-2.5 rounded border border-rose-900/40">
+                                                <div className="text-[10px] text-blue-400 uppercase font-bold tracking-wider mb-1">Standard Error:</div>
+                                                <pre className="text-blue-300 whitespace-pre-wrap select-all font-mono text-xs bg-blue-950/30 p-2.5 rounded border border-blue-900/40">
                                                     {codeOutput.stderr}
                                                 </pre>
                                             </div>
@@ -2036,7 +2036,7 @@ export default function ProjectWorkspacePage({ params }: { params: Promise<{ pro
                             <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 border-b border-slate-200 pb-4">
                                 <div>
                                     <h3 className="text-lg font-semibold text-slate-900 tracking-tight flex items-center gap-2">
-                                        <Network className="text-indigo-600" size={20} />
+                                        <Network className="text-blue-600" size={20} />
                                         Neo4j Knowledge Graph & Entity Explorer
                                     </h3>
                                     <p className="text-xs text-slate-500 font-mono mt-0.5">
@@ -2044,13 +2044,13 @@ export default function ProjectWorkspacePage({ params }: { params: Promise<{ pro
                                     </p>
                                 </div>
                                 <div className="flex items-center gap-2">
-                                    <span className="px-2.5 py-1 bg-indigo-50 border border-indigo-200 text-indigo-700 text-xs font-mono font-semibold rounded-full flex items-center gap-1.5">
+                                    <span className="px-2.5 py-1 bg-blue-50 border border-blue-200 text-blue-700 text-xs font-mono font-semibold rounded-full flex items-center gap-1.5">
                                         <Sparkles size={12} />
                                         {graphData?.nodes?.length || 0} Entities • {graphData?.links?.length || 0} Relations
                                     </span>
                                     <button
                                         onClick={() => setWhatIfOpen(true)}
-                                        className="px-3 py-1 bg-amber-500 hover:bg-amber-600 text-white text-xs font-mono font-semibold rounded-full flex items-center gap-1.5 shadow-sm transition-colors cursor-pointer"
+                                        className="px-3 py-1 bg-blue-500 hover:bg-blue-600 text-white text-xs font-mono font-semibold rounded-full flex items-center gap-1.5 shadow-sm transition-colors cursor-pointer"
                                     >
                                         <Activity size={12} />
                                         Causal "What-If?" Simulator
@@ -2068,7 +2068,7 @@ export default function ProjectWorkspacePage({ params }: { params: Promise<{ pro
                                             placeholder="Search entities, professors, departments, labs..."
                                             value={graphSearchQuery}
                                             onChange={(e) => setGraphSearchQuery(e.target.value)}
-                                            className="w-full pl-8 pr-3 py-1.5 text-base sm:text-xs font-mono border border-slate-200 rounded focus:outline-none focus:border-indigo-500 bg-slate-50/50"
+                                            className="w-full pl-8 pr-3 py-1.5 text-base sm:text-xs font-mono border border-slate-200 rounded focus:outline-none focus:border-blue-500 bg-slate-50/50"
                                         />
                                     </div>
                                     {graphSearchQuery && (
@@ -2114,7 +2114,7 @@ export default function ProjectWorkspacePage({ params }: { params: Promise<{ pro
                             {graphLoading ? (
                                 <div className="h-[520px] bg-white border border-slate-200 flex items-center justify-center">
                                     <div className="flex flex-col items-center gap-2">
-                                        <Loader2 className="animate-spin text-indigo-600" size={28} />
+                                        <Loader2 className="animate-spin text-blue-600" size={28} />
                                         <span className="text-xs font-mono text-slate-500">Extracting entity relations and Cypher hierarchy...</span>
                                     </div>
                                 </div>
@@ -2140,10 +2140,10 @@ export default function ProjectWorkspacePage({ params }: { params: Promise<{ pro
                                                         <path d="M 0 1 L 10 5 L 0 9 z" fill="#94a3b8" />
                                                     </marker>
                                                     <filter id="node-glow" x="-20%" y="-20%" width="140%" height="140%">
-                                                        <feDropShadow dx="0" dy="0" stdDeviation="3" floodColor="#4f46e5" floodOpacity="0.5" />
+                                                        <feDropShadow dx="0" dy="0" stdDeviation="3" floodColor="#1d4ed8" floodOpacity="0.5" />
                                                     </filter>
                                                     <filter id="select-glow" x="-20%" y="-20%" width="140%" height="140%">
-                                                        <feDropShadow dx="0" dy="0" stdDeviation="4" floodColor="#f59e0b" floodOpacity="0.8" />
+                                                        <feDropShadow dx="0" dy="0" stdDeviation="4" floodColor="#60a5fa" floodOpacity="0.8" />
                                                     </filter>
                                                 </defs>
 
@@ -2209,7 +2209,7 @@ export default function ProjectWorkspacePage({ params }: { params: Promise<{ pro
                                                                         y1={srcPos.y}
                                                                         x2={tgtPos.x}
                                                                         y2={tgtPos.y}
-                                                                        stroke={isConnectedToSelected ? "#4f46e5" : "#cbd5e1"}
+                                                                        stroke={isConnectedToSelected ? "#1d4ed8" : "#cbd5e1"}
                                                                         strokeWidth={isConnectedToSelected ? "2.5" : "1.2"}
                                                                         strokeDasharray={link.type === "MENTIONS" ? "3 3" : undefined}
                                                                         markerEnd="url(#graph-arrow)"
@@ -2221,7 +2221,7 @@ export default function ProjectWorkspacePage({ params }: { params: Promise<{ pro
                                                                         y={(srcPos.y + tgtPos.y) / 2 - 3}
                                                                         fontSize="7.5"
                                                                         fontFamily="monospace"
-                                                                        fill={isConnectedToSelected ? "#312e81" : "#94a3b8"}
+                                                                        fill={isConnectedToSelected ? "#1e3a8a" : "#94a3b8"}
                                                                         fontWeight={isConnectedToSelected ? "bold" : "normal"}
                                                                         textAnchor="middle"
                                                                     >
@@ -2247,13 +2247,13 @@ export default function ProjectWorkspacePage({ params }: { params: Promise<{ pro
                                                                 (n.group && n.group.toLowerCase().includes(graphSearchQuery.toLowerCase()));
 
                                                             const radius = isProject ? 22 : isCategory ? 16 : isPage ? 12 : 10;
-                                                            const fill = isProject 
-                                                                ? "#4f46e5" 
-                                                                : isCategory 
-                                                                ? "#059669" 
-                                                                : isPage 
-                                                                ? "#0284c7" 
-                                                                : "#7c3aed";
+                                                            const fill = isProject
+                                                                ? "#1d4ed8"
+                                                                : isCategory
+                                                                ? "#1d4ed8"
+                                                                : isPage
+                                                                ? "#0284c7"
+                                                                : "#1e40af";
 
                                                             return (
                                                                 <g
@@ -2271,7 +2271,7 @@ export default function ProjectWorkspacePage({ params }: { params: Promise<{ pro
                                                                             cy={pos.y}
                                                                             r={radius + 6}
                                                                             fill="none"
-                                                                            stroke="#f59e0b"
+                                                                            stroke="#60a5fa"
                                                                             strokeWidth="3.5"
                                                                             strokeDasharray="4 2"
                                                                             className="animate-spin-slow"
@@ -2311,7 +2311,7 @@ export default function ProjectWorkspacePage({ params }: { params: Promise<{ pro
                                                                         fontSize="8.5"
                                                                         fontFamily="monospace"
                                                                         fontWeight={isSelected ? "bold" : "600"}
-                                                                        fill={isSelected ? "#1e1b4b" : "#334155"}
+                                                                        fill={isSelected ? "#1e3a8a" : "#334155"}
                                                                         className="drop-shadow-[0_1px_1px_rgba(255,255,255,0.9)] select-none pointer-events-none"
                                                                     >
                                                                         {n.id.length > 18 ? `${n.id.substring(0, 16)}...` : n.id}
@@ -2334,10 +2334,10 @@ export default function ProjectWorkspacePage({ params }: { params: Promise<{ pro
                                         {/* Legend Footer */}
                                         <div className="w-full mt-3 flex flex-wrap items-center justify-between gap-3 text-xs font-mono text-slate-500 border-t border-slate-100 pt-3">
                                             <div className="flex items-center gap-4">
-                                                <div className="flex items-center gap-1.5"><div className="w-3 h-3 rounded-full bg-indigo-600 shadow-xs" /> Core Project</div>
-                                                <div className="flex items-center gap-1.5"><div className="w-3 h-3 rounded-full bg-emerald-600 shadow-xs" /> Category Hub</div>
+                                                <div className="flex items-center gap-1.5"><div className="w-3 h-3 rounded-full bg-blue-600 shadow-xs" /> Core Project</div>
+                                                <div className="flex items-center gap-1.5"><div className="w-3 h-3 rounded-full bg-blue-600 shadow-xs" /> Category Hub</div>
                                                 <div className="flex items-center gap-1.5"><div className="w-3 h-3 rounded-full bg-sky-600 shadow-xs" /> Crawled Page</div>
-                                                <div className="flex items-center gap-1.5"><div className="w-3 h-3 rounded-full bg-violet-600 shadow-xs" /> Named Entity</div>
+                                                <div className="flex items-center gap-1.5"><div className="w-3 h-3 rounded-full bg-blue-600 shadow-xs" /> Named Entity</div>
                                             </div>
                                             <span className="text-[10px] text-slate-400">Click any node to open deep inspector</span>
                                         </div>
@@ -2346,10 +2346,10 @@ export default function ProjectWorkspacePage({ params }: { params: Promise<{ pro
                                     {/* Column 3: Interactive Node Inspector Drawer */}
                                     <div className="space-y-4">
                                         {selectedGraphNode ? (
-                                            <Card className="p-5 border border-indigo-200 bg-white shadow-md space-y-4 animate-in slide-in-from-right duration-200">
+                                            <Card className="p-5 border border-blue-200 bg-white shadow-md space-y-4 animate-in slide-in-from-right duration-200">
                                                 <div className="flex items-start justify-between border-b border-slate-100 pb-3">
                                                     <div>
-                                                        <span className="text-[10px] font-mono uppercase px-2 py-0.5 rounded font-bold tracking-wider bg-indigo-50 text-indigo-700 border border-indigo-200">
+                                                        <span className="text-[10px] font-mono uppercase px-2 py-0.5 rounded font-bold tracking-wider bg-blue-50 text-blue-700 border border-blue-200">
                                                             {selectedGraphNode.type || "Entity"}
                                                         </span>
                                                         <h4 className="text-sm font-bold text-slate-900 mt-1 leading-snug break-words">
@@ -2382,7 +2382,7 @@ export default function ProjectWorkspacePage({ params }: { params: Promise<{ pro
                                                             <div className="space-y-2 pt-1">
                                                                 <div className="flex justify-between items-center text-[11px] text-slate-400">
                                                                     <span>CONNECTED RELATIONS</span>
-                                                                    <span className="font-bold text-indigo-600 bg-indigo-50 px-1.5 py-0.5 rounded">
+                                                                    <span className="font-bold text-blue-600 bg-blue-50 px-1.5 py-0.5 rounded">
                                                                         {connected.length} links
                                                                     </span>
                                                                 </div>
@@ -2397,12 +2397,12 @@ export default function ProjectWorkspacePage({ params }: { params: Promise<{ pro
                                                                                     const partnerNode = graphData.nodes.find(n => n.id === partner);
                                                                                     if (partnerNode) setSelectedGraphNode(partnerNode);
                                                                                 }}
-                                                                                className="p-2 border border-slate-100 bg-slate-50/80 hover:bg-indigo-50/50 hover:border-indigo-200 cursor-pointer rounded transition-all text-[11px] flex items-center justify-between"
+                                                                                className="p-2 border border-slate-100 bg-slate-50/80 hover:bg-blue-50/50 hover:border-blue-200 cursor-pointer rounded transition-all text-[11px] flex items-center justify-between"
                                                                             >
                                                                                 <span className="text-slate-700 truncate font-sans font-medium flex-1">
                                                                                     {partner}
                                                                                 </span>
-                                                                                <span className="text-[9px] font-mono uppercase text-indigo-600 bg-white px-1.5 py-0.5 border border-indigo-100 rounded ml-2 shrink-0">
+                                                                                <span className="text-[9px] font-mono uppercase text-blue-600 bg-white px-1.5 py-0.5 border border-blue-100 rounded ml-2 shrink-0">
                                                                                     {conn.type} {isOutgoing ? "→" : "←"}
                                                                                 </span>
                                                                             </div>
@@ -2420,7 +2420,7 @@ export default function ProjectWorkspacePage({ params }: { params: Promise<{ pro
                                                                 href={selectedGraphNode.url}
                                                                 target="_blank"
                                                                 rel="noopener noreferrer"
-                                                                className="w-full flex items-center justify-center gap-1.5 border border-slate-200 bg-slate-50 hover:bg-slate-100 py-2 text-indigo-700 text-xs font-mono font-medium rounded transition-all"
+                                                                className="w-full flex items-center justify-center gap-1.5 border border-slate-200 bg-slate-50 hover:bg-slate-100 py-2 text-blue-700 text-xs font-mono font-medium rounded transition-all"
                                                             >
                                                                 <ExternalLink size={12} />
                                                                 Visit Associated URL
@@ -2436,7 +2436,7 @@ export default function ProjectWorkspacePage({ params }: { params: Promise<{ pro
                                                             setInput(`Provide a detailed analysis of '${selectedGraphNode.id}' based on the indexed documents.`);
                                                             setActiveTab("chat");
                                                         }}
-                                                        className="w-full bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-mono gap-1.5 h-9 rounded"
+                                                        className="w-full bg-blue-600 hover:bg-blue-700 text-white text-xs font-mono gap-1.5 h-9 rounded"
                                                     >
                                                         <Send size={12} />
                                                         Ask AI About This Entity
@@ -2494,7 +2494,7 @@ export default function ProjectWorkspacePage({ params }: { params: Promise<{ pro
                                 <div className="space-y-4">
                                     {contradictions.map((c, idx) => (
                                         <Card key={idx} className="rounded-none border border-slate-200 bg-white p-5 shadow-sm space-y-3">
-                                            <div className="flex items-center gap-2 text-xs font-mono text-amber-700 bg-amber-500/10 px-2.5 py-1 border border-amber-200/50 w-fit">
+                                            <div className="flex items-center gap-2 text-xs font-mono text-blue-700 bg-blue-500/10 px-2.5 py-1 border border-blue-200/50 w-fit">
                                                 <AlertOctagon size={12} />
                                                 CONFLICT DETECTED: {c.claim_type.toUpperCase()}
                                             </div>
@@ -2507,18 +2507,18 @@ export default function ProjectWorkspacePage({ params }: { params: Promise<{ pro
                                                 ))}
                                             </div>
                                             <div className="border-t border-slate-100 pt-3 text-xs text-slate-500 leading-normal flex items-start gap-1.5 font-mono">
-                                                <span className="text-indigo-600 font-bold uppercase shrink-0">Resolution Hint:</span>
+                                                <span className="text-blue-600 font-bold uppercase shrink-0">Resolution Hint:</span>
                                                 {c.resolution_hint}
                                             </div>
                                         </Card>
                                     ))}
                                 </div>
                             ) : (
-                                <div className="p-8 border border-emerald-200 bg-emerald-500/5 text-emerald-800 flex flex-col items-center justify-center text-center gap-3">
-                                    <CheckCircle2 className="text-emerald-600" size={32} />
+                                <div className="p-8 border border-blue-200 bg-blue-500/5 text-blue-800 flex flex-col items-center justify-center text-center gap-3">
+                                    <CheckCircle2 className="text-blue-600" size={32} />
                                     <div>
                                         <h4 className="text-sm font-semibold tracking-tight">No contradictions found</h4>
-                                        <p className="text-xs text-emerald-600 font-mono mt-0.5">All crawled claims and technical specs appear fully consistent across portals.</p>
+                                        <p className="text-xs text-blue-600 font-mono mt-0.5">All crawled claims and technical specs appear fully consistent across portals.</p>
                                     </div>
                                 </div>
                             )}
@@ -2544,8 +2544,8 @@ export default function ProjectWorkspacePage({ params }: { params: Promise<{ pro
                                     {changes.map((c, idx) => (
                                         <div key={idx} className="relative space-y-2 pb-6">
                                             {/* Node point */}
-                                            <div className="absolute -left-[31px] top-1 bg-white border border-indigo-600 rounded-full p-1 shadow-sm">
-                                                <RefreshCw size={10} className="text-indigo-600 animate-spin-slow" />
+                                            <div className="absolute -left-[31px] top-1 bg-white border border-blue-600 rounded-full p-1 shadow-sm">
+                                                <RefreshCw size={10} className="text-blue-600 animate-spin-slow" />
                                             </div>
                                             <div className="text-[10px] font-mono text-slate-400">
                                                 {new Date(c.crawled_at).toLocaleString()}
@@ -2553,7 +2553,7 @@ export default function ProjectWorkspacePage({ params }: { params: Promise<{ pro
                                             <Card className="rounded-none border border-slate-200 bg-white p-4 shadow-sm space-y-2">
                                                 <div className="flex items-center gap-2">
                                                     <span className={`text-[9px] font-mono uppercase px-2 py-0.5 ${
-                                                        c.type === "modified" ? "bg-amber-500/10 text-amber-700" : "bg-emerald-500/10 text-emerald-700"
+                                                        c.type === "modified" ? "bg-blue-500/10 text-blue-700" : "bg-blue-500/10 text-blue-700"
                                                     }`}>
                                                         {c.type}
                                                     </span>
@@ -2601,7 +2601,7 @@ export default function ProjectWorkspacePage({ params }: { params: Promise<{ pro
                                             </div>
                                             <div className="border border-slate-100 p-3 bg-slate-50/50">
                                                 <div className="text-[10px] font-mono text-slate-400 uppercase font-bold">BROKEN LINKS</div>
-                                                <div className={`text-xl font-bold mt-1 ${health.metrics.broken_links_count > 0 ? "text-red-500" : "text-slate-900"}`}>{health.metrics.broken_links_count}</div>
+                                                <div className={`text-xl font-bold mt-1 ${health.metrics.broken_links_count > 0 ? "text-blue-500" : "text-slate-900"}`}>{health.metrics.broken_links_count}</div>
                                             </div>
                                             <div className="border border-slate-100 p-3 bg-slate-50/50">
                                                 <div className="text-[10px] font-mono text-slate-400 uppercase font-bold">MISSING METADATA</div>
@@ -2615,7 +2615,7 @@ export default function ProjectWorkspacePage({ params }: { params: Promise<{ pro
                                         
                                         {health.broken_links.length > 0 ? (
                                             <div className="space-y-2 border-t border-slate-100 pt-3">
-                                                <div className="text-[10px] font-mono text-red-500 uppercase font-bold flex items-center gap-1"><AlertTriangle size={10}/> Broken URLs (Top 5)</div>
+                                                <div className="text-[10px] font-mono text-blue-500 uppercase font-bold flex items-center gap-1"><AlertTriangle size={10}/> Broken URLs (Top 5)</div>
                                                 <div className="space-y-1">
                                                     {health.broken_links.map((link: string, i: number) => (
                                                         <div key={i} className="text-[11px] font-mono text-slate-600 truncate">{link}</div>
@@ -2623,8 +2623,8 @@ export default function ProjectWorkspacePage({ params }: { params: Promise<{ pro
                                                 </div>
                                             </div>
                                         ) : (
-                                            <div className="text-xs text-emerald-700 bg-emerald-500/10 p-3 border border-emerald-100/50 text-center font-mono flex items-center justify-center gap-1.5">
-                                                <CheckCircle2 size={13} className="text-emerald-600" />
+                                            <div className="text-xs text-blue-700 bg-blue-500/10 p-3 border border-blue-100/50 text-center font-mono flex items-center justify-center gap-1.5">
+                                                <CheckCircle2 size={13} className="text-blue-600" />
                                                 <span>0 broken link errors detected.</span>
                                             </div>
                                         )}
@@ -2640,7 +2640,7 @@ export default function ProjectWorkspacePage({ params }: { params: Promise<{ pro
                                                         <div className="flex justify-between items-center">
                                                             <span className="text-xs font-bold text-slate-900 font-mono">{g.missing_area}</span>
                                                             <span className={`text-[9px] font-mono uppercase px-1.5 py-0.5 ${
-                                                                g.importance === "High" ? "bg-red-500/10 text-red-700" : "bg-amber-500/10 text-amber-700"
+                                                                g.importance === "High" ? "bg-blue-500/10 text-blue-700" : "bg-blue-500/10 text-blue-700"
                                                             }`}>{g.importance} Gap</span>
                                                         </div>
                                                         <p className="text-xs text-slate-600 leading-normal">{g.description}</p>
@@ -2674,7 +2674,7 @@ export default function ProjectWorkspacePage({ params }: { params: Promise<{ pro
                                     <select
                                         value={reportType}
                                         onChange={(e) => setReportType(e.target.value)}
-                                        className="h-9 px-3 border border-slate-200 bg-white text-base sm:text-xs font-mono focus:border-indigo-600 focus:outline-none rounded flex-1 sm:flex-initial"
+                                        className="h-9 px-3 border border-slate-200 bg-white text-base sm:text-xs font-mono focus:border-blue-600 focus:outline-none rounded flex-1 sm:flex-initial"
                                     >
                                         <option value="technical">Technical Report</option>
                                         <option value="executive">Executive Summary</option>
@@ -2684,7 +2684,7 @@ export default function ProjectWorkspacePage({ params }: { params: Promise<{ pro
                                     <Button
                                         onClick={() => handleGenerateReport(false)}
                                         disabled={reportLoading}
-                                        className="bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-mono rounded px-4 h-9 gap-1"
+                                        className="bg-blue-600 hover:bg-blue-700 text-white text-xs font-mono rounded px-4 h-9 gap-1"
                                     >
                                         {reportLoading ? (
                                             <>
@@ -2718,7 +2718,7 @@ export default function ProjectWorkspacePage({ params }: { params: Promise<{ pro
                                                 className="text-xs font-mono rounded h-9 gap-1 border-slate-200 hover:bg-slate-50 text-slate-700"
                                                 title="Copy full Markdown report to clipboard"
                                             >
-                                                {copiedReport ? <Check size={12} className="text-emerald-600" /> : <Copy size={12} />}
+                                                {copiedReport ? <Check size={12} className="text-blue-600" /> : <Copy size={12} />}
                                                 {copiedReport ? "Copied!" : "Copy MD"}
                                             </Button>
 
@@ -2774,7 +2774,7 @@ export default function ProjectWorkspacePage({ params }: { params: Promise<{ pro
                         <div className="w-full max-w-4xl space-y-4">
                             <div>
                                 <h3 className="text-lg font-semibold text-slate-900 tracking-tight flex items-center gap-2">
-                                    <Terminal className="text-emerald-600" size={20} />
+                                    <Terminal className="text-blue-600" size={20} />
                                     Living Code Twin & AST Verification Sandbox
                                 </h3>
                                 <p className="text-xs text-slate-500 font-mono mt-0.5">
@@ -2806,7 +2806,7 @@ export default function ProjectWorkspacePage({ params }: { params: Promise<{ pro
                                     <Button
                                         type="submit"
                                         disabled={investigationLoading || !investigationGoal.trim()}
-                                        className="bg-indigo-600 hover:bg-indigo-700 text-white font-mono text-xs rounded-none h-10 px-5 gap-1.5 shrink-0 w-full sm:w-auto"
+                                        className="bg-blue-600 hover:bg-blue-700 text-white font-mono text-xs rounded-none h-10 px-5 gap-1.5 shrink-0 w-full sm:w-auto"
                                     >
                                         {investigationLoading ? (
                                             <>
@@ -2826,16 +2826,16 @@ export default function ProjectWorkspacePage({ params }: { params: Promise<{ pro
                             {investigationLoading && (
                                 <div className="space-y-3">
                                     <div className="p-4 bg-white border border-slate-200 flex items-center gap-3">
-                                        <Loader2 className="animate-spin text-indigo-600 shrink-0" size={16} />
+                                        <Loader2 className="animate-spin text-blue-600 shrink-0" size={16} />
                                         <span className="text-xs font-mono text-slate-600 uppercase tracking-wide">Executing Agent Reason-Action Execution Loop...</span>
                                     </div>
                                     <div className="p-4 bg-slate-900 border border-slate-800 text-[11px] font-mono text-slate-400 space-y-1.5 max-h-[200px] overflow-y-auto">
                                         <div>[RE-ACT AGENT] Goal: "{investigationGoal}"</div>
                                         <div>[PLAN] Decomposing goal into targeted page query vectors...</div>
-                                        <div className="text-indigo-400">[ACTION] Searching dense vector index (Qdrant)...</div>
-                                        <div className="text-indigo-400">[ACTION] Retrieving matching document chunks...</div>
-                                        <div className="text-emerald-400">[REASON] Processing content with Qwen LLM for contradictions...</div>
-                                        <div className="text-amber-400 animate-pulse">[WAIT] Consolidating evidence and writing memo...</div>
+                                        <div className="text-blue-400">[ACTION] Searching dense vector index (Qdrant)...</div>
+                                        <div className="text-blue-400">[ACTION] Retrieving matching document chunks...</div>
+                                        <div className="text-blue-400">[REASON] Processing content with Qwen LLM for contradictions...</div>
+                                        <div className="text-blue-400 animate-pulse">[WAIT] Consolidating evidence and writing memo...</div>
                                     </div>
                                 </div>
                             )}
@@ -2869,7 +2869,7 @@ export default function ProjectWorkspacePage({ params }: { params: Promise<{ pro
                 {project.status === "error" && (
                     <div className="flex-1 p-3.5 sm:p-6 md:p-8 overflow-y-auto bg-slate-50 flex items-center justify-center select-none">
                         <Card className="max-w-[500px] w-full border border-slate-200 bg-white p-6 shadow-sm text-center space-y-5 rounded-none">
-                            <div className="mx-auto w-12 h-12 bg-red-500/10 border border-red-200 text-red-600 flex items-center justify-center">
+                            <div className="mx-auto w-12 h-12 bg-blue-500/10 border border-blue-200 text-blue-600 flex items-center justify-center">
                                 <AlertTriangle size={24} />
                             </div>
                             <div className="space-y-1.5">
@@ -2899,7 +2899,7 @@ export default function ProjectWorkspacePage({ params }: { params: Promise<{ pro
                                         }
                                     }}
                                     disabled={actionLoading}
-                                    className="bg-indigo-600 hover:bg-indigo-700 text-white font-mono text-xs rounded-none w-full h-10 gap-1.5"
+                                    className="bg-blue-600 hover:bg-blue-700 text-white font-mono text-xs rounded-none w-full h-10 gap-1.5"
                                 >
                                     {actionLoading ? (
                                         <>
@@ -2971,7 +2971,7 @@ function MarkdownText({ content }: { content: string }) {
             const codeParts = part.split(/(`.*?`)/g);
             return codeParts.map((subPart, j) => {
                 if (subPart.startsWith('`') && subPart.endsWith('`')) {
-                    return <code key={j} className="px-1.5 py-0.5 bg-slate-100 border border-slate-200 text-red-600 font-mono text-xs rounded">{subPart.slice(1, -1)}</code>;
+                    return <code key={j} className="px-1.5 py-0.5 bg-slate-100 border border-slate-200 text-blue-600 font-mono text-xs rounded">{subPart.slice(1, -1)}</code>;
                 }
                 return subPart;
             });
@@ -3076,7 +3076,7 @@ function MarkdownText({ content }: { content: string }) {
 
         if (line.trim().startsWith('> ')) {
             elements.push(
-                <blockquote key={i} className="my-2 border-l-4 border-indigo-500 pl-3 italic text-slate-700 bg-indigo-50/30 py-1.5 rounded-r text-xs leading-relaxed">
+                <blockquote key={i} className="my-2 border-l-4 border-blue-500 pl-3 italic text-slate-700 bg-blue-50/30 py-1.5 rounded-r text-xs leading-relaxed">
                     {renderTextWithInlineFormatting(line.trim().substring(2))}
                 </blockquote>
             );

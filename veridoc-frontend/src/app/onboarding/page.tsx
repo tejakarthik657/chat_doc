@@ -21,7 +21,7 @@ export default function OnboardingPage() {
                 <div className="flex items-center gap-4">
                     {[1, 2, 3].map(i => (
                         <div key={i} className="flex items-center">
-                            <div className={`h-8 w-8 rounded-full flex items-center justify-center font-mono text-sm border transition-colors ${step === i ? "bg-accent text-black border-accent" :
+                            <div className={`h-8 w-8 rounded-full flex items-center justify-center font-mono text-sm border transition-colors ${step === i ? "bg-accent text-white border-accent" :
                                     step > i ? "bg-accent/20 text-accent border-accent" :
                                         "bg-surface-high text-text-muted border-border"
                                 }`}>
@@ -70,7 +70,7 @@ export default function OnboardingPage() {
                                         <div className="bg-accent/10 text-text-primary px-4 py-3 rounded-lg max-w-[90%] text-sm rounded-tl-none border border-accent/20">
                                             The coverage limit is <span className="font-bold text-accent">$2,000,000</span> per occurrence.
                                             <div className="mt-2 flex gap-2">
-                                                <span className="text-[10px] bg-amber-500/10 text-amber-500 border border-amber-500/20 px-1.5 py-0.5 rounded font-mono">[p.4] Policy Declaration</span>
+                                                <span className="text-[10px] bg-blue-500/10 text-blue-500 border border-blue-500/20 px-1.5 py-0.5 rounded font-mono">[p.4] Policy Declaration</span>
                                             </div>
                                         </div>
                                     </div>

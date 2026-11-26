@@ -271,7 +271,7 @@ export function SpaceChat() {
                 </span>
             </div>
 
-            {sourceError && <p className="mb-3 text-sm text-amber-600" role="status">{sourceError}</p>}
+            {sourceError && <p className="mb-3 text-sm text-blue-600" role="status">{sourceError}</p>}
 
             <Card className="flex min-h-[50vh] flex-1 flex-col overflow-hidden border-border/70 bg-surface-high/10">
                 <div className="flex-1 space-y-5 overflow-y-auto p-4 sm:p-6" aria-live="polite">
@@ -347,7 +347,7 @@ export function SpaceChat() {
                 </div>
 
                 <form onSubmit={(event) => void sendQuestion(event)} className="border-t border-border/70 bg-background/70 p-3 sm:p-4">
-                    {error && <p className="mb-2 text-sm text-red-500" role="alert">{error}</p>}
+                    {error && <p className="mb-2 text-sm text-blue-500" role="alert">{error}</p>}
                     <div className="flex items-end gap-2">
                         <textarea
                             value={input}

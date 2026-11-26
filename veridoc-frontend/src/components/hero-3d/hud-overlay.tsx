@@ -35,13 +35,13 @@ export default function HudOverlay({ phase }: { phase: Phase }) {
             {/* Left Sidebar Status */}
             <div className="absolute top-1/2 left-8 -translate-y-1/2 flex flex-col gap-6">
                 <div className="flex flex-col gap-2">
-                    <div className="flex items-center gap-3 text-emerald-400/80">
+                    <div className="flex items-center gap-3 text-blue-400/80">
                         <Database size={14} />
                         <span className="font-mono text-[10px] tracking-widest uppercase">Vector DB</span>
                     </div>
                     <div className="h-24 w-1 bg-white/5 relative overflow-hidden rounded-full ml-1.5">
                         <motion.div
-                            className="absolute bottom-0 w-full bg-emerald-500"
+                            className="absolute bottom-0 w-full bg-blue-500"
                             animate={{ height: ["20%", "60%", "40%", "80%"] }}
                             transition={{ repeat: Infinity, duration: 4 }}
                         />
@@ -49,7 +49,7 @@ export default function HudOverlay({ phase }: { phase: Phase }) {
                 </div>
 
                 <div className="flex flex-col gap-2">
-                    <div className="flex items-center gap-3 text-cyan-400/80">
+                    <div className="flex items-center gap-3 text-blue-400/80">
                         <Server size={14} />
                         <span className="font-mono text-[10px] tracking-widest uppercase">System</span>
                     </div>
@@ -64,15 +64,15 @@ export default function HudOverlay({ phase }: { phase: Phase }) {
             {/* Right Sidebar Status */}
             <div className="absolute top-1/2 right-8 -translate-y-1/2 flex flex-col items-end gap-6 text-right">
                 <div className="flex flex-col gap-2 items-end">
-                    <div className="flex items-center gap-3 text-amber-400/80">
+                    <div className="flex items-center gap-3 text-blue-400/80">
                         <span className="font-mono text-[10px] tracking-widest uppercase">Security</span>
                         <Lock size={14} />
                     </div>
-                    <div className="font-mono text-[10px] text-emerald-500">ENCRYPTED</div>
+                    <div className="font-mono text-[10px] text-blue-500">ENCRYPTED</div>
                 </div>
 
                 <div className="flex flex-col gap-2 items-end">
-                    <div className="flex items-center gap-3 text-violet-400/80">
+                    <div className="flex items-center gap-3 text-blue-400/80">
                         <span className="font-mono text-[10px] tracking-widest uppercase">Network</span>
                         <Wifi size={14} />
                     </div>
@@ -80,7 +80,7 @@ export default function HudOverlay({ phase }: { phase: Phase }) {
                         {[1, 2, 3, 4].map(i => (
                             <motion.div
                                 key={i}
-                                className="w-1 h-4 bg-violet-500/40"
+                                className="w-1 h-4 bg-blue-500/40"
                                 animate={{ opacity: [0.3, 1, 0.3] }}
                                 transition={{ repeat: Infinity, duration: 1.5, delay: i * 0.2 }}
                             />
@@ -97,7 +97,7 @@ export default function HudOverlay({ phase }: { phase: Phase }) {
                 </div>
                 <div className="h-3 w-[1px] bg-white/10" />
                 <div className="font-mono text-[10px] text-white/60">
-                    PHASE: <span className="text-emerald-400">{metrics.status}</span>
+                    PHASE: <span className="text-blue-400">{metrics.status}</span>
                 </div>
                 <div className="h-3 w-[1px] bg-white/10" />
                 <div className="font-mono text-[10px] text-white/40">

@@ -54,7 +54,7 @@ export function DocumentSidebar({ activeDocId }: { activeDocId: string }) {
                                         <div className="font-medium text-sm truncate" title={doc.filename}>{doc.filename}</div>
                                         <div className="flex items-center justify-between mt-2">
                                             <span className="text-[10px] font-mono text-text-muted">{doc.page_count} pages</span>
-                                            <div className={cn("h-1.5 w-1.5 rounded-full", doc.status === 'ready' ? "bg-accent" : "bg-amber-500 animate-pulse")} />
+                                            <div className={cn("h-1.5 w-1.5 rounded-full", doc.status === 'ready' ? "bg-accent" : "bg-blue-500 animate-pulse")} />
                                         </div>
                                     </div>
                                 </div>

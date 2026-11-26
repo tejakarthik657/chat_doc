@@ -12,9 +12,11 @@ import { ArrowRight, User, Mail, Loader2 } from "lucide-react";
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { authService } from "@/services/auth.service";
+import { useToast } from "@/components/ui/toast-provider";
 
 export default function RegisterPage() {
     const router = useRouter();
+    const showToast = useToast();
     const [isLoading, setIsLoading] = useState(false);
     const [isGoogleLoading, setIsGoogleLoading] = useState(false);
     const [error, setError] = useState("");
@@ -72,6 +74,11 @@ export default function RegisterPage() {
 
         try {
             await authService.register({ name, email, password });
+            showToast({
+                title: "Welcome to Threadwell",
+                message: "Your space is ready. Let’s make it yours.",
+                tone: "success",
+            });
             router.push("/onboarding");
         } catch (err: any) {
             setError(getErrorMessage(err, "Registration failed"));
@@ -93,7 +100,7 @@ export default function RegisterPage() {
                         <p className="font-mono text-sm text-accent">Create your Threadwell account.</p>
                     </div>
 
-                    <form onSubmit={handleSubmit} className="space-y-4">
+                    <form onSubmit={handleSubmit} className="space-y-4" aria-busy={isLoading}>
                         <div className="space-y-2">
                             <label className="text-xs font-mono text-text-secondary uppercase">Full Name</label>
                             <div className="relative">
@@ -112,20 +119,24 @@ export default function RegisterPage() {
 
                         <div className="space-y-2">
                             <label className="text-xs font-mono text-text-secondary uppercase">Password</label>
-                            <Input name="password" type="password" required maxLength={64} />
-                            <div className="h-1 w-full bg-surface-high rounded-full overflow-hidden mt-2">
-                                <div className="h-full bg-red-500 w-[20%]" />
-                            </div>
-                            <p className="text-[10px] text-text-muted text-right">Weak password</p>
+                            <Input
+                                name="password"
+                                type="password"
+                                autoComplete="new-password"
+                                minLength={8}
+                                maxLength={64}
+                                required
+                            />
+                            <p className="text-xs text-text-muted">Use at least 8 characters.</p>
                         </div>
 
                         {error && (
-                            <div className="text-xs text-red-500 bg-red-500/10 p-2 rounded border border-red-500/20 text-center">
+                            <div role="alert" className="text-xs text-blue-800 bg-blue-50 p-3 rounded-lg border border-blue-200 text-center">
                                 {error}
                             </div>
                         )}
 
-                        <Button
+                                            <Button
                             type="submit"
                             variant="primary"
                             className="w-full group"
@@ -160,10 +171,10 @@ export default function RegisterPage() {
                         ) : (
                             <>
                                 <svg className="w-4 h-4" viewBox="0 0 24 24">
-                                    <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/>
-                                    <path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/>
-                                    <path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.06H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.94l2.85-2.22.81-.63z"/>
-                                    <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.06l3.66 2.84c.87-2.6 3.3-4.52 6.16-4.52z"/>
+                                    <path fill="#2563eb" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/>
+                                    <path fill="#2563eb" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/>
+                                    <path fill="#3b82f6" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.06H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.94l2.85-2.22.81-.63z"/>
+                                    <path fill="#1e40af" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.06l3.66 2.84c.87-2.6 3.3-4.52 6.16-4.52z"/>
                                 </svg>
                                 <span>Continue with Google</span>
                             </>

@@ -98,8 +98,8 @@ export function DocumentGrid() {
                     {filteredDocuments.map((doc) => (
                         <Card key={doc.id} className="group relative overflow-hidden transition-all hover:-translate-y-1 hover:border-accent/50 cursor-pointer">
                             {/* Colored header strip */}
-                            <div className={`h-1.5 w-full ${doc.status === 'error' ? 'bg-red-500' :
-                                doc.status === 'processing' ? 'bg-amber-500' :
+                            <div className={`h-1.5 w-full ${doc.status === 'error' ? 'bg-blue-500' :
+                                doc.status === 'processing' ? 'bg-blue-500' :
                                     'bg-gradient-to-r from-accent to-blue-500'
                                 }`} />
 
@@ -111,7 +111,7 @@ export function DocumentGrid() {
                                     <Button
                                         variant="ghost"
                                         size="icon"
-                                        className="h-8 w-8 text-text-muted hover:text-red-500 hover:bg-red-50/50 rounded-none transition-colors"
+                                        className="h-8 w-8 text-text-muted hover:text-blue-500 hover:bg-blue-50/50 rounded-none transition-colors"
                                         onClick={(e) => handleDelete(e, doc.id, doc.filename)}
                                         title="Delete Document"
                                     >

@@ -53,7 +53,7 @@ export default function AnalyticsPage() {
                 />
 
                 {error && (
-                    <div className="flex flex-wrap items-center justify-between gap-3 rounded-md border border-amber-500/30 bg-amber-500/5 p-4 text-sm">
+                    <div className="flex flex-wrap items-center justify-between gap-3 rounded-md border border-blue-500/30 bg-blue-500/5 p-4 text-sm">
                         <p role="alert">{error}</p>
                         <Button variant="ghost" onClick={() => void loadStats()}>Retry</Button>
                     </div>

@@ -9,22 +9,22 @@ const config: Config = {
     theme: {
         extend: {
             colors: {
-                background: "#F8FAFC",     // slate-50 Canvas
+                background: "#F8FAFC",
                 surface: {
-                    DEFAULT: "#FFFFFF",    // pure white
-                    high: "#F1F5F9",       // slate-100
+                    DEFAULT: "#FFFFFF",
+                    high: "#EFF6FF",
                 },
-                border: "rgba(226, 232, 240, 0.6)", // slate-200/60 subtle separator
+                border: "rgba(203, 213, 225, 0.8)",
                 accent: {
-                    DEFAULT: "#6366F1",    // lavender-indigo primary
-                    success: "#10B981",    // sage-mint active states
-                    warm: "#F59E0B",       // amber warning
-                    blue: "#3B82F6",       // sky blue info
+                    DEFAULT: "#1D4ED8",
+                    success: "#2563EB",
+                    warm: "#60A5FA",
+                    blue: "#3B82F6",
                 },
                 text: {
-                    primary: "#0F172A",    // deep charcoal text
-                    secondary: "#475569",  // slate-600 description
-                    muted: "#64748B",      // slate-500 helper text
+                    primary: "#0F172A",
+                    secondary: "#334155",
+                    muted: "#64748B",
                 },
             },
             fontFamily: {

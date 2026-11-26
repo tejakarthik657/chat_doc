@@ -161,7 +161,7 @@ export default function ProjectsPage() {
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                     {projects.map((project) => (
                         <Link key={project.id} href={`/dashboard/projects/${project.id}`} className="block group">
-                            <Card className="h-full border border-border bg-white/80 backdrop-blur-md hover:bg-white hover:border-accent/40 transition-all duration-300 hover:-translate-y-0.5 hover:shadow-lg hover:shadow-indigo-500/5 flex flex-col justify-between rounded-none relative">
+                            <Card className="h-full border border-border bg-white/80 backdrop-blur-md hover:bg-white hover:border-accent/40 transition-all duration-300 hover:-translate-y-0.5 hover:shadow-lg hover:shadow-blue-500/5 flex flex-col justify-between rounded-none relative">
                                 <CardHeader className="space-y-2 pb-4">
                                     <div className="flex items-start justify-between">
                                         <Badge variant={getStatusColor(project.status)} className="rounded-none uppercase font-mono text-[10px]">
@@ -169,7 +169,7 @@ export default function ProjectsPage() {
                                         </Badge>
                                         <button
                                             onClick={(e) => handleDelete(e, project.id)}
-                                            className="text-text-muted hover:text-red-400 p-1 hover:bg-surface-high transition-colors"
+                                            className="text-text-muted hover:text-blue-400 p-1 hover:bg-surface-high transition-colors"
                                             title="Delete Project"
                                         >
                                             <Trash2 size={16} />
@@ -361,7 +361,7 @@ export default function ProjectsPage() {
                             )}
 
                             {error && (
-                                <div className="text-xs text-red-400 font-mono p-3 bg-red-950/20 border border-red-900/30">
+                                <div className="text-xs text-blue-400 font-mono p-3 bg-blue-950/20 border border-blue-900/30">
                                     {error}
                                 </div>
                             )}

@@ -20,7 +20,7 @@ export function PipelineVisualizer() {
                     <div className="h-16 w-12 bg-surface border border-border rounded flex items-center justify-center text-accent">
                         <FileText size={24} />
                     </div>
-                    <div className="text-xs font-mono text-text-muted">RAW PDF</div>
+                    <div className="text-xs font-mono text-text-muted">SAVED SOURCE</div>
                 </motion.div>
 
                 {/* Chunks (Middle) */}
@@ -60,12 +60,12 @@ export function PipelineVisualizer() {
                         <Database size={32} className="text-accent relative z-10" />
                         <div className="absolute inset-0 bg-accent/5 blur-xl animate-pulse" />
                     </div>
-                    <div className="text-xs font-mono text-text-muted">VECTOR INDEX</div>
+                    <div className="text-xs font-mono text-text-muted">YOUR SPACE</div>
                 </motion.div>
 
                 {/* Connection Lines */}
                 <svg className="absolute inset-0 w-full h-full pointer-events-none opacity-20">
-                    <line x1="50%" y1="20%" x2="50%" y2="80%" stroke="#4ADE80" strokeWidth="1" strokeDasharray="4 4" />
+                    <line x1="50%" y1="20%" x2="50%" y2="80%" stroke="#60a5fa" strokeWidth="1" strokeDasharray="4 4" />
                 </svg>
 
                 {/* Query Matches Animation */}
@@ -87,21 +87,14 @@ export function PipelineVisualizer() {
                 >
                     <div className="flex items-center gap-2 bg-accent/10 border border-accent/20 px-3 py-1.5 rounded text-xs font-mono text-accent">
                         <Zap size={12} />
-                        <span>Match Found (0.92)</span>
+                        <span>Source connected</span>
                     </div>
                 </motion.div>
             </div>
 
-            {/* Stats Overlay */}
-            <div className="absolute top-8 right-8 text-right space-y-1">
-                <div className="text-xs font-mono text-text-muted">DOCUMENTS INDEXED</div>
-                <motion.div
-                    initial={{ opacity: 0 }}
-                    animate={{ opacity: 1 }}
-                    className="text-2xl font-display text-text-primary"
-                >
-                    2,847
-                </motion.div>
+            <div className="absolute right-8 top-8 max-w-48 text-right">
+                <div className="text-xs font-mono uppercase tracking-wider text-text-muted">Built around your material</div>
+                <p className="mt-2 text-sm leading-6 text-text-secondary">Notes, documents, and links in one searchable space.</p>
             </div>
         </div>
     );

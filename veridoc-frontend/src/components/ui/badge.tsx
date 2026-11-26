@@ -10,13 +10,13 @@ const Badge = React.forwardRef<HTMLDivElement, BadgeProps>(
         const variants = {
             default: "bg-slate-100 text-slate-600 border-slate-200",
             secondary: "bg-slate-100 text-slate-600 border-slate-200",
-            ready: "bg-emerald-50 text-emerald-700 border-emerald-200/50",
-            success: "bg-emerald-50 text-emerald-700 border-emerald-200/50",
-            processing: "bg-amber-50 text-amber-700 border-amber-200/50",
-            warning: "bg-amber-50 text-amber-700 border-amber-200/50",
+            ready: "bg-blue-50 text-blue-700 border-blue-200/50",
+            success: "bg-blue-50 text-blue-700 border-blue-200/50",
+            processing: "bg-blue-50 text-blue-700 border-blue-200/50",
+            warning: "bg-blue-50 text-blue-700 border-blue-200/50",
             info: "bg-blue-50 text-blue-700 border-blue-200/50",
-            error: "bg-red-50 text-red-700 border-red-200/50",
-            destructive: "bg-red-50 text-red-700 border-red-200/50",
+            error: "bg-blue-50 text-blue-700 border-blue-200/50",
+            destructive: "bg-blue-50 text-blue-700 border-blue-200/50",
         };
 
         return (
@@ -30,10 +30,10 @@ const Badge = React.forwardRef<HTMLDivElement, BadgeProps>(
                 {...props}
             >
                 {(variant === "ready" || variant === "success") && (
-                    <span className="mr-2 h-1.5 w-1.5 rounded-full bg-emerald-500 animate-pulse" />
+                    <span className="mr-2 h-1.5 w-1.5 rounded-full bg-blue-500 animate-pulse" />
                 )}
                 {(variant === "processing" || variant === "warning" || variant === "info") && (
-                    <span className="mr-2 h-1.5 w-1.5 rounded-full bg-amber-500 animate-pulse" />
+                    <span className="mr-2 h-1.5 w-1.5 rounded-full bg-blue-500 animate-pulse" />
                 )}
                 {children}
             </div>

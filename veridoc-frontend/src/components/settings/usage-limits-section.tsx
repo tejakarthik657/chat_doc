@@ -81,7 +81,7 @@ export function UsageLimitsSection() {
             ) : error ? (
                 <Card>
                     <CardContent className="flex flex-wrap items-center justify-between gap-4 p-5">
-                        <p className="text-sm text-red-500" role="alert">{error}</p>
+                        <p className="text-sm text-blue-500" role="alert">{error}</p>
                         <Button variant="ghost" onClick={() => void loadUsage()}>Retry</Button>
                     </CardContent>
                 </Card>

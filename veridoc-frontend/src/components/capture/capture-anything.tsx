@@ -348,11 +348,11 @@ export function CaptureAnything() {
 
                 {status === "error" && (
                     <div className="p-6 text-center sm:p-10" role="alert">
-                        <span className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-full bg-red-500/10 text-red-500">
+                        <span className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-full bg-blue-500/10 text-blue-500">
                             <AlertTriangle size={22} />
                         </span>
                         <h3 className="font-display text-xl">We couldn’t capture that</h3>
-                        <p className="mx-auto mt-2 max-w-lg text-sm text-red-400">{errorMessage}</p>
+                        <p className="mx-auto mt-2 max-w-lg text-sm text-blue-400">{errorMessage}</p>
                         <div className="mt-5 flex flex-col justify-center gap-2 sm:flex-row">
                             {youtubeCaptureFailed && url && (
                                 <Button

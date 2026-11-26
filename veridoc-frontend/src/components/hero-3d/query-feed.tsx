@@ -30,8 +30,8 @@ export default function QueryFeed() {
                 <span className="font-mono text-[10px] text-white/30 uppercase tracking-widest">Live Activity</span>
                 <div className="flex items-center gap-3 bg-black/40 backdrop-blur border border-white/5 rounded-lg p-3 pr-6">
                     <div className="relative">
-                        <div className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
-                        <div className="absolute inset-0 rounded-full bg-emerald-500/50 animate-ping" />
+                        <div className="w-2 h-2 rounded-full bg-blue-500 animate-pulse" />
+                        <div className="absolute inset-0 rounded-full bg-blue-500/50 animate-ping" />
                     </div>
                     <AnimatePresence mode="wait">
                         <motion.span
@@ -39,7 +39,7 @@ export default function QueryFeed() {
                             initial={{ opacity: 0, y: 5 }}
                             animate={{ opacity: 1, y: 0 }}
                             exit={{ opacity: 0, y: -5 }}
-                            className="font-mono text-xs text-emerald-400"
+                            className="font-mono text-xs text-blue-400"
                         >
                             {activeQuery}
                         </motion.span>

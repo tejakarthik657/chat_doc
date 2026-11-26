@@ -65,13 +65,13 @@ export default function TruthLatticeModal({
                 {/* Header */}
                 <div className="flex items-center justify-between px-3.5 sm:px-6 py-3 sm:py-4 border-b border-slate-100 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-900/50 gap-2">
                     <div className="flex items-center gap-2.5 sm:gap-3 min-w-0">
-                        <div className="w-9 h-9 sm:w-10 sm:h-10 rounded-xl bg-emerald-600/10 text-emerald-600 dark:bg-emerald-500/20 dark:text-emerald-400 flex items-center justify-center shrink-0">
+                        <div className="w-9 h-9 sm:w-10 sm:h-10 rounded-xl bg-blue-600/10 text-blue-600 dark:bg-blue-500/20 dark:text-blue-400 flex items-center justify-center shrink-0">
                             <ShieldCheck className="w-5 h-5" />
                         </div>
                         <div className="min-w-0">
                             <h2 className="text-sm sm:text-lg font-bold text-slate-900 dark:text-white flex items-center gap-2 truncate">
                                 <span>Truth Lattice</span>
-                                <span className="text-[10px] uppercase font-mono px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-300 hidden xs:inline">
+                                <span className="text-[10px] uppercase font-mono px-2 py-0.5 rounded-full bg-blue-100 text-blue-700 dark:bg-blue-950 dark:text-blue-300 hidden xs:inline">
                                     Audit
                                 </span>
                             </h2>
@@ -100,7 +100,7 @@ export default function TruthLatticeModal({
 
                     {loading && (
                         <div className="py-12 flex flex-col items-center justify-center space-y-3">
-                            <RefreshCw className="w-8 h-8 text-emerald-500 animate-spin" />
+                            <RefreshCw className="w-8 h-8 text-blue-500 animate-spin" />
                             <div className="text-sm font-medium text-slate-700 dark:text-slate-300">
                                 Executing Parallel Dual-Model Adversarial Red Teaming...
                             </div>
@@ -111,9 +111,9 @@ export default function TruthLatticeModal({
                     )}
 
                     {error && (
-                        <div className="p-4 rounded-xl bg-red-50 dark:bg-red-950/30 border border-red-200 dark:border-red-900 text-xs text-red-600 dark:text-red-300 flex items-center justify-between">
+                        <div className="p-4 rounded-xl bg-blue-50 dark:bg-blue-950/30 border border-blue-200 dark:border-blue-900 text-xs text-blue-600 dark:text-blue-300 flex items-center justify-between">
                             <span>{error}</span>
-                            <button onClick={runAudit} className="px-3 py-1 rounded bg-red-600 text-white font-medium">Retry</button>
+                            <button onClick={runAudit} className="px-3 py-1 rounded bg-blue-600 text-white font-medium">Retry</button>
                         </div>
                     )}
 
@@ -127,27 +127,27 @@ export default function TruthLatticeModal({
                                         {auditData.consensus_score ?? 90}%
                                     </div>
                                 </div>
-                                <div className="p-4 rounded-xl bg-emerald-50/50 dark:bg-emerald-950/20 border border-emerald-200 dark:border-emerald-900/50 text-center">
-                                    <div className="text-xs text-emerald-600 dark:text-emerald-400 font-medium uppercase flex items-center justify-center gap-1">
+                                <div className="p-4 rounded-xl bg-blue-50/50 dark:bg-blue-950/20 border border-blue-200 dark:border-blue-900/50 text-center">
+                                    <div className="text-xs text-blue-600 dark:text-blue-400 font-medium uppercase flex items-center justify-center gap-1">
                                         <CheckCircle2 className="w-3.5 h-3.5" /> Verified
                                     </div>
-                                    <div className="text-2xl font-black text-emerald-700 dark:text-emerald-300 mt-1">
+                                    <div className="text-2xl font-black text-blue-700 dark:text-blue-300 mt-1">
                                         {auditData.agreed_count ?? 0}
                                     </div>
                                 </div>
-                                <div className="p-4 rounded-xl bg-amber-50/50 dark:bg-amber-950/20 border border-amber-200 dark:border-amber-900/50 text-center">
-                                    <div className="text-xs text-amber-600 dark:text-amber-400 font-medium uppercase flex items-center justify-center gap-1">
+                                <div className="p-4 rounded-xl bg-blue-50/50 dark:bg-blue-950/20 border border-blue-200 dark:border-blue-900/50 text-center">
+                                    <div className="text-xs text-blue-600 dark:text-blue-400 font-medium uppercase flex items-center justify-center gap-1">
                                         <AlertCircle className="w-3.5 h-3.5" /> Disputed
                                     </div>
-                                    <div className="text-2xl font-black text-amber-700 dark:text-amber-300 mt-1">
+                                    <div className="text-2xl font-black text-blue-700 dark:text-blue-300 mt-1">
                                         {auditData.disputed_count ?? 0}
                                     </div>
                                 </div>
-                                <div className="p-4 rounded-xl bg-red-50/50 dark:bg-red-950/20 border border-red-200 dark:border-red-900/50 text-center">
-                                    <div className="text-xs text-red-600 dark:text-red-400 font-medium uppercase flex items-center justify-center gap-1">
+                                <div className="p-4 rounded-xl bg-blue-50/50 dark:bg-blue-950/20 border border-blue-200 dark:border-blue-900/50 text-center">
+                                    <div className="text-xs text-blue-600 dark:text-blue-400 font-medium uppercase flex items-center justify-center gap-1">
                                         <Flame className="w-3.5 h-3.5" /> Hallucination
                                     </div>
-                                    <div className="text-2xl font-black text-red-700 dark:text-red-300 mt-1">
+                                    <div className="text-2xl font-black text-blue-700 dark:text-blue-300 mt-1">
                                         {auditData.hallucinated_count ?? 0}
                                     </div>
                                 </div>
@@ -179,10 +179,10 @@ export default function TruthLatticeModal({
                                             key={idx}
                                             className={`p-4 rounded-xl border space-y-2.5 transition-all ${
                                                 isVerified 
-                                                    ? "bg-emerald-50/30 dark:bg-emerald-950/10 border-emerald-200 dark:border-emerald-900/40"
+                                                    ? "bg-blue-50/30 dark:bg-blue-950/10 border-blue-200 dark:border-blue-900/40"
                                                     : isDisputed 
-                                                    ? "bg-amber-50/30 dark:bg-amber-950/10 border-amber-200 dark:border-amber-900/40"
-                                                    : "bg-red-50/30 dark:bg-red-950/10 border-red-200 dark:border-red-900/40"
+                                                    ? "bg-blue-50/30 dark:bg-blue-950/10 border-blue-200 dark:border-blue-900/40"
+                                                    : "bg-blue-50/30 dark:bg-blue-950/10 border-blue-200 dark:border-blue-900/40"
                                             }`}
                                         >
                                             <div className="flex items-start justify-between gap-3">
@@ -191,10 +191,10 @@ export default function TruthLatticeModal({
                                                 </div>
                                                 <span className={`px-2 py-0.5 rounded text-[10px] font-bold tracking-wide uppercase shrink-0 ${
                                                     isVerified 
-                                                        ? "bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300"
+                                                        ? "bg-blue-100 text-blue-800 dark:bg-blue-950 dark:text-blue-300"
                                                         : isDisputed 
-                                                        ? "bg-amber-100 text-amber-800 dark:bg-amber-950 dark:text-amber-300"
-                                                        : "bg-red-100 text-red-800 dark:bg-red-950 dark:text-red-300"
+                                                        ? "bg-blue-100 text-blue-800 dark:bg-blue-950 dark:text-blue-300"
+                                                        : "bg-blue-100 text-blue-800 dark:bg-blue-950 dark:text-blue-300"
                                                 }`}>
                                                     {item.status}
                                                 </span>
@@ -222,7 +222,7 @@ export default function TruthLatticeModal({
 
                                             {/* Dispute note */}
                                             {item.dispute_reason && (
-                                                <div className="text-xs text-amber-700 dark:text-amber-400 font-medium">
+                                                <div className="text-xs text-blue-700 dark:text-blue-400 font-medium">
                                                     Dispute Note: {item.dispute_reason}
                                                 </div>
                                             )}
