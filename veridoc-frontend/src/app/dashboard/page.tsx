@@ -43,6 +43,7 @@ export default function DashboardPage() {
                     totalDocs={stats?.total_documents}
                     totalQueries={stats?.total_questions}
                     storageUsed={stats?.storage_used_mb}
+                    questionsToday={stats?.questions_today}
                     loading={loading}
                 />
 

@@ -130,6 +130,34 @@ async def test_capture_text_creates_searchable_document_and_schedules_indexing()
     assert background_tasks.tasks[0].args[0] == "A short note to save."
 
 
+@pytest.mark.asyncio
+async def test_capture_text_http_endpoint_accepts_title_and_content_json():
+    from app.core.security import get_current_user
+
+    documents = MagicMock()
+    documents.count_documents = AsyncMock(return_value=0)
+    documents.insert_one = AsyncMock()
+    users = MagicMock()
+    users.find_one = AsyncMock(return_value={"_id": "test-user", "storage_used_mb": 0})
+    users.update_one = AsyncMock()
+    app.dependency_overrides[get_current_user] = lambda: "test-user"
+    try:
+        with patch("app.api.routes.documents.documents_col", return_value=documents), \
+             patch("app.api.routes.documents.users_col", return_value=users), \
+             patch("app.ingestion.pipeline.ingest_text_document", new=AsyncMock()):
+            async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
+                response = await client.post(
+                    "/api/documents/capture/text",
+                    json={"title": "Notes", "content": "A searchable note."},
+                )
+    finally:
+        app.dependency_overrides.pop(get_current_user, None)
+
+    assert response.status_code == 202
+    assert response.json()["filename"] == "Notes"
+    assert response.json()["status"] == "processing"
+
+
 @pytest.mark.parametrize(
     ("url", "expected_id"),
     [
@@ -508,6 +536,94 @@ def test_auto_label_cluster():
     questions = ["What is the treatment?", "What medication should I take?", "What is the drug dosage?"]
     label = _auto_label_cluster(questions)
     assert label in ["treatment", "dosage"]
+
+
+@pytest.mark.asyncio
+async def test_analytics_summary_returns_live_storage_and_activity_metrics():
+    from app.core.security import get_current_user
+
+    users = MagicMock()
+    users.find_one = AsyncMock(return_value={"_id": "test-user", "storage_used_mb": 12.5})
+    analytics = {
+        "total_documents": 3,
+        "total_questions": 8,
+        "questions_today": 2,
+        "daily_limit": 50,
+        "top_clusters": [],
+        "questions_by_day": [{"day": "Mon", "count": 2, "isToday": True}],
+        "questions_by_document": [{"name": "Notes", "count": 4}],
+        "recent_activity": [],
+    }
+    app.dependency_overrides[get_current_user] = lambda: "test-user"
+    try:
+        with patch("app.api.routes.analytics.users_col", return_value=users), \
+             patch("app.api.routes.analytics.get_user_analytics", new=AsyncMock(return_value=analytics)):
+            async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
+                response = await client.get("/api/analytics/summary")
+    finally:
+        app.dependency_overrides.pop(get_current_user, None)
+
+    assert response.status_code == 200
+    result = response.json()
+    assert result["storage_used_mb"] == 12.5
+    assert result["storage_limit_mb"] > 0
+    assert result["questions_today"] == 2
+    assert result["questions_by_day"] == analytics["questions_by_day"]
+    assert result["questions_by_document"] == analytics["questions_by_document"]
+
+
+@pytest.mark.asyncio
+async def test_user_analytics_aggregates_recent_questions_for_charts():
+    from datetime import datetime, timedelta
+    from app.analytics.engine import get_user_analytics
+
+    now = datetime.utcnow()
+    records = [
+        {
+            "_id": "question-today",
+            "question": "What is in my notes?",
+            "document_filename": "Notes",
+            "timestamp": now,
+            "sources": [{"chunk_id": "chunk-1"}],
+        },
+        {
+            "_id": "question-yesterday",
+            "question": "Summarize the report.",
+            "document_filename": "Report",
+            "timestamp": now - timedelta(days=1),
+            "sources": [],
+        },
+    ]
+
+    class Cursor:
+        def sort(self, *_args):
+            return self
+
+        def limit(self, *_args):
+            return self
+
+        async def to_list(self, length):
+            return records[:length]
+
+    analytics = MagicMock()
+    analytics.find.return_value = Cursor()
+    documents = MagicMock()
+    documents.count_documents = AsyncMock(return_value=2)
+
+    with patch("app.analytics.engine.analytics_col", return_value=analytics), \
+         patch("app.analytics.engine.documents_col", return_value=documents):
+        result = await get_user_analytics("test-user")
+
+    assert result["total_documents"] == 2
+    assert result["total_questions"] == 2
+    assert result["questions_today"] == 1
+    assert result["questions_by_day"][-1]["count"] == 1
+    assert result["questions_by_day"][-1]["isToday"] is True
+    assert result["questions_by_document"] == [
+        {"name": "Notes", "count": 1},
+        {"name": "Report", "count": 1},
+    ]
+    assert result["recent_activity"][0]["citation_count"] == 1
 
 
 # ── Ingestion error handling tests ────────────────────────────────────────────

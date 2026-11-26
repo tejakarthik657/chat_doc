@@ -1,19 +1,20 @@
 import { Card } from "@/components/ui/card";
-import { FileText, MessageSquare, Database, CheckCircle, Loader2 } from "lucide-react";
+import { FileText, MessageSquare, Database, Loader2, CalendarClock } from "lucide-react";
 
 interface StatsRowProps {
     totalDocs?: number;
     totalQueries?: number;
     storageUsed?: number;
+    questionsToday?: number;
     loading?: boolean;
 }
 
-export function StatsRow({ totalDocs, totalQueries, storageUsed, loading }: StatsRowProps) {
+export function StatsRow({ totalDocs, totalQueries, storageUsed, questionsToday, loading }: StatsRowProps) {
     const stats = [
         { label: "DOCUMENTS INDEXED", value: totalDocs?.toString() ?? "-", icon: FileText },
-        { label: "QUERIES TODAY", value: totalQueries?.toString() ?? "-", icon: MessageSquare },
-        { label: "STORAGE USED", value: storageUsed ? `${storageUsed.toFixed(1)} MB` : "-", icon: Database },
-        { label: "ANSWERS GROUNDED", value: "100%", icon: CheckCircle },
+        { label: "QUESTIONS (30 DAYS)", value: totalQueries?.toString() ?? "-", icon: MessageSquare },
+        { label: "STORAGE USED", value: storageUsed !== undefined ? `${storageUsed.toFixed(1)} MB` : "-", icon: Database },
+        { label: "QUESTIONS TODAY", value: questionsToday?.toString() ?? "-", icon: CalendarClock },
     ];
 
     if (loading) {

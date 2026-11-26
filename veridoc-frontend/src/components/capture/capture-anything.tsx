@@ -32,7 +32,11 @@ function formatDetail(value: unknown): string | undefined {
     }
     if (value && typeof value === "object") {
         const detail = value as Record<string, unknown>;
-        return formatDetail(detail.msg ?? detail.message ?? detail.detail);
+        const message = formatDetail(detail.msg ?? detail.message ?? detail.detail);
+        const location = Array.isArray(detail.loc)
+            ? detail.loc.filter((part) => typeof part === "string").join(".")
+            : "";
+        return message && location ? `${location}: ${message}` : message;
     }
     return undefined;
 }
@@ -77,6 +81,7 @@ async function waitForDocument(docId: string, onProgress: (message: string) => v
 export function CaptureAnything() {
     const router = useRouter();
     const fileInputRef = useRef<HTMLInputElement>(null);
+    const textInputRef = useRef<HTMLTextAreaElement>(null);
     const [url, setUrl] = useState("");
     const [text, setText] = useState("");
     const [status, setStatus] = useState<CaptureStatus>("idle");
@@ -296,6 +301,7 @@ export function CaptureAnything() {
                                     {youtubeCaptureFailed ? "Paste video captions" : "Or paste text"}
                                 </span>
                                 <textarea
+                                    ref={textInputRef}
                                     value={text}
                                     onChange={(event) => setText(event.target.value)}
                                     placeholder={youtubeCaptureFailed
@@ -354,6 +360,7 @@ export function CaptureAnything() {
                                     onClick={() => {
                                         setStatus("idle");
                                         setErrorMessage("");
+                                        window.requestAnimationFrame(() => textInputRef.current?.focus());
                                     }}
                                 >
                                     Paste captions instead

@@ -1366,7 +1366,19 @@ async def answer_space_question(
 
     context = build_context_string(reranked, max_tokens=5000)
     memory = await get_memory("space", user_id)
-    answer = await asyncio.to_thread(generate, context=context, question=question, memory=memory)
+    response_question = (
+        f"{question}\n\n"
+        "Answer directly and use concise, well-structured Markdown. "
+        "Use short headings and bullets when they make a multi-part answer easier to scan. "
+        "Distinguish information from different sources when relevant, and do not add facts "
+        "that are not supported by the source context."
+    )
+    answer = await asyncio.to_thread(
+        generate,
+        context=context,
+        question=response_question,
+        memory=memory,
+    )
     verification = await asyncio.to_thread(
         verify_answer_support,
         answer,

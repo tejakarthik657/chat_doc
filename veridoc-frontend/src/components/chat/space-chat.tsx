@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
-import type { FormEvent, KeyboardEvent } from "react";
+import type { FormEvent, KeyboardEvent, ReactNode } from "react";
 import { ArrowUp, BookOpen, FileText, Globe, Loader2, MessageSquareText, Sparkles } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -21,6 +21,136 @@ function sourceHref(source: SourceCitation): string | undefined {
     return source.source_type === "project"
         ? `/dashboard/projects/${source.source_id}`
         : `/dashboard/chat/${source.source_id}`;
+}
+
+function renderInline(text: string): ReactNode[] {
+    return text.split(/(\*\*.+?\*\*|`[^`]+`)/g).map((part, index) => {
+        if (part.startsWith("**") && part.endsWith("**")) {
+            return <strong key={index}>{part.slice(2, -2)}</strong>;
+        }
+        if (part.startsWith("`") && part.endsWith("`")) {
+            return <code key={index} className="rounded bg-surface-high px-1 py-0.5">{part.slice(1, -1)}</code>;
+        }
+        return <span key={index}>{part}</span>;
+    });
+}
+
+function isBlockStart(line: string): boolean {
+    return /^#{1,3}\s|^\s*[-*]\s+|^\s*\d+[.)]\s+|^>\s?/.test(line) ||
+        /^\|.+\|$/.test(line);
+}
+
+function parseTableRow(line: string): string[] {
+    return line.trim().replace(/^\|/, "").replace(/\|$/, "").split("|").map((cell) => cell.trim());
+}
+
+function FormattedAnswer({ text }: { text: string }) {
+    const lines = text.split(/\r?\n/);
+    const blocks: ReactNode[] = [];
+    let index = 0;
+
+    while (index < lines.length) {
+        const line = lines[index].trim();
+        if (!line) {
+            index += 1;
+            continue;
+        }
+
+        const heading = /^(#{1,3})\s+(.+)$/.exec(line);
+        if (heading) {
+            const Heading = heading[1].length === 1 ? "h2" : "h3";
+            blocks.push(
+                <Heading key={index} className="font-display text-base font-semibold">
+                    {renderInline(heading[2])}
+                </Heading>
+            );
+            index += 1;
+            continue;
+        }
+
+        const bullet = /^\s*[-*]\s+(.+)$/.exec(lines[index]);
+        const numbered = /^\s*\d+[.)]\s+(.+)$/.exec(lines[index]);
+        if (bullet || numbered) {
+            const ordered = Boolean(numbered);
+            const items: string[] = [];
+            while (index < lines.length) {
+                const match = ordered
+                    ? /^\s*\d+[.)]\s+(.+)$/.exec(lines[index])
+                    : /^\s*[-*]\s+(.+)$/.exec(lines[index]);
+                if (!match) break;
+                items.push(match[1]);
+                index += 1;
+            }
+            const List = ordered ? "ol" : "ul";
+            blocks.push(
+                <List key={index} className={ordered ? "list-decimal space-y-1 pl-5" : "list-disc space-y-1 pl-5"}>
+                    {items.map((item, itemIndex) => <li key={itemIndex}>{renderInline(item)}</li>)}
+                </List>
+            );
+            continue;
+        }
+
+        if (line.startsWith(">")) {
+            blocks.push(
+                <blockquote key={index} className="border-l-2 border-accent pl-3 text-text-muted">
+                    {renderInline(line.replace(/^>\s?/, ""))}
+                </blockquote>
+            );
+            index += 1;
+            continue;
+        }
+
+        if (
+            /^\|.+\|$/.test(line) &&
+            index + 1 < lines.length &&
+            /^\|?\s*:?-{3,}/.test(lines[index + 1].trim())
+        ) {
+            const headers = parseTableRow(line);
+            index += 2;
+            const rows: string[][] = [];
+            while (index < lines.length && /^\|.+\|$/.test(lines[index].trim())) {
+                rows.push(parseTableRow(lines[index]));
+                index += 1;
+            }
+            blocks.push(
+                <div key={index} className="overflow-x-auto">
+                    <table className="w-full border-collapse text-left text-sm">
+                        <thead>
+                            <tr>
+                                {headers.map((header, cellIndex) => (
+                                    <th key={cellIndex} className="border-b border-border px-3 py-2 font-semibold">
+                                        {renderInline(header)}
+                                    </th>
+                                ))}
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {rows.map((row, rowIndex) => (
+                                <tr key={rowIndex}>
+                                    {headers.map((_, cellIndex) => (
+                                        <td key={cellIndex} className="border-b border-border/60 px-3 py-2">
+                                            {renderInline(row[cellIndex] ?? "")}
+                                        </td>
+                                    ))}
+                                </tr>
+                            ))}
+                        </tbody>
+                    </table>
+                </div>
+            );
+            continue;
+        }
+
+        const paragraph = [line];
+        index += 1;
+        while (index < lines.length && lines[index].trim() && !isBlockStart(lines[index].trim())) {
+            paragraph.push(lines[index].trim());
+            index += 1;
+        }
+        blocks.push(<p key={index}>{renderInline(paragraph.join(" "))}</p>);
+    }
+
+    return <div className="space-y-3 leading-6">{blocks}</div>;
 }
 
 export function SpaceChat() {
@@ -171,7 +301,9 @@ export function SpaceChat() {
                                 ? "max-w-[90%] rounded-2xl rounded-br-sm bg-accent px-4 py-3 text-sm text-white sm:max-w-[80%]"
                                 : "max-w-[95%] space-y-3 rounded-2xl rounded-bl-sm border border-border bg-background px-4 py-3 text-sm text-text-primary sm:max-w-[85%]"}
                             >
-                                <div className="whitespace-pre-wrap leading-6">{message.content}</div>
+                                {message.role === "assistant"
+                                    ? <FormattedAnswer text={message.content} />
+                                    : <div className="whitespace-pre-wrap leading-6">{message.content}</div>}
                                 {message.role === "assistant" && Boolean(message.sources?.length) && (
                                     <div className="border-t border-border/70 pt-3">
                                         <p className="mb-2 text-[10px] font-mono uppercase tracking-wider text-text-muted">Sources</p>

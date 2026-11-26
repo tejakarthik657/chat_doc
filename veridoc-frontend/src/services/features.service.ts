@@ -24,14 +24,18 @@ export const featuresService = {
         const formData = new FormData();
         formData.append('file', file);
         formData.append('prompt', prompt);
-        const response = await api.post<{ description: string }>('/features/analyze-image', formData);
+        const response = await api.post<{ description: string }>('/features/analyze-image', formData, {
+            headers: { 'Content-Type': 'multipart/form-data' },
+        });
         return response.data;
     },
 
     async transcribeAudio(file: File) {
         const formData = new FormData();
         formData.append('file', file);
-        const response = await api.post<{ transcript: string }>('/features/transcribe', formData);
+        const response = await api.post<{ transcript: string }>('/features/transcribe', formData, {
+            headers: { 'Content-Type': 'multipart/form-data' },
+        });
         return response.data;
     },
 

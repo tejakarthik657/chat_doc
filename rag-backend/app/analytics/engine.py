@@ -76,7 +76,7 @@ async def get_user_analytics(user_id: str, days: int = 30) -> dict:
     sorted_docs = sorted(doc_counts.items(), key=lambda x: x[1], reverse=True)[:5]
     doc_breakdown = [{"name": name, "count": count} for name, count in sorted_docs]
 
-    total_docs = await documents_col().count_documents({"user_id": user_id})
+    total_docs = await documents_col().count_documents({"user_id": user_id, "status": "ready"})
 
     return {
         "total_documents": total_docs,

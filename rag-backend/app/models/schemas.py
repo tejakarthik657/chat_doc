@@ -145,6 +145,7 @@ class AnalyticsSummary(BaseModel):
     daily_limit: int
     top_clusters: List[ClusterSummary]
     storage_used_mb: float
+    storage_limit_mb: float
     questions_by_day: List[dict] = []      # List of {"day": str, "count": int}
     questions_by_document: List[dict] = [] # List of {"name": str, "count": int}
     recent_activity: List[RecentActivityItem] = []

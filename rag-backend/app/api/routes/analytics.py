@@ -21,6 +21,7 @@ async def get_analytics(user_id: str = Depends(get_current_user)):
         daily_limit=data["daily_limit"],
         top_clusters=data["top_clusters"],
         storage_used_mb=user.get("storage_used_mb", 0),
+        storage_limit_mb=settings.max_storage_mb,
         questions_by_day=data["questions_by_day"],
         questions_by_document=data["questions_by_document"],
         recent_activity=data["recent_activity"]
