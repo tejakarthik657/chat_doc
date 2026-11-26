@@ -5,6 +5,7 @@ from datetime import datetime
 from bson import ObjectId
 from typing import List
 from pydantic import BaseModel
+from urllib.parse import parse_qs, urlparse
 
 from app.core.security import get_current_user
 from app.core.config import get_settings
@@ -16,6 +17,22 @@ from app.models.schemas import ProjectCreate, ProjectOut, ProjectList, CrawlJobO
 
 settings = get_settings()
 router = APIRouter(prefix="/api/projects", tags=["projects"])
+
+
+def _is_youtube_video_url(url: str) -> bool:
+    parsed = urlparse(url)
+    host = (parsed.hostname or "").lower().removeprefix("www.")
+    video_id = ""
+    if host == "youtu.be":
+        video_id = parsed.path.strip("/").split("/")[0]
+    elif host in {"youtube.com", "m.youtube.com", "youtube-nocookie.com"}:
+        if parsed.path == "/watch":
+            video_id = parse_qs(parsed.query).get("v", [""])[0]
+        else:
+            parts = [part for part in parsed.path.split("/") if part]
+            if len(parts) == 2 and parts[0] in {"embed", "shorts", "live"}:
+                video_id = parts[1]
+    return len(video_id) == 11 and all(char.isalnum() or char in "-_" for char in video_id)
 
 
 @router.post("/create", response_model=ProjectOut, status_code=status.HTTP_201_CREATED)
@@ -30,6 +47,11 @@ async def create_project(
         raise HTTPException(
             status_code=400,
             detail="Invalid URL. Website URL must start with http:// or https://"
+        )
+    if _is_youtube_video_url(url):
+        raise HTTPException(
+            status_code=400,
+            detail="Use Capture Anything for YouTube videos so available captions can be indexed.",
         )
 
     # 1. Create Project in MongoDB

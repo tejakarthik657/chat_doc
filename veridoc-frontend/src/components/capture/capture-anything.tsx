@@ -19,8 +19,8 @@ import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
 import { documentService, DocumentOut } from "@/services/document.service";
-import { featuresService } from "@/services/features.service";
 import { projectService } from "@/services/project.service";
+import { captureSourceFile, waitForCapturedDocument } from "@/lib/source-capture";
 
 type CaptureStatus = "idle" | "processing" | "ready" | "error";
 
@@ -61,23 +61,6 @@ function isYouTubeVideoUrl(url: URL): boolean {
     );
 }
 
-function sleep(milliseconds: number): Promise<void> {
-    return new Promise((resolve) => window.setTimeout(resolve, milliseconds));
-}
-
-async function waitForDocument(docId: string, onProgress: (message: string) => void): Promise<DocumentOut> {
-    for (let attempt = 0; attempt < 180; attempt += 1) {
-        await sleep(2000);
-        onProgress("Building your searchable source...");
-        const document = await documentService.get(docId);
-        if (document.status === "ready") return document;
-        if (document.status === "error") {
-            throw new Error(document.error_message || "We couldn't index this source.");
-        }
-    }
-    throw new Error("Indexing is taking longer than expected. Check My Documents for its status.");
-}
-
 export function CaptureAnything() {
     const router = useRouter();
     const fileInputRef = useRef<HTMLInputElement>(null);
@@ -94,7 +77,7 @@ export function CaptureAnything() {
     const startDocumentIndexing = async (document: DocumentOut) => {
         setCapturedDocument(document);
         setStatus("processing");
-        const readyDocument = await waitForDocument(document.id, setMessage);
+        const readyDocument = await waitForCapturedDocument(document.id, setMessage);
         setCapturedDocument(readyDocument);
         setStatus("ready");
     };
@@ -104,46 +87,7 @@ export function CaptureAnything() {
         setStatus("processing");
         setMessage("Reading your source...");
         try {
-            if (file.size === 0) throw new Error("This file is empty.");
-            const lowerName = file.name.toLowerCase();
-            if (file.type === "application/pdf" || lowerName.endsWith(".pdf")) {
-                if (file.size > 50 * 1024 * 1024) throw new Error("PDFs must be 50 MB or smaller.");
-                setMessage("Uploading your PDF...");
-                await startDocumentIndexing(await documentService.upload(file));
-                return;
-            }
-            if (file.type.startsWith("image/")) {
-                if (file.size > 14 * 1024 * 1024) throw new Error("Images must be 14 MB or smaller.");
-                setMessage("Analyzing the image...");
-                const analysis = await featuresService.analyzeImage(
-                    file,
-                    "Describe the visible content in detail. Carefully transcribe readable text, explain important elements and their relationships, and separate direct observations from uncertain interpretations."
-                );
-                setMessage("Saving the image analysis to your library...");
-                await startDocumentIndexing(
-                    await documentService.captureText(file.name, analysis.description)
-                );
-                return;
-            }
-            if (file.type.startsWith("audio/")) {
-                if (file.size > 25 * 1024 * 1024) throw new Error("Audio files must be 25 MB or smaller.");
-                setMessage("Transcribing the audio...");
-                const result = await featuresService.transcribeAudio(file);
-                if (!result.transcript.trim()) throw new Error("No speech could be transcribed from this audio.");
-                setMessage("Saving the transcript to your library...");
-                await startDocumentIndexing(
-                    await documentService.captureText(file.name, result.transcript)
-                );
-                return;
-            }
-            if (file.type.startsWith("text/") || lowerName.endsWith(".txt") || lowerName.endsWith(".md")) {
-                setMessage("Saving your text...");
-                await startDocumentIndexing(
-                    await documentService.captureText(file.name, await file.text())
-                );
-                return;
-            }
-            throw new Error("Use a PDF, image, audio recording, text file, webpage link, or YouTube video link.");
+            await startDocumentIndexing(await captureSourceFile(file, setMessage));
         } catch (error) {
             setStatus("error");
             setErrorMessage(getErrorMessage(error));
@@ -269,13 +213,13 @@ export function CaptureAnything() {
                                 <Upload size={23} />
                             </span>
                             <span className="font-medium">Drop a file here or browse</span>
-                            <span className="mt-1 text-xs text-text-muted">PDF, image, audio, TXT, or Markdown</span>
+                            <span className="mt-1 text-xs text-text-muted">PDF, image, audio/video, or common text files</span>
                         </button>
                         <input
                             ref={fileInputRef}
                             type="file"
                             className="hidden"
-                            accept="application/pdf,image/*,audio/*,text/plain,text/markdown,.txt,.md"
+                            accept="application/pdf,image/*,audio/*,video/*,text/*,.txt,.md,.csv,.json,.html,.xml,.yaml,.yml,.log"
                             onChange={(event) => {
                                 const file = event.target.files?.[0];
                                 if (file) void captureFile(file);
@@ -293,7 +237,7 @@ export function CaptureAnything() {
                                     placeholder="Webpage or YouTube video URL"
                                     className="h-11 w-full rounded-md border border-border bg-background px-3 text-sm outline-none transition focus:border-accent"
                                 />
-                                <span className="block text-xs text-text-muted">YouTube uses available captions; video visuals aren’t analyzed.</span>
+                                <span className="block text-xs text-text-muted">YouTube links use available captions; uploaded videos are transcribed from their audio.</span>
                             </label>
                             <label className="block space-y-2">
                                 <span className="flex items-center gap-2 text-sm font-medium">
@@ -348,11 +292,11 @@ export function CaptureAnything() {
 
                 {status === "error" && (
                     <div className="p-6 text-center sm:p-10" role="alert">
-                        <span className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-full bg-blue-500/10 text-blue-500">
+                        <span className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-full bg-red-100 text-red-700">
                             <AlertTriangle size={22} />
                         </span>
                         <h3 className="font-display text-xl">We couldn’t capture that</h3>
-                        <p className="mx-auto mt-2 max-w-lg text-sm text-blue-400">{errorMessage}</p>
+                        <p className="mx-auto mt-2 max-w-lg text-sm text-red-700">{errorMessage}</p>
                         <div className="mt-5 flex flex-col justify-center gap-2 sm:flex-row">
                             {youtubeCaptureFailed && url && (
                                 <Button
@@ -373,7 +317,7 @@ export function CaptureAnything() {
 
                 {status === "ready" && capturedDocument && (
                     <div className="p-6 text-center sm:p-10">
-                        <span className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-full bg-accent/10 text-accent">
+                        <span className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-full bg-emerald-100 text-emerald-700">
                             <Check size={23} />
                         </span>
                         <h3 className="font-display text-xl">Ready to explore</h3>
@@ -390,7 +334,7 @@ export function CaptureAnything() {
                 )}
             </Card>
             <p className="mt-4 flex items-center justify-center gap-2 text-center text-xs text-text-muted">
-                <AudioLines size={14} /> Images become detailed visual notes; audio becomes a searchable transcript.
+                <AudioLines size={14} /> Images become visual notes; audio/video speech becomes searchable transcripts.
             </p>
         </div>
     );

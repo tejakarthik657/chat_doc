@@ -15,7 +15,7 @@ export default function DocumentsPage() {
                 <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
                     <div>
                         <h1 className="font-display text-2xl sm:text-3xl mb-1">My Documents</h1>
-                        <p className="text-text-secondary text-xs sm:text-sm">Manage and chat with your PDF medical records and analysis.</p>
+                        <p className="text-text-secondary text-xs sm:text-sm">Manage and ask questions across your documents, images, recordings, and saved sources.</p>
                     </div>
                     <Button
                         variant={isUploading ? "ghost" : "primary"}

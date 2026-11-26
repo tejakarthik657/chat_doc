@@ -98,6 +98,46 @@ async def test_transcribe_rejects_audio_above_configured_limit():
     assert "25 MB or smaller" in response.json()["detail"]
 
 
+@pytest.mark.asyncio
+async def test_transcribe_accepts_video_file_and_returns_searchable_speech():
+    from app.core.security import get_current_user
+
+    mock_client = MagicMock()
+    mock_client.transcribe_audio.return_value = "A transcript from the video."
+    app.dependency_overrides[get_current_user] = lambda: "test-user"
+    try:
+        with patch("app.core.llm_groq._get_or_init_groq_client", return_value=mock_client):
+            async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
+                response = await client.post(
+                    "/api/features/transcribe",
+                    files={"file": ("lesson.mp4", b"video-bytes", "video/mp4")},
+                )
+    finally:
+        app.dependency_overrides.pop(get_current_user, None)
+
+    assert response.status_code == 200
+    assert response.json() == {"transcript": "A transcript from the video."}
+    mock_client.transcribe_audio.assert_called_once_with(("lesson.mp4", b"video-bytes"))
+
+
+@pytest.mark.asyncio
+async def test_transcribe_rejects_empty_media_file():
+    from app.core.security import get_current_user
+
+    app.dependency_overrides[get_current_user] = lambda: "test-user"
+    try:
+        async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
+            response = await client.post(
+                "/api/features/transcribe",
+                files={"file": ("empty.mp3", b"", "audio/mpeg")},
+            )
+    finally:
+        app.dependency_overrides.pop(get_current_user, None)
+
+    assert response.status_code == 400
+    assert "file is empty" in response.json()["detail"]
+
+
 # ── Universal capture tests ──────────────────────────────────────────────────
 
 @pytest.mark.asyncio
@@ -180,6 +220,14 @@ def test_youtube_capture_rejects_non_video_or_untrusted_urls():
     with pytest.raises(HTTPException) as error:
         _youtube_video_id("https://example.com/watch?v=abcdefghijk")
     assert error.value.status_code == 400
+
+
+def test_youtube_video_links_are_not_treated_as_website_projects():
+    from app.api.routes.project import _is_youtube_video_url
+
+    assert _is_youtube_video_url("https://www.youtube.com/watch?v=abcdefghijk")
+    assert not _is_youtube_video_url("https://www.youtube.com/@channel")
+    assert not _is_youtube_video_url("https://example.com/watch?v=abcdefghijk")
 
 
 def test_youtube_caption_selection_uses_available_language_when_english_is_missing():

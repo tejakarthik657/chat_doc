@@ -243,11 +243,13 @@ async def transcribe_audio(
     audio_bytes = await file.read(MAX_AUDIO_UPLOAD_BYTES + 1)
     if len(audio_bytes) > MAX_AUDIO_UPLOAD_BYTES:
         raise HTTPException(status_code=413, detail="Audio files must be 25 MB or smaller.")
+    if not audio_bytes:
+        raise HTTPException(status_code=400, detail="The uploaded audio or video file is empty.")
 
     from app.core.llm_groq import _get_or_init_groq_client
     client = _get_or_init_groq_client()
     if not client:
-        raise HTTPException(status_code=500, detail="Voice recognition service not available.")
+        raise HTTPException(status_code=503, detail="Audio transcription is not configured right now.")
     try:
         filename = file.filename or "recording.webm"
         file_tuple = (filename, audio_bytes)
@@ -255,8 +257,11 @@ async def transcribe_audio(
         transcript = await asyncio.to_thread(client.transcribe_audio, file_tuple)
         return {"transcript": transcript.strip()}
     except Exception as e:
-        logger.error(f"[Transcribe Error] {e}")
-        raise HTTPException(status_code=500, detail=f"Audio transcription failed: {str(e)}")
+        logger.exception("Audio transcription failed.")
+        raise HTTPException(
+            status_code=502,
+            detail="Audio transcription failed. Try an MP3, WAV, M4A, MP4, or WebM file under 25 MB.",
+        ) from e
 
 
 @router.post("/analyze-image")
