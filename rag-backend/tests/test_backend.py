@@ -79,6 +79,156 @@ async def test_analyze_image_reports_vision_provider_failure():
     assert "vision service could not analyze" in response.json()["detail"]
 
 
+@pytest.mark.asyncio
+async def test_transcribe_rejects_audio_above_configured_limit():
+    from app.core.security import get_current_user
+
+    app.dependency_overrides[get_current_user] = lambda: "test-user"
+    try:
+        with patch("app.api.routes.features.MAX_AUDIO_UPLOAD_BYTES", 3):
+            async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
+                response = await client.post(
+                    "/api/features/transcribe",
+                    files={"file": ("sample.wav", b"four", "audio/wav")},
+                )
+    finally:
+        app.dependency_overrides.pop(get_current_user, None)
+
+    assert response.status_code == 413
+    assert "25 MB or smaller" in response.json()["detail"]
+
+
+# ── Universal capture tests ──────────────────────────────────────────────────
+
+@pytest.mark.asyncio
+async def test_capture_text_creates_searchable_document_and_schedules_indexing():
+    from fastapi import BackgroundTasks
+    from app.api.routes.documents import capture_text
+    from app.models.schemas import TextCaptureRequest
+
+    documents = MagicMock()
+    documents.count_documents = AsyncMock(return_value=0)
+    documents.insert_one = AsyncMock()
+    users = MagicMock()
+    users.find_one = AsyncMock(return_value={"_id": "test-user", "storage_used_mb": 0})
+    users.update_one = AsyncMock()
+    background_tasks = BackgroundTasks()
+
+    with patch("app.api.routes.documents.documents_col", return_value=documents), \
+         patch("app.api.routes.documents.users_col", return_value=users):
+        response = await capture_text(
+            TextCaptureRequest(title="  Notes  ", content="  A short note to save.  "),
+            background_tasks,
+            "test-user",
+        )
+
+    assert response.status == "processing"
+    assert response.filename == "Notes"
+    assert documents.insert_one.await_args.args[0]["source_type"] == "text"
+    assert users.update_one.await_args.args[1]["$inc"]["storage_used_mb"] >= 0
+    assert len(background_tasks.tasks) == 1
+    assert background_tasks.tasks[0].args[0] == "A short note to save."
+
+
+@pytest.mark.parametrize(
+    ("url", "expected_id"),
+    [
+        ("https://www.youtube.com/watch?v=abcdefghijk", "abcdefghijk"),
+        ("https://youtu.be/abcdefghijk?t=30", "abcdefghijk"),
+        ("https://youtube.com/shorts/abcdefghijk", "abcdefghijk"),
+        ("https://youtube.com/embed/abcdefghijk", "abcdefghijk"),
+    ],
+)
+def test_youtube_capture_extracts_supported_video_ids(url, expected_id):
+    from app.api.routes.documents import _youtube_video_id
+
+    assert _youtube_video_id(url) == expected_id
+
+
+def test_youtube_capture_rejects_non_video_or_untrusted_urls():
+    from fastapi import HTTPException
+    from app.api.routes.documents import _youtube_video_id
+
+    with pytest.raises(HTTPException) as error:
+        _youtube_video_id("https://example.com/watch?v=abcdefghijk")
+    assert error.value.status_code == 400
+
+
+@pytest.mark.asyncio
+async def test_youtube_capture_saves_transcript_as_a_searchable_document():
+    from fastapi import BackgroundTasks
+    from types import SimpleNamespace
+    from app.api.routes.documents import capture_youtube
+    from app.models.schemas import YouTubeCaptureRequest
+
+    documents = MagicMock()
+    documents.count_documents = AsyncMock(return_value=0)
+    documents.insert_one = AsyncMock()
+    users = MagicMock()
+    users.find_one = AsyncMock(return_value={"_id": "test-user", "storage_used_mb": 0})
+    users.update_one = AsyncMock()
+    transcript_api = MagicMock()
+    transcript_api.fetch.return_value = SimpleNamespace(
+        snippets=[SimpleNamespace(text="First caption."), SimpleNamespace(text="Second caption.")]
+    )
+    background_tasks = BackgroundTasks()
+
+    with patch("youtube_transcript_api.YouTubeTranscriptApi", return_value=transcript_api), \
+         patch("app.api.routes.documents.documents_col", return_value=documents), \
+         patch("app.api.routes.documents.users_col", return_value=users):
+        response = await capture_youtube(
+            YouTubeCaptureRequest(url="https://youtu.be/abcdefghijk"),
+            background_tasks,
+            "test-user",
+        )
+
+    assert response.status == "processing"
+    assert response.filename == "YouTube video abcdefghijk"
+    transcript_api.fetch.assert_called_once_with("abcdefghijk", languages=["en"])
+    assert documents.insert_one.await_args.args[0]["source_url"] == "https://youtu.be/abcdefghijk"
+    assert background_tasks.tasks[0].args[0] == "First caption. Second caption."
+
+
+@pytest.mark.asyncio
+async def test_text_ingestion_indexes_short_notes_and_marks_document_ready():
+    from app.ingestion.pipeline import ingest_text_document
+
+    documents = MagicMock()
+    documents.find_one_and_update = AsyncMock(return_value={"_id": "short-note"})
+    documents.update_one = AsyncMock()
+    chunks = MagicMock()
+    chunks.insert_many = AsyncMock()
+
+    with patch("app.ingestion.pipeline.documents_col", return_value=documents), \
+         patch("app.ingestion.pipeline.chunks_col", return_value=chunks), \
+         patch("app.ingestion.pipeline.build_index", new=AsyncMock()):
+        result = await ingest_text_document(
+            "Short note.",
+            "Note",
+            "short-note",
+            "test-user",
+        )
+
+    assert result["status"] == "ready"
+    assert result["chunks"] == 1
+    assert chunks.insert_many.await_args.args[0][0]["text"] == "Short note."
+    assert documents.update_one.await_args.args[1]["$set"]["status"] == "ready"
+
+
+def test_text_chunking_keeps_short_pasted_notes():
+    from app.ingestion.pipeline import chunk_pages
+
+    chunks = chunk_pages(
+        [{"page": 1, "text": "Short note."}],
+        "short-note-id",
+        "Short note",
+        min_chunk_length=1,
+    )
+
+    assert len(chunks) == 1
+    assert chunks[0]["text"] == "Short note."
+
+
 # ── Auth tests ────────────────────────────────────────────────────────────────
 
 @pytest.mark.asyncio

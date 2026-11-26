@@ -52,6 +52,15 @@ class DocumentList(BaseModel):
     storage_limit_mb: float
 
 
+class TextCaptureRequest(BaseModel):
+    title: str = Field(..., min_length=1, max_length=200)
+    content: str = Field(..., min_length=1, max_length=200000)
+
+
+class YouTubeCaptureRequest(BaseModel):
+    url: str = Field(..., min_length=1, max_length=2048)
+
+
 # ── Chat ──────────────────────────────────────────────────────────────────────
 
 class QuestionRequest(BaseModel):

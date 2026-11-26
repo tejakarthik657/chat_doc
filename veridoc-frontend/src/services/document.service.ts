@@ -41,6 +41,18 @@ export const documentService = {
         return response.data;
     },
 
+    async captureText(title: string, content: string) {
+        invalidateApiCache('/documents');
+        const response = await api.post<DocumentOut>('/documents/capture/text', { title, content });
+        return response.data;
+    },
+
+    async captureYouTube(url: string) {
+        invalidateApiCache('/documents');
+        const response = await api.post<DocumentOut>('/documents/capture/youtube', { url });
+        return response.data;
+    },
+
     async delete(docId: string) {
         invalidateApiCache('/documents');
         await api.delete(`/documents/${docId}`);

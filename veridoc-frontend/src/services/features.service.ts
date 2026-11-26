@@ -20,6 +20,21 @@ export interface VerifyAnswerResponse {
 }
 
 export const featuresService = {
+    async analyzeImage(file: File, prompt: string) {
+        const formData = new FormData();
+        formData.append('file', file);
+        formData.append('prompt', prompt);
+        const response = await api.post<{ description: string }>('/features/analyze-image', formData);
+        return response.data;
+    },
+
+    async transcribeAudio(file: File) {
+        const formData = new FormData();
+        formData.append('file', file);
+        const response = await api.post<{ transcript: string }>('/features/transcribe', formData);
+        return response.data;
+    },
+
     async getInsights(docId: string) {
         const response = await api.get<DocumentInsights>(`/features/${docId}/insights`);
         return response.data;

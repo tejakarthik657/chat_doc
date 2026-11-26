@@ -298,7 +298,8 @@ def is_code_block(block: str) -> bool:
 
 
 def semantic_chunking(text: str, source_name: str, url: str, page_num: int = 1,
-                      parent_text: str | None = None) -> list[dict]:
+                      parent_text: str | None = None,
+                      min_chunk_length: int = 30) -> list[dict]:
     """
     Semantic Structural Chunker:
     - Splits text on logical paragraphs and headings while preserving tables and code blocks as atomic units.
@@ -384,7 +385,7 @@ def semantic_chunking(text: str, source_name: str, url: str, page_num: int = 1,
     result = []
     for idx, c_text in enumerate(chunks):
         c_clean = c_text.strip()
-        if len(c_clean) < 30:  # drop micro-chunks
+        if len(c_clean) < min_chunk_length:
             continue
         sec = section_map.get(idx, "")
         if sec:
@@ -413,7 +414,13 @@ def semantic_chunking(text: str, source_name: str, url: str, page_num: int = 1,
     return result
 
 
-def chunk_pages(pages: list[dict], doc_id: str, filename: str) -> list[dict]:
+def chunk_pages(
+    pages: list[dict],
+    doc_id: str,
+    filename: str,
+    source_url: str | None = None,
+    min_chunk_length: int = 30,
+) -> list[dict]:
     """
     Splits each page's text with semantic awareness.
     Uses paragraph-preserving logic from semantic_chunking() for structure integrity.
@@ -432,9 +439,10 @@ def chunk_pages(pages: list[dict], doc_id: str, filename: str) -> list[dict]:
         page_chunks = semantic_chunking(
             page_text,
             source_name=filename,
-            url=f"doc:{doc_id}",
+            url=source_url or f"doc:{doc_id}",
             page_num=page_data.get("page", 1),
-            parent_text=page_data.get("text")
+            parent_text=page_data.get("text"),
+            min_chunk_length=min_chunk_length,
         )
         for c in page_chunks:
             c["doc_id"] = doc_id
@@ -626,6 +634,70 @@ async def ingest_document(
     finally:
         if temporary_file and file_path and os.path.exists(file_path):
             os.remove(file_path)
+
+
+async def ingest_text_document(
+    content: str,
+    filename: str,
+    doc_id: str,
+    user_id: str,
+    source_url: str | None = None,
+) -> dict:
+    """Index normalized text from pasted text or a supported media transcript."""
+    try:
+        claimed = await documents_col().find_one_and_update(
+            {
+                "_id": doc_id,
+                "status": "processing",
+                "ingestion_claimed": {"$ne": True},
+            },
+            {
+                "$set": {
+                    "ingestion_claimed": True,
+                    "ingestion_started_at": datetime.utcnow(),
+                }
+            },
+            return_document=ReturnDocument.AFTER,
+        )
+        if not claimed:
+            return {"status": "skipped", "reason": "already claimed or no longer processing"}
+
+        pages = [{"page": 1, "text": content}]
+        chunks = chunk_pages(
+            pages,
+            doc_id,
+            filename,
+            source_url=source_url,
+            min_chunk_length=1,
+        )
+        if not chunks:
+            raise ValueError("No searchable text was produced from this source.")
+
+        await build_index(chunks, doc_id)
+        for index, chunk in enumerate(chunks):
+            chunk["embedding_id"] = index
+
+        for start in range(0, len(chunks), 500):
+            await chunks_col().insert_many(chunks[start:start + 500])
+
+        await documents_col().update_one(
+            {"_id": doc_id},
+            {
+                "$set": {
+                    "status": "ready",
+                    "page_count": 1,
+                    "chunk_count": len(chunks),
+                    "summary": chunks[0]["text"][:300].strip(),
+                }
+            },
+        )
+        return {"status": "ready", "pages": 1, "chunks": len(chunks)}
+    except Exception as exc:
+        await documents_col().update_one(
+            {"_id": doc_id},
+            {"$set": {"status": "error", "error_message": str(exc)}},
+        )
+        raise
 
 
 async def process_single_page(page) -> tuple[list[dict], str, str, str | None]:

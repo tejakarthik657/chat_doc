@@ -27,6 +27,7 @@ from app.models.schemas import (
 
 router = APIRouter(prefix="/api/features", tags=["features"])
 logger = logging.getLogger(__name__)
+MAX_AUDIO_UPLOAD_BYTES = 25 * 1024 * 1024
 
 
 async def _load_document_text(doc_id: str, user_id: str) -> tuple[dict, list[dict], str]:
@@ -237,15 +238,17 @@ async def transcribe_audio(
     Feature: Groq Cloud Whisper Speech-to-Text
     Converts voice recordings to text in <300ms using whisper-large-v3-turbo with dynamic key pooling.
     """
-    from app.core.llm_groq import _get_or_init_groq_client
     import asyncio
 
+    audio_bytes = await file.read(MAX_AUDIO_UPLOAD_BYTES + 1)
+    if len(audio_bytes) > MAX_AUDIO_UPLOAD_BYTES:
+        raise HTTPException(status_code=413, detail="Audio files must be 25 MB or smaller.")
+
+    from app.core.llm_groq import _get_or_init_groq_client
     client = _get_or_init_groq_client()
     if not client:
         raise HTTPException(status_code=500, detail="Voice recognition service not available.")
-
     try:
-        audio_bytes = await file.read()
         filename = file.filename or "recording.webm"
         file_tuple = (filename, audio_bytes)
         

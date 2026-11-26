@@ -1,11 +1,13 @@
 import asyncio
 import json
+import logging
 import os
 import shutil
 import tempfile
 from datetime import datetime
 from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, BackgroundTasks
 from bson import ObjectId
+from urllib.parse import parse_qs, urlparse
 
 from app.core.security import get_current_user
 from app.core.config import get_settings
@@ -14,10 +16,148 @@ from app.core.bm25 import delete_bm25_index
 from app.core.storage_cloudinary import upload_pdf_to_cloudinary, delete_pdf_from_cloudinary
 from app.db.mongodb import documents_col, chunks_col, users_col
 from app.db.upstash import get_upstash_client
-from app.models.schemas import DocumentOut, DocumentList
+from app.models.schemas import DocumentOut, DocumentList, TextCaptureRequest, YouTubeCaptureRequest
 
 router = APIRouter(prefix="/api/documents", tags=["documents"])
 settings = get_settings()
+logger = logging.getLogger(__name__)
+
+
+def _youtube_video_id(url: str) -> str:
+    parsed = urlparse(url.strip())
+    host = (parsed.hostname or "").lower()
+    video_id = ""
+    if host in {"youtube.com", "www.youtube.com", "m.youtube.com", "youtube-nocookie.com", "www.youtube-nocookie.com"}:
+        if parsed.path == "/watch":
+            video_id = parse_qs(parsed.query).get("v", [""])[0]
+        else:
+            parts = [part for part in parsed.path.split("/") if part]
+            if len(parts) == 2 and parts[0] in {"embed", "shorts", "live"}:
+                video_id = parts[1]
+    elif host in {"youtu.be", "www.youtu.be"}:
+        video_id = parsed.path.strip("/").split("/")[0]
+
+    if not video_id or len(video_id) != 11 or not all(char.isalnum() or char in "-_" for char in video_id):
+        raise HTTPException(status_code=400, detail="Enter a valid YouTube video link.")
+    return video_id
+
+
+async def _create_text_source(
+    title: str,
+    content: str,
+    user_id: str,
+    background_tasks: BackgroundTasks,
+    source_url: str | None = None,
+) -> DocumentOut:
+    title = title.strip()
+    content = content.strip()
+    if not title or not content:
+        raise HTTPException(status_code=400, detail="A title and searchable content are required.")
+    if len(title) > 200:
+        raise HTTPException(status_code=400, detail="Source titles must be 200 characters or fewer.")
+    if len(content) > 200000:
+        raise HTTPException(status_code=413, detail="Captured text must be 200,000 characters or fewer.")
+
+    user = await users_col().find_one({"_id": user_id})
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found.")
+
+    doc_count = await documents_col().count_documents(
+        {"user_id": user_id, "status": {"$ne": "error"}}
+    )
+    if doc_count >= settings.max_docs:
+        raise HTTPException(
+            status_code=429,
+            detail=f"Document limit reached ({settings.max_docs} docs on free plan).",
+        )
+
+    size_bytes = len(content.encode("utf-8"))
+    size_mb = round(size_bytes / (1024 * 1024), 4)
+    if user.get("storage_used_mb", 0) + size_mb > settings.max_storage_mb:
+        raise HTTPException(
+            status_code=429,
+            detail=f"Storage limit reached ({settings.max_storage_mb}MB on free plan).",
+        )
+
+    doc_id = str(ObjectId())
+    now = datetime.utcnow()
+    await documents_col().insert_one({
+        "_id": doc_id,
+        "user_id": user_id,
+        "filename": title,
+        "source_url": source_url,
+        "source_type": "youtube" if source_url else "text",
+        "size_mb": size_mb,
+        "page_count": 0,
+        "status": "processing",
+        "uploaded_at": now,
+    })
+    await users_col().update_one({"_id": user_id}, {"$inc": {"storage_used_mb": size_mb}})
+
+    from app.ingestion.pipeline import ingest_text_document
+    background_tasks.add_task(
+        ingest_text_document,
+        content,
+        title,
+        doc_id,
+        user_id,
+        source_url,
+    )
+    return DocumentOut(
+        id=doc_id,
+        filename=title,
+        size_mb=size_mb,
+        page_count=0,
+        uploaded_at=now,
+        status="processing",
+    )
+
+
+@router.post("/capture/text", response_model=DocumentOut, status_code=202)
+async def capture_text(
+    body: TextCaptureRequest,
+    background_tasks: BackgroundTasks,
+    user_id: str = Depends(get_current_user),
+):
+    return await _create_text_source(body.title, body.content, user_id, background_tasks)
+
+
+@router.post("/capture/youtube", response_model=DocumentOut, status_code=202)
+async def capture_youtube(
+    body: YouTubeCaptureRequest,
+    background_tasks: BackgroundTasks,
+    user_id: str = Depends(get_current_user),
+):
+    video_id = _youtube_video_id(body.url)
+    try:
+        from youtube_transcript_api import YouTubeTranscriptApi
+
+        transcript = await asyncio.to_thread(
+            YouTubeTranscriptApi().fetch,
+            video_id,
+            languages=["en"],
+        )
+        content = " ".join(
+            snippet.text for snippet in transcript.snippets if snippet.text.strip()
+        ).strip()
+    except Exception as exc:
+        logger.exception("Could not retrieve YouTube captions for video %s", video_id)
+        raise HTTPException(
+            status_code=422,
+            detail="Captions could not be retrieved for this video. Try a video with available English captions.",
+        ) from exc
+
+    if not content:
+        raise HTTPException(status_code=422, detail="This video has no usable captions to index.")
+
+    title = f"YouTube video {video_id}"
+    return await _create_text_source(
+        title,
+        content,
+        user_id,
+        background_tasks,
+        source_url=body.url,
+    )
 
 
 @router.post("/upload", response_model=DocumentOut, status_code=202)
