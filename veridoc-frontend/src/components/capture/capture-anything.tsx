@@ -84,6 +84,7 @@ export function CaptureAnything() {
     const [errorMessage, setErrorMessage] = useState("");
     const [capturedDocument, setCapturedDocument] = useState<DocumentOut | null>(null);
     const [dragActive, setDragActive] = useState(false);
+    const [youtubeCaptureFailed, setYoutubeCaptureFailed] = useState(false);
 
     const startDocumentIndexing = async (document: DocumentOut) => {
         setCapturedDocument(document);
@@ -156,7 +157,14 @@ export function CaptureAnything() {
 
         if (isYouTubeVideoUrl(parsedUrl)) {
             setMessage("Retrieving available video captions...");
-            await startDocumentIndexing(await documentService.captureYouTube(enteredUrl));
+            let captured: DocumentOut;
+            try {
+                captured = await documentService.captureYouTube(enteredUrl);
+            } catch (error) {
+                setYoutubeCaptureFailed(true);
+                throw error;
+            }
+            await startDocumentIndexing(captured);
             return;
         }
 
@@ -175,7 +183,21 @@ export function CaptureAnything() {
         setStatus("processing");
         try {
             if (url.trim() && text.trim()) {
-                throw new Error("Capture one source at a time: use a link or pasted text.");
+                const parsedUrl = new URL(url.trim());
+                if (!isYouTubeVideoUrl(parsedUrl)) {
+                    throw new Error("Capture one source at a time: use a link or pasted text.");
+                }
+                const videoId = parsedUrl.searchParams.get("v") ||
+                    parsedUrl.pathname.split("/").filter(Boolean).pop() ||
+                    "video";
+                setMessage("Saving your pasted video transcript...");
+                await startDocumentIndexing(
+                    await documentService.captureText(
+                        `YouTube transcript: ${videoId}`,
+                        `${text.trim()}\n\nVideo link: ${url.trim()}`
+                    )
+                );
+                return;
             }
             if (url.trim()) {
                 await captureUrl();
@@ -195,6 +217,7 @@ export function CaptureAnything() {
         setMessage("");
         setErrorMessage("");
         setCapturedDocument(null);
+        setYoutubeCaptureFailed(false);
         setUrl("");
         setText("");
         if (fileInputRef.current) fileInputRef.current.value = "";
@@ -265,16 +288,19 @@ export function CaptureAnything() {
                                     placeholder="Webpage or YouTube video URL"
                                     className="h-11 w-full rounded-md border border-border bg-background px-3 text-sm outline-none transition focus:border-accent"
                                 />
-                                <span className="block text-xs text-text-muted">YouTube videos need available English captions.</span>
+                                <span className="block text-xs text-text-muted">YouTube uses available captions; video visuals aren’t analyzed.</span>
                             </label>
                             <label className="block space-y-2">
                                 <span className="flex items-center gap-2 text-sm font-medium">
-                                    <FileText size={15} className="text-accent" /> Or paste text
+                                    <FileText size={15} className="text-accent" />
+                                    {youtubeCaptureFailed ? "Paste video captions" : "Or paste text"}
                                 </span>
                                 <textarea
                                     value={text}
                                     onChange={(event) => setText(event.target.value)}
-                                    placeholder="Notes, an email, an excerpt, or anything you want to find later..."
+                                    placeholder={youtubeCaptureFailed
+                                        ? "Paste the video's transcript here to make it searchable..."
+                                        : "Notes, an email, an excerpt, or anything you want to find later..."}
                                     rows={3}
                                     className="w-full resize-y rounded-md border border-border bg-background px-3 py-2 text-sm outline-none transition focus:border-accent"
                                 />
@@ -321,7 +347,20 @@ export function CaptureAnything() {
                         </span>
                         <h3 className="font-display text-xl">We couldn’t capture that</h3>
                         <p className="mx-auto mt-2 max-w-lg text-sm text-red-400">{errorMessage}</p>
-                        <Button variant="ghost" className="mt-5" onClick={reset}>Try another source</Button>
+                        <div className="mt-5 flex flex-col justify-center gap-2 sm:flex-row">
+                            {youtubeCaptureFailed && url && (
+                                <Button
+                                    variant="ghost"
+                                    onClick={() => {
+                                        setStatus("idle");
+                                        setErrorMessage("");
+                                    }}
+                                >
+                                    Paste captions instead
+                                </Button>
+                            )}
+                            <Button variant="ghost" onClick={reset}>Try another source</Button>
+                        </div>
                     </div>
                 )}
 

@@ -4,7 +4,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useEffect, useState } from "react";
 import { cn } from "@/lib/utils";
-import { LayoutDashboard, Files, BarChart3, Settings, Database, LogOut, X, Sparkles } from "lucide-react";
+import { LayoutDashboard, Files, BarChart3, Settings, Database, LogOut, X, Sparkles, MessageSquareText } from "lucide-react";
 import { authService } from "@/services/auth.service";
 import { Button } from "@/components/ui/button";
 import { useSearch } from "@/lib/contexts/search-context";
@@ -12,6 +12,7 @@ import { useSearch } from "@/lib/contexts/search-context";
 const navItems = [
     { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
     { href: "/dashboard/capture", label: "Capture Anything", icon: Sparkles },
+    { href: "/dashboard/ask", label: "Ask Your Space", icon: MessageSquareText },
     { href: "/dashboard/documents", label: "My Documents", icon: Files },
     { href: "/dashboard/projects", label: "Knowledge Projects", icon: Database },
     { href: "/dashboard/analytics", label: "Analytics", icon: BarChart3 },

@@ -42,6 +42,19 @@ def _youtube_video_id(url: str) -> str:
     return video_id
 
 
+def _select_youtube_transcript(transcripts):
+    available = list(transcripts)
+    if not available:
+        raise ValueError("No captions are available for this video.")
+    return next(
+        (
+            item for item in available
+            if item.language_code.lower().startswith("en")
+        ),
+        available[0],
+    )
+
+
 async def _create_text_source(
     title: str,
     content: str,
@@ -132,11 +145,9 @@ async def capture_youtube(
     try:
         from youtube_transcript_api import YouTubeTranscriptApi
 
-        transcript = await asyncio.to_thread(
-            YouTubeTranscriptApi().fetch,
-            video_id,
-            languages=["en"],
-        )
+        transcript_list = await asyncio.to_thread(YouTubeTranscriptApi().list, video_id)
+        transcript_source = _select_youtube_transcript(transcript_list)
+        transcript = await asyncio.to_thread(transcript_source.fetch)
         content = " ".join(
             snippet.text for snippet in transcript.snippets if snippet.text.strip()
         ).strip()
@@ -144,7 +155,10 @@ async def capture_youtube(
         logger.exception("Could not retrieve YouTube captions for video %s", video_id)
         raise HTTPException(
             status_code=422,
-            detail="Captions could not be retrieved for this video. Try a video with available English captions.",
+            detail=(
+                "We couldn't retrieve captions. The video may not have captions, or YouTube "
+                "may be temporarily blocking access. Paste the transcript to capture it manually."
+            ),
         ) from exc
 
     if not content:

@@ -6,6 +6,8 @@ export interface SourceCitation {
     snippet: string;
     url?: string;
     source_name?: string;
+    source_id?: string;
+    source_type?: 'document' | 'project';
 }
 
 export interface ChatResponse {
@@ -32,6 +34,14 @@ export interface ChatHistoryItem {
 }
 
 export const chatService = {
+    async askSpace(question: string, strictMode = false) {
+        const response = await chatApi.post<ChatResponse>('/chat/space', {
+            question,
+            strict_mode: strictMode,
+        });
+        return response.data;
+    },
+
     async sendMessage(docId: string, question: string, strictMode = false) {
         // Use chatApi (60s timeout) — LLM generation takes 3–15s
         const response = await chatApi.post<ChatResponse>(`/chat/${docId}`, { question, strict_mode: strictMode });

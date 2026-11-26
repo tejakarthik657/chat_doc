@@ -94,6 +94,8 @@ class SourceCitation(BaseModel):
     snippet: str  # first 200 chars of the chunk
     url: Optional[str] = None
     source_name: Optional[str] = None
+    source_id: Optional[str] = None
+    source_type: Optional[str] = None
 
 
 class ChatResponse(BaseModel):

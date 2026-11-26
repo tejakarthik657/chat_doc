@@ -11,6 +11,31 @@ router = APIRouter(prefix="/api/chat", tags=["chat"])
 settings = get_settings()
 
 
+@router.post("/space", response_model=ChatResponse)
+async def ask_space(
+    body: QuestionRequest,
+    user_id: str = Depends(get_current_user),
+):
+    """Answer from all ready documents and active knowledge projects owned by the user."""
+    today_count = await count_questions_today(user_id)
+    if today_count >= settings.max_questions_per_day:
+        raise HTTPException(
+            status_code=429,
+            detail=f"Daily question limit reached ({settings.max_questions_per_day}/day on free plan).",
+        )
+
+    from app.rag.engine import answer_space_question
+    try:
+        return await answer_space_question(
+            question=body.question,
+            user_id=user_id,
+            strict_mode=body.strict_mode,
+        )
+    except Exception as exc:
+        print(f"[SPACE CHAT ERROR] {type(exc).__name__}: {exc}")
+        raise HTTPException(status_code=500, detail="Could not search your space. Please try again.") from exc
+
+
 @router.post("/general", response_model=ChatResponse)
 @router.post("/{doc_id}/general", response_model=ChatResponse)
 async def ask_general_ai(
@@ -178,7 +203,7 @@ async def get_chat_history(
         return []
 
     doc = await documents_col().find_one({"_id": doc_id, "user_id": user_id})
-    if not doc:
+    if not doc and doc_id != "space":
         # Check if doc_id might be a project_id or newly initialized doc
         from app.db.mongodb import projects_col
         project = await projects_col().find_one({"_id": doc_id, "user_id": user_id})

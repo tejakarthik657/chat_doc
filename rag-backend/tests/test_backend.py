@@ -154,6 +154,15 @@ def test_youtube_capture_rejects_non_video_or_untrusted_urls():
     assert error.value.status_code == 400
 
 
+def test_youtube_caption_selection_uses_available_language_when_english_is_missing():
+    from types import SimpleNamespace
+    from app.api.routes.documents import _select_youtube_transcript
+
+    spanish_transcript = SimpleNamespace(language_code="es")
+
+    assert _select_youtube_transcript([spanish_transcript]) is spanish_transcript
+
+
 @pytest.mark.asyncio
 async def test_youtube_capture_saves_transcript_as_a_searchable_document():
     from fastapi import BackgroundTasks
@@ -168,9 +177,14 @@ async def test_youtube_capture_saves_transcript_as_a_searchable_document():
     users.find_one = AsyncMock(return_value={"_id": "test-user", "storage_used_mb": 0})
     users.update_one = AsyncMock()
     transcript_api = MagicMock()
-    transcript_api.fetch.return_value = SimpleNamespace(
+    english_transcript = MagicMock()
+    english_transcript.language_code = "en"
+    english_transcript.fetch.return_value = SimpleNamespace(
         snippets=[SimpleNamespace(text="First caption."), SimpleNamespace(text="Second caption.")]
     )
+    translated_transcript = MagicMock()
+    translated_transcript.language_code = "fr"
+    transcript_api.list.return_value = [translated_transcript, english_transcript]
     background_tasks = BackgroundTasks()
 
     with patch("youtube_transcript_api.YouTubeTranscriptApi", return_value=transcript_api), \
@@ -184,7 +198,9 @@ async def test_youtube_capture_saves_transcript_as_a_searchable_document():
 
     assert response.status == "processing"
     assert response.filename == "YouTube video abcdefghijk"
-    transcript_api.fetch.assert_called_once_with("abcdefghijk", languages=["en"])
+    transcript_api.list.assert_called_once_with("abcdefghijk")
+    english_transcript.fetch.assert_called_once_with()
+    translated_transcript.fetch.assert_not_called()
     assert documents.insert_one.await_args.args[0]["source_url"] == "https://youtu.be/abcdefghijk"
     assert background_tasks.tasks[0].args[0] == "First caption. Second caption."
 
@@ -227,6 +243,147 @@ def test_text_chunking_keeps_short_pasted_notes():
 
     assert len(chunks) == 1
     assert chunks[0]["text"] == "Short note."
+
+
+@pytest.mark.asyncio
+async def test_space_chat_endpoint_uses_grounded_cross_source_rag():
+    from datetime import datetime
+    from app.core.security import get_current_user
+    from app.models.schemas import ChatResponse, SourceCitation
+
+    answer = ChatResponse(
+        answer="Both sources mention the launch date.",
+        sources=[
+            SourceCitation(
+                page=1,
+                chunk_id="chunk-1",
+                snippet="Launch is May 12.",
+                source_name="Meeting notes",
+                source_id="document-1",
+                source_type="document",
+            )
+        ],
+        grounded=True,
+        doc_id="space",
+        timestamp=datetime.utcnow(),
+    )
+    app.dependency_overrides[get_current_user] = lambda: "test-user"
+    try:
+        with patch("app.api.routes.chat.count_questions_today", new=AsyncMock(return_value=0)), \
+             patch("app.rag.engine.answer_space_question", new=AsyncMock(return_value=answer)) as ask_space:
+            async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
+                response = await client.post(
+                    "/api/chat/space",
+                    json={"question": "When is the launch?", "strict_mode": True},
+                )
+    finally:
+        app.dependency_overrides.pop(get_current_user, None)
+
+    assert response.status_code == 200
+    assert response.json()["doc_id"] == "space"
+    assert response.json()["sources"][0]["source_id"] == "document-1"
+    ask_space.assert_awaited_once_with(
+        question="When is the launch?",
+        user_id="test-user",
+        strict_mode=True,
+    )
+
+
+@pytest.mark.asyncio
+async def test_space_rag_combines_document_and_project_citations():
+    from types import SimpleNamespace
+    import numpy as np
+    from app.rag.engine import answer_space_question
+
+    class Cursor:
+        def __init__(self, rows):
+            self.rows = rows
+
+        def sort(self, *args):
+            return self
+
+        async def to_list(self, length):
+            return self.rows[:length]
+
+    document_chunk = {
+        "doc_id": "doc-1",
+        "embedding_id": 0,
+        "chunk_id": "doc-chunk",
+        "text": "The project launches in May.",
+        "page": 1,
+        "source_name": "Planning notes",
+        "url": "doc:doc-1",
+    }
+    project_chunk = {
+        "doc_id": "project-1",
+        "embedding_id": 0,
+        "chunk_id": "project-chunk",
+        "text": "The launch event is scheduled for May.",
+        "page": 1,
+        "source_name": "Launch website",
+        "url": "https://example.org/launch",
+    }
+    documents = MagicMock()
+    documents.find.return_value = Cursor([{
+        "_id": "doc-1",
+        "filename": "Planning notes",
+        "source_url": None,
+    }])
+    projects = MagicMock()
+    projects.find.return_value = Cursor([{"_id": "project-1", "name": "Launch website"}])
+    chunks = MagicMock()
+    chunks.find.side_effect = lambda query: Cursor(
+        [document_chunk] if query["doc_id"] == "doc-1" else [project_chunk]
+    )
+    history = MagicMock()
+    history.insert_one = AsyncMock()
+    chat_response = {}
+
+    async def record_history(record):
+        chat_response.update(record)
+
+    history.insert_one = record_history
+    rerank = lambda question, found, top_k: [(chunk, 1.0) for chunk in found[:top_k]]
+
+    with patch("app.rag.engine.documents_col", return_value=documents), \
+         patch("app.db.mongodb.projects_col", return_value=projects), \
+         patch("app.rag.engine.chunks_col", return_value=chunks), \
+         patch("app.rag.engine.load_faiss_index", return_value=object()), \
+         patch("app.rag.engine.hybrid_retrieve", new=AsyncMock(return_value=(
+             [0],
+             {"fusion": {"breakdown": [{"embedding_id": 0, "rrf_score": 0.04}]}},
+         ))), \
+         patch("app.db.qdrant.search_collection", return_value=[
+             SimpleNamespace(
+                 score=0.9,
+                 payload={
+                     "embedding_id": 0,
+                     "chunk_id": "project-chunk",
+                     "text": project_chunk["text"],
+                     "source_name": project_chunk["source_name"],
+                     "url": project_chunk["url"],
+                     "page": 1,
+                 },
+             )
+         ]), \
+         patch("app.rag.engine.load_bm25_index", new=AsyncMock(return_value=None)), \
+         patch("app.rag.engine.embed_texts", return_value=np.array([[1.0, 0.0]], dtype=np.float32)), \
+         patch("app.rag.engine.rerank_chunks", side_effect=rerank), \
+         patch("app.rag.engine.build_context_string", return_value="source context"), \
+         patch("app.rag.engine.get_memory", new=AsyncMock(return_value="")), \
+         patch("app.rag.engine.generate", return_value="Both sources mention May."), \
+         patch("app.rag.engine.verify_answer_support", return_value={
+             "label": "supported", "confidence": 0.9, "best_snippet": "May."
+         }), \
+         patch("app.rag.engine.chat_history_col", return_value=history), \
+         patch("app.rag.engine.update_memory", new=AsyncMock()), \
+         patch("app.rag.engine.log_question", new=AsyncMock()):
+        response = await answer_space_question("When is the launch?", "test-user")
+
+    assert response.grounded is True
+    assert {source.source_id for source in response.sources} == {"doc-1", "project-1"}
+    assert {source.source_type for source in response.sources} == {"document", "project"}
+    assert chat_response["doc_id"] == "space"
 
 
 # ── Auth tests ────────────────────────────────────────────────────────────────
