@@ -7,6 +7,78 @@ from unittest.mock import AsyncMock, patch, MagicMock
 from app.main import app
 
 
+# ── Image analysis tests ──────────────────────────────────────────────────────
+
+@pytest.mark.asyncio
+async def test_analyze_image_sends_image_to_vision_model():
+    from app.core.security import get_current_user
+
+    mock_client = MagicMock()
+    mock_client.chat_completion.return_value = "## Overview\nA screenshot of a coding exercise."
+    app.dependency_overrides[get_current_user] = lambda: "test-user"
+
+    try:
+        with patch("app.core.llm_groq._get_or_init_groq_client", return_value=mock_client):
+            async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
+                response = await client.post(
+                    "/api/features/analyze-image",
+                    files={"file": ("screen.png", b"image-bytes", "image/png")},
+                    data={"prompt": "What can you see?"},
+                )
+    finally:
+        app.dependency_overrides.pop(get_current_user, None)
+
+    assert response.status_code == 200
+    assert response.json()["description"] == "## Overview\nA screenshot of a coding exercise."
+    messages = mock_client.chat_completion.call_args.kwargs["messages"]
+    user_content = messages[1]["content"]
+    assert user_content[0]["text"].endswith("Question: What can you see?")
+    assert user_content[1]["type"] == "image_url"
+    assert user_content[1]["image_url"]["url"].startswith("data:image/png;base64,")
+    assert mock_client.chat_completion.call_args.kwargs["model"] == "qwen/qwen3.8-27b"
+    assert mock_client.chat_completion.call_args.kwargs["max_tokens"] == 1800
+
+
+@pytest.mark.asyncio
+async def test_analyze_image_returns_clear_error_when_vision_service_is_unavailable():
+    from app.core.security import get_current_user
+
+    app.dependency_overrides[get_current_user] = lambda: "test-user"
+    try:
+        with patch("app.core.llm_groq._get_or_init_groq_client", return_value=None):
+            async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
+                response = await client.post(
+                    "/api/features/analyze-image",
+                    files={"file": ("screen.png", b"image-bytes", "image/png")},
+                )
+    finally:
+        app.dependency_overrides.pop(get_current_user, None)
+
+    assert response.status_code == 503
+    assert "no vision service is configured" in response.json()["detail"]
+
+
+@pytest.mark.asyncio
+async def test_analyze_image_reports_vision_provider_failure():
+    from app.core.security import get_current_user
+
+    mock_client = MagicMock()
+    mock_client.chat_completion.side_effect = RuntimeError("provider unavailable")
+    app.dependency_overrides[get_current_user] = lambda: "test-user"
+    try:
+        with patch("app.core.llm_groq._get_or_init_groq_client", return_value=mock_client):
+            async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
+                response = await client.post(
+                    "/api/features/analyze-image",
+                    files={"file": ("screen.png", b"image-bytes", "image/png")},
+                )
+    finally:
+        app.dependency_overrides.pop(get_current_user, None)
+
+    assert response.status_code == 502
+    assert "vision service could not analyze" in response.json()["detail"]
+
+
 # ── Auth tests ────────────────────────────────────────────────────────────────
 
 @pytest.mark.asyncio

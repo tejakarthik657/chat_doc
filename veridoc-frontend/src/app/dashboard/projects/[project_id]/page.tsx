@@ -86,6 +86,7 @@ export default function ProjectWorkspacePage({ params }: { params: Promise<{ pro
         support_confidence?: number, 
         support_label?: string,
         isGeneralAI?: boolean,
+        isImageAnalysis?: boolean,
         questionRef?: string
     }>>([]);
     const [chatScope, setChatScope] = useState<"project" | "general">("project");
@@ -589,10 +590,12 @@ export default function ProjectWorkspacePage({ params }: { params: Promise<{ pro
         }
         let queryContext = textToSend;
         const currentAttachedImage = attachedImage;
+        const displayText = textToSend || (currentAttachedImage ? `[Attached Image: ${currentAttachedImage.name}]` : "");
+        const currentChatScope = chatScope;
         setAttachedImage(null);
 
-        // Multimodal Image Reasoning
         if (currentAttachedImage) {
+            setMessages(prev => [...prev, { sender: 'user', text: displayText }]);
             setImageAnalyzing(true);
             try {
                 const formData = new FormData();
@@ -602,23 +605,49 @@ export default function ProjectWorkspacePage({ params }: { params: Promise<{ pro
                     headers: { "Content-Type": "multipart/form-data" }
                 });
                 const imgData = ocrRes.data;
-                const visualNote = imgData.description || imgData.extracted_text || "Image parsed.";
+                const visualNote = imgData.description?.trim();
+                if (!visualNote) {
+                    throw new Error("The vision service returned an empty image analysis.");
+                }
+
+                if (currentChatScope === "general") {
+                    setMessages(prev => [...prev, {
+                        sender: 'assistant',
+                        text: visualNote,
+                        sources: [],
+                        evidence_trace: [],
+                        support_label: "Direct image analysis",
+                        isImageAnalysis: true,
+                        questionRef: displayText
+                    }]);
+                    return;
+                }
+
                 queryContext = `[Attached Image: ${currentAttachedImage.name}]\nVisual OCR & Content:\n${visualNote}\n\nUser Question:\n${textToSend || "Analyze and summarize this image."}`;
-            } catch (imgErr) {
+            } catch (imgErr: any) {
                 console.error("Image analysis failed:", imgErr);
+                const detail = imgErr?.response?.data?.detail;
+                setMessages(prev => [...prev, {
+                    sender: 'assistant',
+                    text: typeof detail === "string"
+                        ? `Image analysis failed: ${detail}`
+                        : "Image analysis failed. Please try again.",
+                    questionRef: displayText
+                }]);
+                return;
             } finally {
                 setImageAnalyzing(false);
             }
         }
 
-        const displayText = textToSend || (currentAttachedImage ? `[Attached Image: ${currentAttachedImage.name}]` : "");
-
-        if (chatScope === "general") {
+        if (currentChatScope === "general") {
             await handleAskGeneralAI(queryContext);
             return;
         }
 
-        setMessages(prev => [...prev, { sender: 'user', text: displayText }]);
+        if (!currentAttachedImage) {
+            setMessages(prev => [...prev, { sender: 'user', text: displayText }]);
+        }
         setChatLoading(true);
         try {
             const cleanSources = selectedSources.filter(s => typeof s === 'string' && s.trim() !== '');
@@ -1092,7 +1121,12 @@ export default function ProjectWorkspacePage({ params }: { params: Promise<{ pro
                                         ) : (
                                             /* Elegant, glassmorphic white card for AI answers */
                                             <Card className="rounded-none border border-slate-200/60 bg-white/90 backdrop-blur-sm shadow-sm hover:shadow-md transition-shadow p-5 space-y-3 w-full">
-                                                {msg.isGeneralAI ? (
+                                                {msg.isImageAnalysis ? (
+                                                    <div className="flex items-center gap-1.5 px-2.5 py-1 text-[10px] font-mono border w-fit bg-indigo-500/10 border-indigo-300/40 text-indigo-800 font-bold rounded">
+                                                        <ImageIcon size={11} className="text-indigo-600" />
+                                                        IMAGE ANALYSIS (GROQ VISION)
+                                                    </div>
+                                                ) : msg.isGeneralAI ? (
                                                     <div className="flex items-center gap-1.5 px-2.5 py-1 text-[10px] font-mono border w-fit bg-indigo-500/10 border-indigo-300/40 text-indigo-800 font-bold rounded">
                                                         <Globe size={11} className="text-indigo-600" />
                                                         WORLD KNOWLEDGE (GROQ)
@@ -1238,6 +1272,27 @@ export default function ProjectWorkspacePage({ params }: { params: Promise<{ pro
                                         )}
                                     </div>
                                 ))}
+
+                                {imageAnalyzing && (
+                                    <div
+                                        role="status"
+                                        aria-live="polite"
+                                        className="max-w-[800px] w-full mx-auto rounded-none border border-indigo-200/70 bg-white/90 p-5 shadow-sm"
+                                    >
+                                        <div className="mb-4 flex items-center gap-2 text-xs font-medium text-indigo-700">
+                                            <Loader2 className="animate-spin" size={14} />
+                                            Carefully analyzing your image and reading visible details…
+                                        </div>
+                                        <div className="animate-pulse space-y-3" aria-hidden="true">
+                                            <div className="h-3 w-2/5 rounded bg-slate-200" />
+                                            <div className="h-2.5 w-full rounded bg-slate-100" />
+                                            <div className="h-2.5 w-11/12 rounded bg-slate-100" />
+                                            <div className="h-2.5 w-4/5 rounded bg-slate-100" />
+                                            <div className="mt-4 h-3 w-1/3 rounded bg-slate-200" />
+                                            <div className="h-2.5 w-10/12 rounded bg-slate-100" />
+                                        </div>
+                                    </div>
+                                )}
 
                                 {/* Claude-Style Suggested Prompts for quick start */}
                                 {messages.length <= 1 && (

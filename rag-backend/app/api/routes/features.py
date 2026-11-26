@@ -263,85 +263,69 @@ async def analyze_image(
     user_id: str = Depends(get_current_user)
 ):
     """
-    Feature: Multimodal Visual Reasoning & OCR
-    Extracts text from uploaded images/diagrams using OCR and uses LLM to reason over visual layouts.
+    Analyze the uploaded image itself with a vision-capable model.
     """
     from app.core.llm_groq import _get_or_init_groq_client
     client = _get_or_init_groq_client()
 
+    if not client:
+        raise HTTPException(status_code=503, detail="Image analysis is unavailable because no vision service is configured.")
+    if not file.content_type or not file.content_type.startswith("image/"):
+        raise HTTPException(status_code=415, detail="Please upload a supported image file.")
+
+    content = await file.read()
+    if not content:
+        raise HTTPException(status_code=400, detail="The uploaded image is empty.")
+    if len(content) > 14 * 1024 * 1024:
+        raise HTTPException(status_code=413, detail="Images must be 14 MB or smaller.")
+
+    import base64
+
+    user_prompt = (prompt or "").strip() or "Describe and analyze this image."
+    image_data_url = (
+        f"data:{file.content_type};base64,"
+        f"{base64.b64encode(content).decode('ascii')}"
+    )
+    system_prompt = (
+        "You are an expert visual analyst. Inspect the provided image directly; do not infer "
+        "details that are not visible. Answer the user's question first, then explain the "
+        "important visible elements in a clear, well-structured response. For screenshots, "
+        "read visible text carefully and explain the interface, code, messages, and context. "
+        "For charts or diagrams, describe labels, relationships, trends, and what they mean. "
+        "Separate direct observations from uncertain interpretations, and mention when text "
+        "is too small or unclear to read. Use concise Markdown headings and bullets where useful."
+    )
+    user_content = [
+        {
+            "type": "text",
+            "text": f"Image filename: {file.filename or 'uploaded image'}\n\nQuestion: {user_prompt}",
+        },
+        {"type": "image_url", "image_url": {"url": image_data_url}},
+    ]
+
     try:
-        content = await file.read()
-        extracted_text = ""
-        
-        # 1. Try OCR with pytesseract
-        try:
-            from PIL import Image
-            import io
-            import pytesseract
-            img = Image.open(io.BytesIO(content))
-            extracted_text = pytesseract.image_to_string(img).strip()
-        except Exception as ocr_err:
-            logger.info(f"[OCR Notice] pytesseract: {ocr_err}")
+        description = await asyncio.to_thread(
+            client.chat_completion,
+            messages=[
+                {"role": "system", "content": system_prompt},
+                {"role": "user", "content": user_content},
+            ],
+            model="qwen/qwen3.8-27b",
+            temperature=0.2,
+            max_tokens=1800,
+        )
+    except Exception as exc:
+        logger.exception("[Image Analysis Error]")
+        raise HTTPException(status_code=502, detail="The vision service could not analyze this image. Please try again.") from exc
 
-        # 2. If pytesseract is empty, use OCR.space free API fallback
-        if not extracted_text:
-            try:
-                import httpx
-                import base64
-                b64_img = base64.b64encode(content).decode("utf-8")
-                mime_type = file.content_type or "image/png"
-                async with httpx.AsyncClient(timeout=10.0) as http_client:
-                    resp = await http_client.post(
-                        "https://api.ocr.space/parse/image",
-                        data={
-                            "apikey": "helloworld",
-                            "base64Image": f"data:{mime_type};base64,{b64_img}",
-                            "OCREngine": "2",
-                        }
-                    )
-                    if resp.status_code == 200:
-                        ocr_data = resp.json()
-                        parsed_results = ocr_data.get("ParsedResults", [])
-                        if parsed_results:
-                            extracted_text = parsed_results[0].get("ParsedText", "").strip()
-            except Exception as space_err:
-                logger.info(f"[OCR Space Notice] {space_err}")
+    if not description or not description.strip():
+        raise HTTPException(status_code=502, detail="The vision service returned an empty analysis. Please try again.")
 
-        # 3. Structure and summarize via Groq LLM
-        description = "Image uploaded."
-        if client:
-            llm_prompt = (
-                f"User attached an image with filename '{file.filename}'.\n"
-                f"Extracted Text/Content from OCR:\n{extracted_text or '[No direct text detected]'}\n\n"
-                f"User Question/Prompt: {prompt or 'Analyze and summarize what is shown in this image.'}\n\n"
-                f"Provide a clear, helpful visual description and answer based on the extracted content."
-            )
-            try:
-                import asyncio
-                resp = await asyncio.to_thread(
-                    client.chat_completion,
-                    messages=[
-                        {"role": "system", "content": "You are a multimodal AI assistant skilled in reading diagrams, charts, UI screenshots, and educational documents."},
-                        {"role": "user", "content": llm_prompt}
-                    ],
-                    model="qwen/qwen3.8-27b",
-                    temperature=0.2,
-                    max_tokens=600
-                )
-                if resp:
-                    description = resp.strip()
-            except Exception as llm_err:
-                logger.warning(f"[Multimodal LLM Notice] {llm_err}")
-                description = extracted_text or "Image attached."
-
-        return {
-            "filename": file.filename,
-            "extracted_text": extracted_text,
-            "description": description
-        }
-    except Exception as e:
-        logger.error(f"[Analyze Image Error] {e}")
-        raise HTTPException(status_code=500, detail=f"Image analysis failed: {str(e)}")
+    return {
+        "filename": file.filename,
+        "extracted_text": "",
+        "description": description.strip(),
+    }
 
 
 class CodeExecutionRequest(BaseModel):
