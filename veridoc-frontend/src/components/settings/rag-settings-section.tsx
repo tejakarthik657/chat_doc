@@ -1,59 +1,56 @@
 "use client";
 
-import { useState } from "react";
-import { Card, CardHeader, CardTitle, CardContent, CardDescription } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Layers3, SearchCheck, ShieldCheck } from "lucide-react";
+
+const retrievalFeatures = [
+    {
+        title: "Meaning + keyword search",
+        description: "Search combines semantic matching with exact terms to find useful passages across your sources.",
+        icon: SearchCheck,
+    },
+    {
+        title: "Automatic relevance ranking",
+        description: "Relevant passages are ranked automatically for each question. You don’t need to tune a threshold.",
+        icon: Layers3,
+    },
+    {
+        title: "Source-linked answers",
+        description: "Answers include references to the documents and projects used to form them.",
+        icon: ShieldCheck,
+    },
+];
 
 export function RagSettingsSection() {
     return (
         <div className="space-y-6">
             <div>
-                <h2 className="font-display text-2xl mb-1">Retrieval Configuration</h2>
-                <p className="text-text-secondary text-sm">Control how your documents are searched and answered.</p>
+                <h2 className="mb-1 font-display text-2xl">Answer preferences</h2>
+                <p className="text-sm text-text-secondary">
+                    Threadwell manages retrieval automatically so answers stay consistent across your saved sources.
+                </p>
             </div>
 
-            {/* Hybrid Search Toggle */}
-            <Card className="flex flex-row items-center justify-between p-6">
-                <div className="space-y-1">
-                    <div className="font-medium text-text-primary">Hybrid Search</div>
-                    <div className="text-sm text-text-muted">Combines keyword matching with semantic vector search.</div>
-                </div>
-                <div className="bg-accent rounded-full p-1 w-12 flex justify-end cursor-pointer">
-                    <div className="h-4 w-4 bg-black rounded-full shadow-sm" />
-                </div>
-            </Card>
+            <div className="space-y-4">
+                {retrievalFeatures.map(({ title, description, icon: Icon }) => (
+                    <Card key={title}>
+                        <CardHeader className="flex flex-row items-start gap-4 space-y-0 p-5 sm:p-6">
+                            <span className="mt-0.5 rounded-lg bg-accent/10 p-2 text-accent">
+                                <Icon size={18} />
+                            </span>
+                            <div className="space-y-1">
+                                <CardTitle className="text-base">{title}</CardTitle>
+                                <p className="text-sm leading-relaxed text-text-muted">{description}</p>
+                            </div>
+                        </CardHeader>
+                    </Card>
+                ))}
+            </div>
 
-            {/* Similarity Threshold */}
-            <Card className="p-6 space-y-6">
-                <div className="flex justify-between items-center">
-                    <div className="space-y-1">
-                        <div className="font-medium text-text-primary">Similarity Threshold</div>
-                        <div className="text-sm text-text-muted">Minimum relevance match score (0.0 - 1.0).</div>
-                    </div>
-                    <Badge variant="default" className="text-base px-3 py-1 bg-surface-high">0.75</Badge>
-                </div>
-                <div className="relative h-2 bg-surface-high rounded-full overflow-hidden">
-                    <div className="absolute top-0 left-0 bottom-0 w-[75%] bg-accent rounded-full" />
-                </div>
-                <div className="flex justify-between text-xs font-mono text-text-muted">
-                    <span>Loose (More Results)</span>
-                    <span>Strict (Higher Accuracy)</span>
-                </div>
-            </Card>
-
-            {/* Reranker Config */}
-            <Card className="p-6 space-y-4">
-                <div className="flex justify-between items-center">
-                    <div className="space-y-1">
-                        <div className="font-medium text-text-primary">Chunk Limit</div>
-                        <div className="text-sm text-text-muted">Number of chunks to feed into the context window.</div>
-                    </div>
-                    <div className="flex items-center gap-2">
-                        <button className="h-8 w-8 rounded bg-surface-high border border-border flex items-center justify-center">-</button>
-                        <span className="font-mono w-4 text-center">4</span>
-                        <button className="h-8 w-8 rounded bg-surface-high border border-border flex items-center justify-center">+</button>
-                    </div>
-                </div>
+            <Card className="border-accent/20 bg-accent/5">
+                <CardContent className="p-5 text-sm leading-relaxed text-text-secondary sm:p-6">
+                    Need stricter answers? Turn on <strong className="text-text-primary">Strict evidence mode</strong> in Ask Your Space for a question-by-question evidence check.
+                </CardContent>
             </Card>
         </div>
     );

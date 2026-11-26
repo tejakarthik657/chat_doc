@@ -4,7 +4,14 @@ from datetime import datetime
 from bson import ObjectId
 from pymongo.errors import DuplicateKeyError
 
-from app.models.schemas import UserRegister, UserLogin, TokenResponse, UserOut
+from app.models.schemas import (
+    UserRegister,
+    UserLogin,
+    TokenResponse,
+    UserOut,
+    ProfileUpdateRequest,
+    PasswordChangeRequest,
+)
 from app.core.security import hash_password, verify_password, create_access_token
 from app.core.security import get_current_user
 from app.db.mongodb import users_col
@@ -21,9 +28,27 @@ settings = get_settings()
 router = APIRouter(prefix="/api/auth", tags=["auth"])
 
 
+def _to_user_out(user: dict) -> UserOut:
+    auth_provider = user.get("auth_provider")
+    if not auth_provider:
+        auth_provider = "password" if user.get("password_hash") else "google"
+    return UserOut(
+        id=user["_id"],
+        email=user["email"],
+        name=user.get("name"),
+        auth_provider=auth_provider,
+        plan=user["plan"],
+        storage_used_mb=user.get("storage_used_mb", 0.0),
+        created_at=user["created_at"],
+    )
+
+
 @router.post("/register", response_model=TokenResponse, status_code=201)
 async def register(body: UserRegister):
     try:
+        name = body.name.strip() if body.name else None
+        if body.name is not None and not name:
+            raise HTTPException(status_code=422, detail="Display name cannot be empty.")
         # Check password length (internal check for bcrypt safety)
         if len(body.password.encode("utf-8")) > 72:
             raise HTTPException(
@@ -40,6 +65,7 @@ async def register(body: UserRegister):
         user_doc = {
             "_id": user_id,
             "email": body.email,
+            "name": name,
             "password_hash": hashed,
             "plan": "FREE",
             "storage_used_mb": 0.0,
@@ -85,13 +111,52 @@ async def get_me(user_id: str = Depends(get_current_user)):
     user = await users_col().find_one({"_id": user_id})
     if not user:
         raise HTTPException(status_code=404, detail="User not found.")
-    return UserOut(
-        id=user["_id"],
-        email=user["email"],
-        plan=user["plan"],
-        storage_used_mb=user["storage_used_mb"],
-        created_at=user["created_at"]
+    return _to_user_out(user)
+
+
+@router.patch("/me", response_model=UserOut)
+async def update_me(
+    body: ProfileUpdateRequest,
+    user_id: str = Depends(get_current_user),
+):
+    name = body.name.strip()
+    if not name:
+        raise HTTPException(status_code=422, detail="Display name cannot be empty.")
+
+    await users_col().update_one({"_id": user_id}, {"$set": {"name": name}})
+    user = await users_col().find_one({"_id": user_id})
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found.")
+    return _to_user_out(user)
+
+
+@router.post("/change-password")
+async def change_password(
+    body: PasswordChangeRequest,
+    user_id: str = Depends(get_current_user),
+):
+    user = await users_col().find_one({"_id": user_id})
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found.")
+    password_hash = user.get("password_hash")
+    if not password_hash:
+        raise HTTPException(
+            status_code=400,
+            detail="This account uses single sign-on and has no password to change.",
+        )
+    if len(body.new_password.encode("utf-8")) > 72:
+        raise HTTPException(status_code=422, detail="Password must be 72 bytes or fewer.")
+    if not await asyncio.to_thread(verify_password, body.current_password, password_hash):
+        raise HTTPException(status_code=400, detail="Current password is incorrect.")
+    if await asyncio.to_thread(verify_password, body.new_password, password_hash):
+        raise HTTPException(status_code=400, detail="Choose a new password different from your current one.")
+
+    new_hash = await asyncio.to_thread(hash_password, body.new_password)
+    await users_col().update_one(
+        {"_id": user_id},
+        {"$set": {"password_hash": new_hash, "password_updated_at": datetime.utcnow()}},
     )
+    return {"status": "updated"}
 
 
 # ── Google OAuth 2.0 Integration ─────────────────────────────────────────────

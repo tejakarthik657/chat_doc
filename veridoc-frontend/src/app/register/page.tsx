@@ -60,6 +60,7 @@ export default function RegisterPage() {
         setError("");
 
         const formData = new FormData(e.target as HTMLFormElement);
+        const name = formData.get("name") as string;
         const email = formData.get("email") as string;
         const password = formData.get("password") as string;
 
@@ -70,7 +71,7 @@ export default function RegisterPage() {
         }
 
         try {
-            await authService.register({ email, password });
+            await authService.register({ name, email, password });
             router.push("/onboarding");
         } catch (err: any) {
             setError(getErrorMessage(err, "Registration failed"));
@@ -83,13 +84,13 @@ export default function RegisterPage() {
             {/* Left Panel - Form */}
             <div className="w-full md:w-1/2 flex flex-col justify-center px-8 md:px-24 py-12 border-r border-border">
                 <div className="mb-2 w-max">
-                    <Link href="/" className="font-display text-2xl text-text-primary hover:opacity-80 transition-opacity">NEXUS AI</Link>
+                    <Link href="/" className="font-display text-2xl text-text-primary hover:opacity-80 transition-opacity">Threadwell</Link>
                 </div>
 
                 <div className="space-y-6 mt-12 max-w-sm w-full mx-auto md:mx-0">
                     <div className="space-y-2">
-                        <h1 className="font-display text-4xl">Start with a document.</h1>
-                        <p className="font-mono text-sm text-accent">Create your NEXUS AI account.</p>
+                        <h1 className="font-display text-4xl">Make a space for what matters.</h1>
+                        <p className="font-mono text-sm text-accent">Create your Threadwell account.</p>
                     </div>
 
                     <form onSubmit={handleSubmit} className="space-y-4">
@@ -97,7 +98,7 @@ export default function RegisterPage() {
                             <label className="text-xs font-mono text-text-secondary uppercase">Full Name</label>
                             <div className="relative">
                                 <User className="absolute left-3 top-1/2 -translate-y-1/2 text-text-muted h-4 w-4" />
-                                <Input type="text" placeholder="Dr. Sarah Connor" className="pl-9" required />
+                                <Input name="name" type="text" placeholder="Your name" className="pl-9" maxLength={80} required />
                             </div>
                         </div>
 

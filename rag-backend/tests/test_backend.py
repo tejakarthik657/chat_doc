@@ -472,10 +472,97 @@ async def test_register_and_login():
             # Register
             r = await client.post("/api/auth/register", json={
                 "email": "test@example.com",
-                "password": "password123"
+                "password": "password123",
+                "name": "Test User",
             })
             assert r.status_code == 201
             assert "access_token" in r.json()
+            assert mock_user["name"] == "Test User"
+
+
+@pytest.mark.asyncio
+async def test_profile_update_persists_display_name():
+    from app.core.security import get_current_user
+    from datetime import datetime
+
+    user = {
+        "_id": "test-user",
+        "email": "test@example.com",
+        "name": "Before",
+        "password_hash": "hashed-password",
+        "plan": "FREE",
+        "storage_used_mb": 1.0,
+        "created_at": datetime.utcnow(),
+    }
+    users = MagicMock()
+    users.find_one = AsyncMock(return_value=user)
+
+    async def save_profile(_query, update):
+        user.update(update["$set"])
+
+    users.update_one = AsyncMock(side_effect=save_profile)
+    app.dependency_overrides[get_current_user] = lambda: "test-user"
+    try:
+        with patch("app.api.routes.auth.users_col", return_value=users):
+            async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
+                response = await client.patch("/api/auth/me", json={"name": "  New Name  "})
+    finally:
+        app.dependency_overrides.pop(get_current_user, None)
+
+    assert response.status_code == 200
+    assert response.json()["name"] == "New Name"
+    users.update_one.assert_awaited_once_with(
+        {"_id": "test-user"},
+        {"$set": {"name": "New Name"}},
+    )
+
+
+@pytest.mark.asyncio
+async def test_change_password_verifies_current_password_and_saves_new_hash():
+    from app.core.security import get_current_user
+
+    users = MagicMock()
+    users.find_one = AsyncMock(return_value={"_id": "test-user", "password_hash": "old-hash"})
+    users.update_one = AsyncMock()
+    app.dependency_overrides[get_current_user] = lambda: "test-user"
+    try:
+        with patch("app.api.routes.auth.users_col", return_value=users), \
+             patch("app.api.routes.auth.verify_password", side_effect=[True, False]), \
+             patch("app.api.routes.auth.hash_password", return_value="new-hash"):
+            async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
+                response = await client.post(
+                    "/api/auth/change-password",
+                    json={"current_password": "current-pass", "new_password": "new-password"},
+                )
+    finally:
+        app.dependency_overrides.pop(get_current_user, None)
+
+    assert response.status_code == 200
+    assert response.json()["status"] == "updated"
+    update = users.update_one.await_args.args[1]["$set"]
+    assert update["password_hash"] == "new-hash"
+    assert "password_updated_at" in update
+
+
+@pytest.mark.asyncio
+async def test_change_password_rejects_single_sign_on_accounts():
+    from app.core.security import get_current_user
+
+    users = MagicMock()
+    users.find_one = AsyncMock(return_value={"_id": "test-user", "auth_provider": "google"})
+    app.dependency_overrides[get_current_user] = lambda: "test-user"
+    try:
+        with patch("app.api.routes.auth.users_col", return_value=users):
+            async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
+                response = await client.post(
+                    "/api/auth/change-password",
+                    json={"current_password": "current-pass", "new_password": "new-password"},
+                )
+    finally:
+        app.dependency_overrides.pop(get_current_user, None)
+
+    assert response.status_code == 400
+    assert "single sign-on" in response.json()["detail"]
 
 
 # ── Ingestion tests ───────────────────────────────────────────────────────────

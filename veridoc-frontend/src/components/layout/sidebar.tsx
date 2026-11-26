@@ -67,8 +67,8 @@ export function Sidebar() {
             >
                 <div className="p-5 md:p-6 flex items-center justify-between">
                     <div className="flex flex-col">
-                        <span className="font-display text-xl text-text-primary tracking-tight font-bold">NEXUS AI</span>
-                        <span className="text-[9px] font-mono text-text-muted tracking-wider leading-none uppercase mt-0.5">Explore &bull; Understand &bull; Build</span>
+                        <span className="font-display text-xl text-text-primary tracking-tight font-bold">Threadwell</span>
+                        <span className="text-[9px] font-mono text-text-muted tracking-wider leading-none uppercase mt-0.5">Keep it close. Find it again.</span>
                     </div>
                     {/* Mobile Close Button */}
                     <Button

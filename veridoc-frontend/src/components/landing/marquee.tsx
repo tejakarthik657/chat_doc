@@ -4,16 +4,16 @@ import { motion } from "framer-motion";
 
 export function Marquee() {
     const items = [
-        "SOURCE GROUNDED",
-        "ZERO HALLUCINATIONS",
-        "CITATION ON EVERY ANSWER",
-        "CPU-SAFE",
-        "PRIVATE BY DESIGN",
-        "FREE TIER AVAILABLE",
+        "NOTES, FILES & LINKS",
+        "ONE SEARCHABLE SPACE",
+        "ANSWERS WITH SOURCES",
+        "CAPTURE FIRST, SORT LATER",
+        "ASK ACROSS WHAT YOU SAVE",
+        "YOUR KNOWLEDGE, CONNECTED",
     ];
 
     return (
-        <div className="relative w-full overflow-hidden bg-slate-100 py-4 border-y border-slate-200/60">
+        <div className="relative w-full overflow-hidden border-y border-[#E2DED5] bg-[#F0EDE5] py-4">
             <div className="flex">
                 <motion.div
                     initial={{ x: 0 }}
@@ -23,8 +23,8 @@ export function Marquee() {
                 >
                     {[...items, ...items, ...items].map((item, i) => (
                         <div key={i} className="flex items-center mx-8">
-                            <span className="text-accent font-mono text-sm tracking-wider font-bold">{item}</span>
-                            <span className="mx-8 h-1.5 w-1.5 rounded-full bg-accent/50" />
+                            <span className="font-mono text-xs font-semibold tracking-[0.12em] text-[#59645D] sm:text-sm">{item}</span>
+                            <span className="mx-8 h-1.5 w-1.5 rounded-full bg-[#B65D43]/60" />
                         </div>
                     ))}
                 </motion.div>

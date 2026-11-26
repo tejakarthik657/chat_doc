@@ -9,7 +9,7 @@ export const viewport: Viewport = {
     maximumScale: 5,
     userScalable: true,
     viewportFit: "cover",
-    themeColor: "#F8FAFC",
+    themeColor: "#F8F6F0",
 };
 
 
@@ -30,8 +30,8 @@ const jetbrainsMono = JetBrains_Mono({
 });
 
 export const metadata: Metadata = {
-    title: "NEXUS AI | Intelligence You Can Explore and Use",
-    description: "Autonomous Web Intelligence, Living Memory (ECHO), Spatial Thought Canvas (MINDSPACE), and Live Interactive Artifacts (FORGE).",
+    title: "Threadwell — Keep what matters in context",
+    description: "Bring your notes, documents, images, audio, and links together. Ask across what you save and follow answers back to their sources.",
     icons: {
         icon: "/favicon.svg",
         shortcut: "/favicon.svg",

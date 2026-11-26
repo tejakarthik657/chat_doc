@@ -1,48 +1,64 @@
 "use client";
 
 import { useState } from "react";
-import { User, Lock, Settings, BarChart } from "lucide-react";
+import { User, Lock, SlidersHorizontal, ChartNoAxesColumn } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { ProfileSection } from "@/components/settings/profile-section";
 import { SecuritySection } from "@/components/settings/security-section";
 import { RagSettingsSection } from "@/components/settings/rag-settings-section";
+import { UsageLimitsSection } from "@/components/settings/usage-limits-section";
+
+type SettingsSection = "profile" | "security" | "preferences" | "limits";
 
 export default function SettingsPage() {
-    const [activeSection, setActiveSection] = useState("rag");
+    const [activeSection, setActiveSection] = useState<SettingsSection>("profile");
 
     const navItems = [
         {
-            id: "account", label: "Account", items: [
-                { id: "profile", label: "Profile", icon: User },
-                { id: "security", label: "Security", icon: Lock },
-            ]
+            id: "account",
+            label: "Account",
+            items: [
+                { id: "profile" as const, label: "Profile", icon: User },
+                { id: "security" as const, label: "Security", icon: Lock },
+            ],
         },
         {
-            id: "preferences", label: "Preferences", items: [
-                { id: "rag", label: "RAG Settings", icon: Settings },
-                { id: "limits", label: "Usage & Limits", icon: BarChart },
-            ]
+            id: "preferences",
+            label: "Workspace",
+            items: [
+                { id: "preferences" as const, label: "Answer preferences", icon: SlidersHorizontal },
+                { id: "limits" as const, label: "Usage & limits", icon: ChartNoAxesColumn },
+            ],
         },
     ];
 
     return (
-        <div className="p-8 max-w-[1600px] mx-auto min-h-[calc(100vh-60px)] flex gap-12">
-            {/* Settings Navigation Sidebar */}
-            <div className="w-64 shrink-0 space-y-8">
-                <h1 className="font-display text-3xl mb-8">Settings</h1>
+        <div className="mx-auto min-h-[calc(100vh-60px)] max-w-6xl px-4 py-6 sm:px-6 sm:py-8 lg:px-8">
+            <header className="mb-8">
+                <p className="mb-2 font-mono text-xs uppercase tracking-[0.16em] text-accent">Your account</p>
+                <h1 className="font-display text-3xl sm:text-4xl">Settings</h1>
+                <p className="mt-2 max-w-2xl text-sm text-text-secondary">
+                    Manage your Threadwell profile, sign-in security, and workspace usage.
+                </p>
+            </header>
 
-                {navItems.map((section) => (
-                    <div key={section.id} className="space-y-2">
-                        <h3 className="font-mono text-xs text-text-muted uppercase tracking-wider px-2 mb-2">{section.label}</h3>
-                        <div className="space-y-1">
+            <div className="grid gap-8 lg:grid-cols-[220px,minmax(0,1fr)] lg:gap-12">
+                <nav aria-label="Settings sections" className="space-y-5">
+                    {navItems.map((section) => (
+                        <div key={section.id} className="space-y-2">
+                            <h2 className="px-2 font-mono text-xs uppercase tracking-wider text-text-muted">
+                                {section.label}
+                            </h2>
+                            <div className="flex gap-2 overflow-x-auto pb-1 lg:flex-col lg:overflow-visible">
                             {section.items.map((item) => (
                                 <button
                                     key={item.id}
                                     onClick={() => setActiveSection(item.id)}
+                                    aria-current={activeSection === item.id ? "page" : undefined}
                                     className={cn(
-                                        "w-full flex items-center gap-3 px-3 py-2 rounded-lg text-sm font-medium transition-colors text-left",
+                                        "flex shrink-0 items-center gap-3 rounded-lg px-3 py-2.5 text-left text-sm font-medium transition-colors lg:w-full",
                                         activeSection === item.id
-                                            ? "bg-surface-high text-accent"
+                                            ? "bg-accent/10 text-accent"
                                             : "text-text-secondary hover:bg-surface-high/50 hover:text-text-primary"
                                     )}
                                 >
@@ -50,17 +66,17 @@ export default function SettingsPage() {
                                     {item.label}
                                 </button>
                             ))}
+                            </div>
                         </div>
-                    </div>
-                ))}
-            </div>
+                    ))}
+                </nav>
 
-            {/* Content Area */}
-            <div className="flex-1 max-w-3xl">
+                <main className="min-w-0 max-w-3xl">
                 {activeSection === "profile" && <ProfileSection />}
                 {activeSection === "security" && <SecuritySection />}
-                {activeSection === "rag" && <RagSettingsSection />}
-                {/* Placeholder for others */}
+                {activeSection === "preferences" && <RagSettingsSection />}
+                {activeSection === "limits" && <UsageLimitsSection />}
+                </main>
             </div>
         </div>
     );

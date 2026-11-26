@@ -49,7 +49,7 @@ export default function OnboardingPage() {
                                 </div>
                                 <h1 className="font-display text-5xl">The document doesn't lie.</h1>
                                 <p className="text-text-secondary text-lg leading-relaxed">
-                                    Unlike chatbots that guess, DevFrames Synapse grounds every answer in your specific file.
+                                    Threadwell answers from the sources you save and shows you where the information came from.
                                     If the answer isn't there, we tell you. No hallucinations.
                                 </p>
                                 <Button variant="primary" size="lg" onClick={nextStep} className="mt-4">
@@ -116,7 +116,7 @@ export default function OnboardingPage() {
                                 </div>
                                 <h2 className="font-display text-3xl">Ask away.</h2>
                                 <p className="text-text-secondary text-sm">
-                                    Try asking specific questions. DevFrames Synapse will search, rerank, and cite the exact source page.
+                                    Ask in your own words. Threadwell searches your space and links back to the sources it used.
                                 </p>
 
                                 <div className="space-y-2 pt-4">

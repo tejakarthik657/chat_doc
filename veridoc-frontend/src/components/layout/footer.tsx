@@ -1,45 +1,31 @@
-import { Github, Twitter } from "lucide-react";
 import Link from "next/link";
+import { ArrowUpRight, Sparkles } from "lucide-react";
 
 export function Footer() {
     return (
-        <footer className="border-t border-border bg-background pt-12 sm:pt-16 pb-8">
-            <div className="max-w-7xl mx-auto px-4 sm:px-6 grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-8 sm:gap-12 mb-12 sm:mb-16">
-                <div className="col-span-1 sm:col-span-2 space-y-4">
-                    <Link href="/" className="font-display text-2xl text-text-primary">DevFrames Synapse</Link>
-                    <p className="text-text-muted text-sm max-w-xs leading-relaxed">
-                        DevFrames Synapse is a high-fidelity document intelligence platform for corporate, academic, and governance entities.
+        <footer className="border-t border-[#E2DED5] bg-[#F0EDE5]">
+            <div className="mx-auto flex max-w-7xl flex-col gap-8 px-4 py-10 sm:px-6 md:flex-row md:items-center md:justify-between md:py-12">
+                <div className="max-w-md">
+                    <Link href="/" className="inline-flex items-center gap-2 font-display text-2xl text-[#252F2A]">
+                        <Sparkles size={19} className="text-[#B65D43]" />
+                        Threadwell
+                    </Link>
+                    <p className="mt-3 text-sm leading-6 text-[#59645D]">
+                        A thoughtful place to keep what you learn—and find the connections when you need them.
                     </p>
                 </div>
 
-                <div className="space-y-4">
-                    <h4 className="font-mono text-sm text-text-primary uppercase tracking-wider">Product</h4>
-                    <ul className="space-y-2 text-sm text-text-secondary">
-                        <li><Link href="#" className="hover:text-accent transition-colors py-1 inline-block">Features</Link></li>
-                        <li><Link href="#" className="hover:text-accent transition-colors py-1 inline-block">Pricing</Link></li>
-                        <li><Link href="#" className="hover:text-accent transition-colors py-1 inline-block">API</Link></li>
-                    </ul>
-                </div>
-
-                <div className="space-y-4">
-                    <h4 className="font-mono text-sm text-text-primary uppercase tracking-wider">Company</h4>
-                    <ul className="space-y-2 text-sm text-text-secondary">
-                        <li><Link href="#" className="hover:text-accent transition-colors py-1 inline-block">About</Link></li>
-                        <li><Link href="#" className="hover:text-accent transition-colors py-1 inline-block">Blog</Link></li>
-                        <li><Link href="#" className="hover:text-accent transition-colors py-1 inline-block">Privacy</Link></li>
-                    </ul>
-                </div>
+                <nav aria-label="Footer navigation" className="flex flex-wrap gap-x-6 gap-y-3 text-sm text-[#59645D]">
+                    <Link href="#how-it-works" className="transition-colors hover:text-[#252F2A]">How it works</Link>
+                    <Link href="#features" className="transition-colors hover:text-[#252F2A]">Features</Link>
+                    <Link href="/login" className="transition-colors hover:text-[#252F2A]">Sign in</Link>
+                    <Link href="/register" className="inline-flex items-center gap-1 text-[#A34F38] hover:text-[#7E3D2B]">
+                        Make your space <ArrowUpRight size={14} />
+                    </Link>
+                </nav>
             </div>
-
-            <div className="max-w-7xl mx-auto px-4 sm:px-6 pt-6 sm:pt-8 border-t border-border flex flex-col sm:flex-row justify-between items-center gap-4 text-center sm:text-left">
-                <div className="font-mono text-[11px] sm:text-xs text-text-muted">
-                    RETRIEVAL &gt; GENERATION // SOURCES OR SILENCE
-                </div>
-
-                <div className="flex gap-4">
-                    <Link href="#" className="text-text-muted hover:text-text-primary transition-colors"><Github size={16} /></Link>
-                    <Link href="#" className="text-text-muted hover:text-text-primary transition-colors"><Twitter size={16} /></Link>
-                </div>
+            <div className="border-t border-[#E2DED5] px-4 py-4 text-center text-xs text-[#7B847D] sm:px-6">
+                Keep what matters. Find the thread.
             </div>
         </footer>
     );

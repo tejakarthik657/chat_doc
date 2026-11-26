@@ -8,6 +8,7 @@ export interface UserLogin {
 export interface UserRegister {
     email: string;
     password: string;
+    name?: string;
 }
 
 export interface TokenResponse {
@@ -18,6 +19,8 @@ export interface TokenResponse {
 export interface UserOut {
     id: string;
     email: string;
+    name?: string;
+    auth_provider?: string;
     plan: string;
     storage_used_mb: number;
     created_at: string;
@@ -42,6 +45,20 @@ export const authService = {
 
     async getMe() {
         return await fastGet<UserOut>('/auth/me');
+    },
+
+    async updateProfile(name: string) {
+        const response = await api.patch<UserOut>('/auth/me', { name });
+        invalidateApiCache('/auth/me');
+        return response.data;
+    },
+
+    async changePassword(current_password: string, new_password: string) {
+        const response = await api.post<{ status: string }>('/auth/change-password', {
+            current_password,
+            new_password,
+        });
+        return response.data;
     },
 
     logout() {

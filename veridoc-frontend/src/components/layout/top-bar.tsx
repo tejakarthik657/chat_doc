@@ -20,8 +20,8 @@ export function TopBar() {
     const [notifications, setNotifications] = useState<Notification[]>([
         {
             id: "1",
-            title: "Welcome to NEXUS AI",
-            message: "Start by creating a knowledge project or uploading your documents.",
+            title: "Welcome to Threadwell",
+            message: "Start by capturing a source, then ask across what you’ve saved.",
             type: "info",
             timestamp: new Date(),
             read: false
@@ -35,8 +35,8 @@ export function TopBar() {
             setNotifications(prev => [
                 {
                     id: "2",
-                    title: "System Ready",
-                    message: "All analysis engines are online and grounded.",
+                    title: "Your space is ready",
+                    message: "Add a source whenever you’re ready to begin.",
                     type: "success",
                     timestamp: new Date(),
                     read: false

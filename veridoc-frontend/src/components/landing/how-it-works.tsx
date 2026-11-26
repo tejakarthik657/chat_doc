@@ -1,26 +1,26 @@
 "use client";
 
 import { motion } from "framer-motion";
-import { Upload, Database, MessageSquare } from "lucide-react";
+import { Upload, Layers3, MessageSquare } from "lucide-react";
 
 export function HowItWorks() {
     const steps = [
         {
             id: "01",
-            title: "Ingest Knowledge",
-            description: "Crawl website directories or upload academic, administrative, and compliance PDFs.",
+            title: "Save as you go",
+            description: "Drop in a note, PDF, image, audio clip, webpage, or video link. No folders or setup required.",
             icon: Upload,
         },
         {
             id: "02",
-            title: "AI Semantic Indexing",
-            description: "DevFrames Synapse chunks, embeds, and indexes records automatically using hybrid search (Keyword + Semantic).",
-            icon: Database,
+            title: "Let the threads connect",
+            description: "Threadwell makes your saved sources searchable together, so details don’t get trapped in separate files.",
+            icon: Layers3,
         },
         {
             id: "03",
-            title: "Cited Query Search",
-            description: "Get precise, grounded answers accompanied by clickable, page-level citations.",
+            title: "Ask in your own words",
+            description: "Get a clear answer with links back to the notes and sources that informed it.",
             icon: MessageSquare,
         },
     ];

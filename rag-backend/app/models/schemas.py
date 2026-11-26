@@ -14,6 +14,16 @@ class Plan(str, Enum):
 class UserRegister(BaseModel):
     email: EmailStr
     password: str = Field(..., min_length=8, max_length=64)
+    name: Optional[str] = Field(None, max_length=80)
+
+
+class ProfileUpdateRequest(BaseModel):
+    name: str = Field(..., min_length=1, max_length=80)
+
+
+class PasswordChangeRequest(BaseModel):
+    current_password: str = Field(..., min_length=1, max_length=64)
+    new_password: str = Field(..., min_length=8, max_length=64)
 
 
 class UserLogin(BaseModel):
@@ -29,6 +39,8 @@ class TokenResponse(BaseModel):
 class UserOut(BaseModel):
     id: str
     email: str
+    name: Optional[str] = None
+    auth_provider: Optional[str] = None
     plan: Plan
     storage_used_mb: float
     created_at: datetime
