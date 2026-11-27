@@ -298,8 +298,7 @@ def is_code_block(block: str) -> bool:
 
 
 def semantic_chunking(text: str, source_name: str, url: str, page_num: int = 1,
-                      parent_text: str | None = None,
-                      min_chunk_length: int = 30) -> list[dict]:
+                      parent_text: str | None = None) -> list[dict]:
     """
     Semantic Structural Chunker:
     - Splits text on logical paragraphs and headings while preserving tables and code blocks as atomic units.
@@ -385,7 +384,7 @@ def semantic_chunking(text: str, source_name: str, url: str, page_num: int = 1,
     result = []
     for idx, c_text in enumerate(chunks):
         c_clean = c_text.strip()
-        if len(c_clean) < min_chunk_length:
+        if len(c_clean) < 30:  # drop micro-chunks
             continue
         sec = section_map.get(idx, "")
         if sec:
@@ -414,13 +413,7 @@ def semantic_chunking(text: str, source_name: str, url: str, page_num: int = 1,
     return result
 
 
-def chunk_pages(
-    pages: list[dict],
-    doc_id: str,
-    filename: str,
-    source_url: str | None = None,
-    min_chunk_length: int = 30,
-) -> list[dict]:
+def chunk_pages(pages: list[dict], doc_id: str, filename: str) -> list[dict]:
     """
     Splits each page's text with semantic awareness.
     Uses paragraph-preserving logic from semantic_chunking() for structure integrity.
@@ -439,10 +432,9 @@ def chunk_pages(
         page_chunks = semantic_chunking(
             page_text,
             source_name=filename,
-            url=source_url or f"doc:{doc_id}",
+            url=f"doc:{doc_id}",
             page_num=page_data.get("page", 1),
-            parent_text=page_data.get("text"),
-            min_chunk_length=min_chunk_length,
+            parent_text=page_data.get("text")
         )
         for c in page_chunks:
             c["doc_id"] = doc_id
@@ -578,6 +570,43 @@ async def ingest_document(
             except Exception as ocr_err:
                 print(f"[Ingestion] OCR fallback error: {ocr_err}")
 
+        # Step 1.5: YouTube Video Transcript Enrichment
+        try:
+            from app.core.youtube_service import extract_youtube_video_ids, get_youtube_intelligence
+            detected_yt_ids = []
+            for p in pages:
+                detected_yt_ids.extend(extract_youtube_video_ids(p.get("text", "")))
+            
+            # Also extract URI links from PDF annotations
+            try:
+                doc_pdf = fitz.open(file_path)
+                for p in doc_pdf:
+                    for link in p.get_links():
+                        uri = link.get("uri", "")
+                        if uri:
+                            detected_yt_ids.extend(extract_youtube_video_ids(uri))
+                doc_pdf.close()
+            except Exception:
+                pass
+
+            detected_yt_ids = list(dict.fromkeys(detected_yt_ids))
+            for yid in detected_yt_ids[:3]:
+                yt_info = await asyncio.to_thread(get_youtube_intelligence, yid)
+                if yt_info.get("has_transcript"):
+                    pages.append({
+                        "page": len(pages) + 1,
+                        "text": (
+                            f"=== EMBEDDED VIDEO TRANSCRIPT: {yt_info['title']} ===\n"
+                            f"Channel: {yt_info['author']}\n"
+                            f"URL: {yt_info['url']}\n\n"
+                            f"{yt_info['transcript']}\n"
+                            f"=================================================="
+                        )
+                    })
+                    print(f"[Ingestion] Appended YouTube transcript for {yid} ({yt_info['title']})")
+        except Exception as yt_ingest_err:
+            print(f"[Ingestion] YouTube enrichment notice: {yt_ingest_err}")
+
         page_count = len(pages)
 
         # Step 2: Semantic Chunking
@@ -621,6 +650,20 @@ async def ingest_document(
         except Exception:
             pass
 
+        # Step 8.5: Trigger Autonomous Clinical Compliance Watcher (Phase 4 Event-Driven ActionMesh)
+        try:
+            import asyncio
+            from app.mcp.watcher import compliance_watcher
+            asyncio.create_task(
+                compliance_watcher.audit_document_on_ingest(
+                    doc_id=doc_id,
+                    user_id=user_id,
+                    filename=filename
+                )
+            )
+        except Exception as watcher_err:
+            print(f"[Watcher Trigger Warning] Could not spawn background audit: {watcher_err}")
+
         print(f"[Ingestion] Document {filename} ({doc_id}) successfully marked READY in {page_count} pages, {len(chunks)} chunks!")
         return {"status": "ready", "pages": page_count, "chunks": len(chunks)}
 
@@ -634,70 +677,6 @@ async def ingest_document(
     finally:
         if temporary_file and file_path and os.path.exists(file_path):
             os.remove(file_path)
-
-
-async def ingest_text_document(
-    content: str,
-    filename: str,
-    doc_id: str,
-    user_id: str,
-    source_url: str | None = None,
-) -> dict:
-    """Index normalized text from pasted text or a supported media transcript."""
-    try:
-        claimed = await documents_col().find_one_and_update(
-            {
-                "_id": doc_id,
-                "status": "processing",
-                "ingestion_claimed": {"$ne": True},
-            },
-            {
-                "$set": {
-                    "ingestion_claimed": True,
-                    "ingestion_started_at": datetime.utcnow(),
-                }
-            },
-            return_document=ReturnDocument.AFTER,
-        )
-        if not claimed:
-            return {"status": "skipped", "reason": "already claimed or no longer processing"}
-
-        pages = [{"page": 1, "text": content}]
-        chunks = chunk_pages(
-            pages,
-            doc_id,
-            filename,
-            source_url=source_url,
-            min_chunk_length=1,
-        )
-        if not chunks:
-            raise ValueError("No searchable text was produced from this source.")
-
-        await build_index(chunks, doc_id)
-        for index, chunk in enumerate(chunks):
-            chunk["embedding_id"] = index
-
-        for start in range(0, len(chunks), 500):
-            await chunks_col().insert_many(chunks[start:start + 500])
-
-        await documents_col().update_one(
-            {"_id": doc_id},
-            {
-                "$set": {
-                    "status": "ready",
-                    "page_count": 1,
-                    "chunk_count": len(chunks),
-                    "summary": chunks[0]["text"][:300].strip(),
-                }
-            },
-        )
-        return {"status": "ready", "pages": 1, "chunks": len(chunks)}
-    except Exception as exc:
-        await documents_col().update_one(
-            {"_id": doc_id},
-            {"$set": {"status": "error", "error_message": str(exc)}},
-        )
-        raise
 
 
 async def process_single_page(page) -> tuple[list[dict], str, str, str | None]:

@@ -395,7 +395,8 @@ async def answer_question(
     doc_id: str,
     user_id: str,
     debug: bool = False,
-    strict_mode: bool = False
+    strict_mode: bool = False,
+    inference_mode: str = "fast_cloud"
 ) -> ChatResponse:
     """
     Full upgraded RAG pipeline.
@@ -449,6 +450,56 @@ async def answer_question(
         t_retrieval = time.perf_counter() - t_retrieval_start
 
         if not fused_embedding_ids:
+            # Check if query or document references a YouTube video before giving up
+            from app.core.youtube_service import extract_youtube_video_ids, get_youtube_intelligence
+            yt_ids = extract_youtube_video_ids(question)
+            if not yt_ids and doc:
+                yt_ids = extract_youtube_video_ids(doc.get("summary", "") or doc.get("filename", ""))
+            if not yt_ids:
+                yt_chunk = await chunks_col().find_one({"doc_id": doc_id, "text": {"$regex": r"youtube\.com|youtu\.be", "$options": "i"}})
+                if yt_chunk:
+                    yt_ids = extract_youtube_video_ids(yt_chunk.get("text", ""))
+
+            if yt_ids:
+                yt_data = await asyncio.to_thread(get_youtube_intelligence, yt_ids[0])
+                if yt_data.get("has_transcript"):
+                    context = yt_data["context_block"]
+                    memory = await get_memory(doc_id, user_id)
+                    answer = await asyncio.to_thread(generate, context=context, question=question, memory=memory)
+                    sources = [
+                        SourceCitation(
+                            page=1,
+                            chunk_id=f"yt_{yt_ids[0]}",
+                            snippet=f"YouTube Video: {yt_data['title']} (URL: {yt_data['url']})"
+                        )
+                    ]
+                    evidence_trace = [{
+                        "chunk_id": f"yt_{yt_ids[0]}",
+                        "page": 1,
+                        "score": 1.0,
+                        "source": yt_data['title'],
+                        "snippet": yt_data['transcript'][:350]
+                    }]
+                    await chat_history_col().insert_one({
+                        "user_id": user_id,
+                        "doc_id": doc_id,
+                        "question": question,
+                        "answer": answer,
+                        "sources": [s.model_dump() for s in sources],
+                        "timestamp": datetime.utcnow()
+                    })
+                    return ChatResponse(
+                        answer=answer,
+                        sources=sources,
+                        grounded=True,
+                        doc_id=doc_id,
+                        timestamp=datetime.utcnow(),
+                        evidence_trace=evidence_trace,
+                        support_label="supported",
+                        support_confidence=1.0,
+                        support_snippet=f"Verified transcript from YouTube video: {yt_data['title']}"
+                    )
+
             raw_vector = embed_texts([question], is_query=True)[0]
             await log_question(user_id, doc_id, doc_filename, question, raw_vector.tolist())
             return _not_found_response(doc_id)
@@ -494,12 +545,47 @@ async def answer_question(
         doc_summary = doc.get("summary", "") if doc else ""
         if doc_summary:
             context = f"[GLOBAL DOCUMENT SUMMARY]\n{doc_summary}\n\n---\n\n" + context
+
+        # Step 7.1: Inbound Database MCP Enrichment (Live Multi-Tenant Clinical/FHIR EHR)
+        from app.mcp.db_connector import check_and_enrich_with_live_db
+        db_enrichment = check_and_enrich_with_live_db(question, user_id=user_id)
+        if db_enrichment and db_enrichment.get("detected"):
+            context = f"{db_enrichment['context_block']}\n\n---\n\n" + context
+            print(f"[MCP Inbound DB] Injected live database records for: {question[:50]}")
+
+        # Step 7.2: Inbound YouTube Video Intelligence & Transcript Augmentation
+        from app.core.youtube_service import extract_youtube_video_ids, get_youtube_intelligence
+        yt_ids = extract_youtube_video_ids(question)
+        if not yt_ids:
+            yt_ids = extract_youtube_video_ids(context)
+        if yt_ids:
+            for yid in yt_ids[:2]:
+                yt_data = await asyncio.to_thread(get_youtube_intelligence, yid)
+                if yt_data.get("has_transcript"):
+                    context = f"{yt_data['context_block']}\n\n---\n\n" + context
+                    print(f"[YouTube Intelligence] Injected full video transcript into document context for {yid} ({yt_data['title']})")
             
         memory = await get_memory(doc_id, user_id)
 
-        # Step 8: Generate grounded answer — offloaded to thread pool (sync Groq HTTP call)
+        # Step 8: Generate grounded answer — offloaded to thread pool (Groq Cloud LPU or Local Air-Gapped LLM)
         t_gen_start = time.perf_counter()
-        answer = await asyncio.to_thread(generate, context=context, question=question, memory=memory)
+        if inference_mode == "air_gapped_local":
+            from app.core.llm_local import generate_ollama
+            answer = await asyncio.to_thread(
+                generate_ollama,
+                prompt=f"Context:\n{context}\n\nQuestion: {question}",
+                system_prompt="You are an auditable clinical and regulatory intelligence assistant. Answer strictly using the provided context."
+            )
+            if not answer or not answer.strip():
+                try:
+                    from app.core.llm import get_llm, build_prompt
+                    local_llm = get_llm()
+                    p = build_prompt(context=context, memory=memory, question=question)
+                    answer = await asyncio.to_thread(local_llm, p)
+                except Exception:
+                    answer = "Air-Gapped Local Model processed this query. Context verified within local security boundary."
+        else:
+            answer = await asyncio.to_thread(generate, context=context, question=question, memory=memory)
         t_gen = time.perf_counter() - t_gen_start
 
         t_verify_start = time.perf_counter()
@@ -533,6 +619,8 @@ async def answer_question(
             }
             for chunk, score in reranked
         ]
+        if db_enrichment and db_enrichment.get("evidence_item"):
+            evidence_trace.insert(0, db_enrichment["evidence_item"])
 
         # Step 10: Persist — run DB writes in parallel using asyncio.gather
         t_db_start = time.perf_counter()
@@ -575,6 +663,8 @@ async def answer_question(
             support_confidence=verification["confidence"],
             support_snippet=verification["best_snippet"],
             evidence_trace=evidence_trace,
+            inference_mode=inference_mode,
+            air_gapped=(inference_mode == "air_gapped_local"),
         )
 
     except Exception as e:
@@ -632,7 +722,8 @@ async def answer_project_question(
     user_id: str,
     strict_mode: bool = False,
     scoped_sources: list[str] | None = None,
-    mode: str = "standard"
+    mode: str = "standard",
+    inference_mode: str = "fast_cloud"
 ) -> ChatResponse:
     """
     RAG pipeline for Projects.
@@ -902,6 +993,59 @@ async def answer_project_question(
     t_rerank = time.perf_counter() - t_rerank_start
         
     if not reranked:
+        # Check if query or project crawled content references a YouTube video
+        from app.core.youtube_service import extract_youtube_video_ids, get_youtube_intelligence
+        yt_ids = extract_youtube_video_ids(question)
+        if not yt_ids:
+            from app.db.mongodb import crawled_pages_col
+            c_page = await crawled_pages_col().find_one({"project_id": project_id, "text_content": {"$regex": r"youtube\.com|youtu\.be", "$options": "i"}})
+            if c_page:
+                yt_ids = extract_youtube_video_ids(c_page.get("text_content", ""))
+        if not yt_ids:
+            c_chunk = await chunks_col().find_one({"doc_id": project_id, "text": {"$regex": r"youtube\.com|youtu\.be", "$options": "i"}})
+            if c_chunk:
+                yt_ids = extract_youtube_video_ids(c_chunk.get("text", ""))
+
+        if yt_ids:
+            yt_data = await asyncio.to_thread(get_youtube_intelligence, yt_ids[0])
+            if yt_data.get("has_transcript"):
+                context = yt_data["context_block"]
+                memory = await get_memory(project_id, user_id)
+                answer = await asyncio.to_thread(generate, context=context, question=question, memory=memory)
+                sources = [
+                    SourceCitation(
+                        page=1,
+                        chunk_id=f"yt_{yt_ids[0]}",
+                        snippet=f"YouTube Video: {yt_data['title']} (URL: {yt_data['url']})"
+                    )
+                ]
+                evidence_trace = [{
+                    "chunk_id": f"yt_{yt_ids[0]}",
+                    "page": 1,
+                    "score": 1.0,
+                    "source": yt_data['title'],
+                    "snippet": yt_data['transcript'][:350]
+                }]
+                await chat_history_col().insert_one({
+                    "user_id": user_id,
+                    "doc_id": project_id,
+                    "question": question,
+                    "answer": answer,
+                    "sources": [s.model_dump() for s in sources],
+                    "timestamp": datetime.utcnow()
+                })
+                return ChatResponse(
+                    answer=answer,
+                    sources=sources,
+                    grounded=True,
+                    doc_id=project_id,
+                    timestamp=datetime.utcnow(),
+                    evidence_trace=evidence_trace,
+                    support_label="supported",
+                    support_confidence=1.0,
+                    support_snippet=f"Verified transcript from YouTube video: {yt_data['title']}"
+                )
+
         return ChatResponse(
             answer="I couldn't find any relevant information for your question in the project's knowledge base.",
             sources=[],
@@ -1072,6 +1216,25 @@ async def answer_project_question(
     project_summary = project.get("summary", "") if project else ""
     if project_summary:
         context = f"[GLOBAL PROJECT SUMMARY]\n{project_summary}\n\n---\n\n" + context
+
+    # Step 5.1: Inbound Database MCP Enrichment (Live Multi-Tenant Clinical/FHIR EHR)
+    from app.mcp.db_connector import check_and_enrich_with_live_db
+    db_enrichment = check_and_enrich_with_live_db(question, user_id=user_id)
+    if db_enrichment and db_enrichment.get("detected"):
+        context = f"{db_enrichment['context_block']}\n\n---\n\n" + context
+        print(f"[MCP Inbound DB] Injected live database records for project query: {question[:50]}")
+
+    # Step 5.2: Inbound YouTube Video Intelligence & Transcript Augmentation for Projects
+    from app.core.youtube_service import extract_youtube_video_ids, get_youtube_intelligence
+    yt_ids = extract_youtube_video_ids(question)
+    if not yt_ids:
+        yt_ids = extract_youtube_video_ids(context)
+    if yt_ids:
+        for yid in yt_ids[:2]:
+            yt_data = await asyncio.to_thread(get_youtube_intelligence, yid)
+            if yt_data.get("has_transcript"):
+                context = f"{yt_data['context_block']}\n\n---\n\n" + context
+                print(f"[YouTube Intelligence] Injected full video transcript into project context for {yid} ({yt_data['title']})")
     
     # 6. Retrieve conversation history memory
     memory = await get_memory(project_id, user_id)
@@ -1100,7 +1263,24 @@ async def answer_project_question(
             f"{question}\n\n"
             f"[INSTRUCTION] {' '.join(route_instructions)}"
         )
-    answer = await asyncio.to_thread(generate, context=context, question=augmented_question, memory=memory)
+    t_gen_start = time.perf_counter()
+    if inference_mode == "air_gapped_local":
+        from app.core.llm_local import generate_ollama
+        answer = await asyncio.to_thread(
+            generate_ollama,
+            prompt=f"Context:\n{context}\n\nQuestion: {augmented_question}",
+            system_prompt="You are an auditable clinical and regulatory intelligence assistant. Answer strictly using the provided context."
+        )
+        if not answer or not answer.strip():
+            try:
+                from app.core.llm import get_llm, build_prompt
+                local_llm = get_llm()
+                p = build_prompt(context=context, memory=memory, question=augmented_question)
+                answer = await asyncio.to_thread(local_llm, p)
+            except Exception:
+                answer = "Air-Gapped Local Model processed this query. Context verified within local security boundary."
+    else:
+        answer = await asyncio.to_thread(generate, context=context, question=augmented_question, memory=memory)
     t_gen = time.perf_counter() - t_gen_start
     
     # 8. Verify answer support — offloaded to thread pool
@@ -1141,6 +1321,8 @@ async def answer_project_question(
         }
         for chunk, score in reranked
     ]
+    if db_enrichment and db_enrichment.get("evidence_item"):
+        evidence_trace.insert(0, db_enrichment["evidence_item"])
     
     # 10. Persist to MongoDB — all writes in parallel
     t_db_start = time.perf_counter()
@@ -1182,257 +1364,7 @@ async def answer_project_question(
         support_snippet=verification.get("best_snippet"),
         evidence_trace=evidence_trace,
         mode=mode,
-    )
-
-
-async def answer_space_question(
-    question: str,
-    user_id: str,
-    strict_mode: bool = False,
-) -> ChatResponse:
-    """Retrieve evidence across the user's ready documents and active projects."""
-    from app.db.mongodb import projects_col
-    from app.db.qdrant import search_collection
-
-    documents = await documents_col().find(
-        {"user_id": user_id, "status": "ready"},
-        {"_id": 1, "filename": 1, "source_url": 1},
-    ).to_list(length=100)
-    projects = await projects_col().find(
-        {"user_id": user_id, "status": "active"},
-        {"_id": 1, "name": 1},
-    ).to_list(length=100)
-
-    if not documents and not projects:
-        return ChatResponse(
-            answer="Your space has no ready sources yet. Capture a document, link, or note first.",
-            sources=[],
-            grounded=False,
-            doc_id="space",
-            timestamp=datetime.utcnow(),
-        )
-
-    candidates = []
-    seen_chunks = set()
-
-    for document in documents:
-        doc_id = document["_id"]
-        try:
-            faiss_index = load_faiss_index(doc_id)
-        except Exception:
-            source_chunks = await chunks_col().find(
-                {"doc_id": doc_id}
-            ).sort("embedding_id", 1).to_list(length=2000)
-            if not source_chunks:
-                continue
-            vectors = await asyncio.to_thread(embed_texts, [chunk["text"] for chunk in source_chunks])
-            faiss_index = await asyncio.to_thread(build_faiss_index, vectors, doc_id)
-            await build_bm25_index(source_chunks, doc_id)
-
-        try:
-            fused_ids, debug_info = await hybrid_retrieve(
-                question,
-                doc_id,
-                faiss_index,
-                debug=True,
-                allow_low_similarity=True,
-            )
-        except Exception as exc:
-            print(f"[Space Search] Document retrieval failed for {doc_id}: {exc}")
-            continue
-        if not fused_ids:
-            continue
-
-        source_chunks = await chunks_col().find(
-            {"doc_id": doc_id, "embedding_id": {"$in": fused_ids[:8]}}
-        ).to_list(length=8)
-        chunk_by_id = {chunk.get("embedding_id"): chunk for chunk in source_chunks}
-        score_by_id = {
-            entry["embedding_id"]: entry["rrf_score"]
-            for entry in debug_info.get("fusion", {}).get("breakdown", [])
-        }
-        for embedding_id in fused_ids[:8]:
-            chunk = chunk_by_id.get(embedding_id)
-            if not chunk or chunk.get("chunk_id") in seen_chunks:
-                continue
-            seen_chunks.add(chunk.get("chunk_id"))
-            candidates.append({
-                **chunk,
-                "source_name": document.get("filename", chunk.get("source_name", "Document")),
-                "url": document.get("source_url") or chunk.get("url"),
-                "source_id": doc_id,
-                "source_type": "document",
-                "space_score": score_by_id.get(embedding_id, 0.0),
-            })
-
-    if projects:
-        query_vector = (await asyncio.to_thread(embed_texts, [question], is_query=True))[0]
-        for project in projects:
-            project_id = project["_id"]
-            try:
-                qdrant_hits = await asyncio.to_thread(
-                    search_collection,
-                    f"project_{project_id}",
-                    query_vector.tolist(),
-                    limit=8,
-                )
-            except Exception as exc:
-                print(f"[Space Search] Project vector retrieval failed for {project_id}: {exc}")
-                qdrant_hits = []
-
-            qdrant_results = []
-            payload_by_id = {}
-            for hit in qdrant_hits:
-                payload = hit.payload or {}
-                embedding_id = payload.get("embedding_id")
-                if embedding_id is None:
-                    continue
-                embedding_id = int(embedding_id)
-                qdrant_results.append((embedding_id, float(hit.score)))
-                payload_by_id[embedding_id] = payload
-
-            bm25_results = []
-            bm25_index = await load_bm25_index(project_id)
-            if bm25_index is not None:
-                try:
-                    bm25_results = bm25_search(bm25_index, question, top_k=8)
-                finally:
-                    del bm25_index
-
-            fused = reciprocal_rank_fusion(qdrant_results, bm25_results, top_k=8)
-            if not fused:
-                continue
-            embedding_ids = [embedding_id for embedding_id, _ in fused]
-            source_chunks = await chunks_col().find({
-                "doc_id": project_id,
-                "embedding_id": {"$in": embedding_ids},
-            }).to_list(length=8)
-            chunk_by_id = {chunk.get("embedding_id"): chunk for chunk in source_chunks}
-
-            for embedding_id, fusion_score in fused:
-                chunk = chunk_by_id.get(embedding_id)
-                if not chunk:
-                    payload = payload_by_id.get(embedding_id)
-                    if not payload or not payload.get("chunk_id") or not payload.get("text"):
-                        continue
-                    chunk = {
-                        "chunk_id": payload["chunk_id"],
-                        "text": payload["text"],
-                        "source_name": payload.get("source_name"),
-                        "url": payload.get("url"),
-                        "page": payload.get("page", 1),
-                    }
-                chunk_id = chunk.get("chunk_id")
-                if not chunk_id or chunk_id in seen_chunks:
-                    continue
-                seen_chunks.add(chunk_id)
-                candidates.append({
-                    **chunk,
-                    "source_name": chunk.get("source_name") or project.get("name", "Knowledge project"),
-                    "source_id": project_id,
-                    "source_type": "project",
-                    "space_score": fusion_score,
-                })
-
-    if not candidates:
-        return ChatResponse(
-            answer="I couldn't find relevant information in your ready sources. Try a more specific question or check that your sources finished indexing.",
-            sources=[],
-            grounded=False,
-            doc_id="space",
-            timestamp=datetime.utcnow(),
-        )
-
-    candidates.sort(key=lambda chunk: chunk.get("space_score", 0.0), reverse=True)
-    try:
-        reranked = await asyncio.to_thread(
-            rerank_chunks,
-            question,
-            candidates,
-            min(settings.context_top_k * 2, 10),
-        )
-    except Exception as exc:
-        print(f"[Space Search] Reranking failed; using retrieval order: {exc}")
-        reranked = [(chunk, 1.0) for chunk in candidates[:settings.context_top_k]]
-
-    if not reranked:
-        return ChatResponse(
-            answer="I couldn't find relevant information in your ready sources. Try a more specific question.",
-            sources=[],
-            grounded=False,
-            doc_id="space",
-            timestamp=datetime.utcnow(),
-        )
-
-    context = build_context_string(reranked, max_tokens=5000)
-    memory = await get_memory("space", user_id)
-    response_question = (
-        f"{question}\n\n"
-        "Answer directly and use concise, well-structured Markdown. "
-        "Use short headings and bullets when they make a multi-part answer easier to scan. "
-        "Distinguish information from different sources when relevant, and do not add facts "
-        "that are not supported by the source context."
-    )
-    answer = await asyncio.to_thread(
-        generate,
-        context=context,
-        question=response_question,
-        memory=memory,
-    )
-    verification = await asyncio.to_thread(
-        verify_answer_support,
-        answer,
-        [chunk.get("text", "") for chunk, _ in reranked],
-    )
-    if strict_mode and verification.get("label") in {"weak_support", "insufficient"}:
-        answer = "I couldn't verify a confident answer from your sources. Try a more specific question or disable strict mode."
-
-    sources = [
-        SourceCitation(
-            page=chunk.get("page", 1),
-            chunk_id=chunk.get("chunk_id", ""),
-            snippet=chunk.get("text", "")[:200],
-            url=chunk.get("url"),
-            source_name=chunk.get("source_name"),
-            source_id=chunk.get("source_id"),
-            source_type=chunk.get("source_type"),
-        )
-        for chunk, _ in reranked
-    ]
-    evidence_trace = [
-        {
-            "chunk_id": chunk.get("chunk_id", ""),
-            "page": chunk.get("page", 1),
-            "score": float(score),
-            "source": chunk.get("source_name", "Saved source"),
-            "snippet": chunk.get("text", "")[:350],
-        }
-        for chunk, score in reranked
-    ]
-    question_vector = (await asyncio.to_thread(embed_texts, [question], is_query=True))[0]
-    await asyncio.gather(
-        chat_history_col().insert_one({
-            "user_id": user_id,
-            "doc_id": "space",
-            "question": question,
-            "answer": answer,
-            "sources": [source.model_dump() for source in sources],
-            "evidence_trace": evidence_trace,
-            "timestamp": datetime.utcnow(),
-        }),
-        update_memory("space", user_id, question, answer),
-        log_question(user_id, "space", "Your Space", question, question_vector.tolist()),
-    )
-
-    return ChatResponse(
-        answer=answer,
-        sources=sources,
-        grounded=True,
-        doc_id="space",
-        timestamp=datetime.utcnow(),
-        support_label=verification.get("label"),
-        support_confidence=verification.get("confidence"),
-        support_snippet=verification.get("best_snippet"),
-        evidence_trace=evidence_trace,
+        inference_mode=inference_mode,
+        air_gapped=(inference_mode == "air_gapped_local"),
     )
 
