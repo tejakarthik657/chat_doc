@@ -282,6 +282,48 @@ async def test_youtube_capture_saves_transcript_as_a_searchable_document():
 
 
 @pytest.mark.asyncio
+async def test_youtube_capture_falls_back_to_ai_briefing_when_captions_blocked():
+    from fastapi import BackgroundTasks
+    from app.api.routes.documents import capture_youtube
+    from app.models.schemas import YouTubeCaptureRequest
+
+    documents = MagicMock()
+    documents.count_documents = AsyncMock(return_value=0)
+    documents.insert_one = AsyncMock()
+    users = MagicMock()
+    users.find_one = AsyncMock(return_value={"_id": "test-user", "storage_used_mb": 0})
+    users.update_one = AsyncMock()
+    background_tasks = BackgroundTasks()
+
+    # Simulate YouTube API raising exception (IP block or captions disabled)
+    transcript_api = MagicMock()
+    transcript_api.list.side_effect = Exception("IpBlocked: YouTube has blocked cloud requests")
+
+    mock_metadata = {
+        "title": "how can i out shine in 2027",
+        "author": "Tech Leader",
+        "thumbnail_url": "https://example.com/thumb.jpg"
+    }
+    mock_briefing = "Comprehensive executive analysis covering career strategy, technology shifts, and 2027 leadership."
+
+    with patch("youtube_transcript_api.YouTubeTranscriptApi", return_value=transcript_api), \
+         patch("app.core.youtube_service.fetch_youtube_metadata", return_value=mock_metadata), \
+         patch("app.core.youtube_service.synthesize_video_briefing", return_value=mock_briefing), \
+         patch("app.api.routes.documents.documents_col", return_value=documents), \
+         patch("app.api.routes.documents.users_col", return_value=users):
+        response = await capture_youtube(
+            YouTubeCaptureRequest(url="https://www.youtube.com/watch?v=eOTFaLuqtUY"),
+            background_tasks,
+            "test-user",
+        )
+
+    assert response.status == "processing"
+    assert response.filename == "how can i out shine in 2027"
+    assert "Comprehensive executive analysis" in background_tasks.tasks[0].args[0]
+
+
+
+@pytest.mark.asyncio
 async def test_text_ingestion_indexes_short_notes_and_marks_document_ready():
     from app.ingestion.pipeline import ingest_text_document
 

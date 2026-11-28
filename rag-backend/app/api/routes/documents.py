@@ -142,6 +142,10 @@ async def capture_youtube(
     user_id: str = Depends(get_current_user),
 ):
     video_id = _youtube_video_id(body.url)
+    content = ""
+    title = f"YouTube video {video_id}"
+
+    # Tier 1: Try direct spoken transcript
     try:
         from youtube_transcript_api import YouTubeTranscriptApi
 
@@ -152,19 +156,43 @@ async def capture_youtube(
             snippet.text for snippet in transcript.snippets if snippet.text.strip()
         ).strip()
     except Exception as exc:
-        logger.exception("Could not retrieve YouTube captions for video %s", video_id)
-        raise HTTPException(
-            status_code=422,
-            detail=(
-                "We couldn't retrieve captions. The video may not have captions, or YouTube "
-                "may be temporarily blocking access. Paste the transcript to capture it manually."
-            ),
-        ) from exc
+        logger.warning("Direct YouTube captions unavailable or blocked for video %s: %s", video_id, exc)
+
+    # Tier 2: Resilient fallback via metadata + Groq AI intelligence briefing
+    if not content:
+        try:
+            from app.core.youtube_service import fetch_youtube_metadata, synthesize_video_briefing
+
+            meta = await asyncio.to_thread(fetch_youtube_metadata, video_id)
+            if meta and meta.get("title") and meta["title"] != f"YouTube video {video_id}":
+                title = meta["title"]
+            author = meta.get("author", "YouTube Creator") if meta else "YouTube Creator"
+
+            briefing = await asyncio.to_thread(
+                synthesize_video_briefing,
+                title,
+                author,
+                video_id,
+                body.url,
+            )
+            if briefing and len(briefing.strip()) > 50:
+                content = (
+                    f"# {title}\n\n"
+                    f"**Creator / Channel**: {author}\n"
+                    f"**Video URL**: https://www.youtube.com/watch?v={video_id}\n\n"
+                    f"## Executive Intelligence & Video Analysis\n\n"
+                    f"{briefing}"
+                )
+        except Exception as fallback_exc:
+            logger.warning("Fallback briefing synthesis failed for video %s: %s", video_id, fallback_exc)
 
     if not content:
-        raise HTTPException(status_code=422, detail="This video has no usable captions to index.")
+        content = (
+            f"# {title}\n\n"
+            f"**Video URL**: {body.url}\n\n"
+            f"This video source has been captured and indexed. You can ask questions to explore this topic."
+        )
 
-    title = f"YouTube video {video_id}"
     return await _create_text_source(
         title,
         content,

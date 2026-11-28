@@ -27,19 +27,19 @@ const PROMPT_SUGGESTIONS = [
     },
     {
         icon: ShieldAlert,
-        iconColor: "text-blue-600 bg-blue-50/80 border-blue-200/80",
+        iconColor: "text-amber-600 bg-amber-50/80 border-amber-200/80",
         title: "Audit Safety & Contraindications",
         prompt: "What are the reported adverse reactions, contraindications, and critical safety parameters highlighted in this document?"
     },
     {
         icon: Pill,
-        iconColor: "text-blue-600 bg-blue-50/80 border-blue-200/80",
+        iconColor: "text-emerald-600 bg-emerald-50/80 border-emerald-200/80",
         title: "Dosage & Patient Eligibility",
         prompt: "Detail the dosage regimens, administration schedules, inclusion criteria, and exclusion criteria specified in this document."
     },
     {
         icon: Search,
-        iconColor: "text-blue-600 bg-blue-50/80 border-blue-200/80",
+        iconColor: "text-purple-600 bg-purple-50/80 border-purple-200/80",
         title: "Explain Clinical Terminology",
         prompt: "Identify and explain the key clinical, pharmacological, and regulatory terms mentioned in this document in clear language."
     }
@@ -435,7 +435,7 @@ export function ChatInterface({
                     {onToggleInsights && (
                         <button
                             onClick={onToggleInsights}
-                            className="xl:hidden flex items-center gap-1 px-2.5 py-1.5 text-xs font-mono rounded-lg border border-blue-200 bg-blue-50/70 text-blue-700 hover:bg-blue-100 active:scale-95 transition-all shrink-0"
+                            className="xl:hidden flex items-center gap-1 px-2.5 py-1.5 text-xs font-mono rounded-lg border border-indigo-200 bg-indigo-50/70 text-indigo-700 hover:bg-indigo-100 active:scale-95 transition-all shrink-0"
                             title="Open Document Intelligence"
                         >
                             <Sparkles size={12} />
@@ -451,7 +451,7 @@ export function ChatInterface({
                                 onClick={() => setReasoningLevel(level)}
                                 className={`px-1.5 sm:px-2 py-0.5 rounded capitalize transition-all ${
                                     reasoningLevel === level
-                                        ? "bg-blue-600 text-white font-semibold shadow-xs"
+                                        ? "bg-indigo-600 text-white font-semibold shadow-xs"
                                         : "text-slate-500 hover:text-slate-900"
                                 }`}
                             >
@@ -463,7 +463,7 @@ export function ChatInterface({
                     {/* Canvas Workspace Button */}
                     <button
                         onClick={() => setCanvasOpen(true)}
-                        className="flex items-center gap-1 text-[11px] font-mono px-2.5 py-1.5 transition-all border border-blue-200 bg-blue-50 text-blue-700 hover:bg-blue-100/80 rounded-lg shrink-0 active:scale-95"
+                        className="flex items-center gap-1 text-[11px] font-mono px-2.5 py-1.5 transition-all border border-purple-200 bg-purple-50 text-purple-700 hover:bg-purple-100/80 rounded-lg shrink-0 active:scale-95"
                         title="Open side-by-side interactive Canvas Workspace"
                     >
                         <LayoutGrid size={12} />
@@ -534,13 +534,13 @@ export function ChatInterface({
                                 {msg.role === "assistant" && (
                                     <>
                                         {msg.isGeneralAI ? (
-                                            <span className="text-[10px] bg-blue-50 text-blue-700 px-1.5 py-0.5 rounded border border-blue-200 flex items-center gap-1 font-mono font-medium">
+                                            <span className="text-[10px] bg-indigo-50 text-indigo-700 px-1.5 py-0.5 rounded border border-indigo-200 flex items-center gap-1 font-mono font-medium">
                                                 <Globe size={10} /> GLOBAL WORLD KNOWLEDGE
                                             </span>
                                         ) : msg.isGrounded ? (
                                             <span className="text-[10px] bg-accent/10 text-accent px-1.5 py-0.5 rounded border border-accent/20 font-mono">GROUNDED</span>
                                         ) : (
-                                            <span className="text-[10px] bg-blue-500/10 text-blue-500 px-1.5 py-0.5 rounded border border-blue-500/20 flex items-center gap-1 font-mono">
+                                            <span className="text-[10px] bg-red-500/10 text-red-500 px-1.5 py-0.5 rounded border border-red-500/20 flex items-center gap-1 font-mono">
                                                 <AlertTriangle size={8} /> UNVERIFIED
                                             </span>
                                         )}
@@ -563,10 +563,10 @@ export function ChatInterface({
 
                                 {/* "Not Found in Document" Banner with 1-Click General AI Action */}
                                 {msg.role === "assistant" && !msg.isGeneralAI && (msg.content.toLowerCase().includes("could not find this information") || msg.content.toLowerCase().includes("not found")) && msg.questionRef && !isLoading && (
-                                    <div className="mt-3 p-3.5 rounded-xl bg-gradient-to-r from-blue-50/90 via-blue-50/70 to-slate-50 border border-blue-200 shadow-xs flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
+                                    <div className="mt-3 p-3.5 rounded-xl bg-gradient-to-r from-indigo-50/90 via-purple-50/70 to-slate-50 border border-indigo-200 shadow-xs flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
                                         <div className="space-y-0.5">
-                                            <div className="flex items-center gap-1.5 text-xs font-semibold text-blue-950">
-                                                <Globe size={14} className="text-blue-600" />
+                                            <div className="flex items-center gap-1.5 text-xs font-semibold text-indigo-950">
+                                                <Globe size={14} className="text-indigo-600" />
                                                 <span>Not In Uploaded Document</span>
                                             </div>
                                             <p className="text-[11px] text-slate-600 leading-normal">
@@ -575,7 +575,7 @@ export function ChatInterface({
                                         </div>
                                         <button
                                             onClick={() => handleAskGeneralAI(msg.questionRef!)}
-                                            className="px-3.5 py-1.5 rounded-lg bg-blue-600 hover:bg-blue-700 text-white text-xs font-medium shadow-xs flex items-center gap-1.5 shrink-0 transition-all active:scale-95"
+                                            className="px-3.5 py-1.5 rounded-lg bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-medium shadow-xs flex items-center gap-1.5 shrink-0 transition-all active:scale-95"
                                         >
                                             <Sparkles size={12} />
                                             Ask General AI Directly
@@ -595,7 +595,7 @@ export function ChatInterface({
                                                 <Sparkles size={11} className="text-accent" />
                                                 <span className="font-semibold text-slate-800">Reasoning & Grounding Trace</span>
                                                 {msg.verificationConfidence !== undefined && (
-                                                    <span className="text-[10px] text-blue-700 bg-blue-50 px-1.5 py-0.2 rounded border border-blue-200 ml-1">
+                                                    <span className="text-[10px] text-indigo-700 bg-indigo-50 px-1.5 py-0.2 rounded border border-indigo-200 ml-1">
                                                         {((msg.verificationConfidence || 0) * 100).toFixed(0)}% verified
                                                     </span>
                                                 )}
@@ -612,7 +612,7 @@ export function ChatInterface({
                                                 </div>
                                                 <div className="flex items-center justify-between">
                                                     <span className="text-text-muted">Grounding Status:</span>
-                                                    <span className={msg.isGrounded ? "text-blue-700 font-medium" : "text-blue-700 font-medium"}>
+                                                    <span className={msg.isGrounded ? "text-emerald-700 font-medium" : "text-amber-700 font-medium"}>
                                                         {msg.verificationLabel || (msg.isGrounded ? "Verified Grounded Against Source" : "Unverified / Outside Scope")}
                                                     </span>
                                                 </div>
@@ -649,8 +649,8 @@ export function ChatInterface({
                                         >
                                             {copiedId === msg.id ? (
                                                 <>
-                                                    <Check size={11} className="text-blue-600" />
-                                                    <span className="text-blue-700 font-medium">Copied!</span>
+                                                    <Check size={11} className="text-emerald-600" />
+                                                    <span className="text-emerald-700 font-medium">Copied!</span>
                                                 </>
                                             ) : (
                                                 <>
@@ -667,14 +667,14 @@ export function ChatInterface({
                                             className={cn(
                                                 "flex items-center gap-1 px-2 py-1 border text-[10px] font-mono rounded-md transition-colors active:scale-95 shadow-2xs",
                                                 speakingId === msg.id
-                                                    ? "border-blue-300 bg-blue-50 text-blue-700 font-semibold animate-pulse"
+                                                    ? "border-rose-300 bg-rose-50 text-rose-700 font-semibold animate-pulse"
                                                     : "border-border/80 hover:bg-slate-100 text-text-secondary"
                                             )}
                                             title={speakingId === msg.id ? "Stop voice readout" : "Listen to audio readout"}
                                         >
                                             {speakingId === msg.id ? (
                                                 <>
-                                                    <VolumeX size={11} className="text-blue-600" />
+                                                    <VolumeX size={11} className="text-rose-600" />
                                                     <span>Stop Audio</span>
                                                 </>
                                             ) : (
@@ -701,7 +701,7 @@ export function ChatInterface({
                                                 setCanvasContent(msg.content);
                                                 setCanvasOpen(true);
                                             }}
-                                            className="flex items-center gap-1 px-2 py-1 border border-blue-300/60 bg-blue-50/50 text-[10px] font-mono text-blue-800 hover:bg-blue-100 transition-colors rounded-md active:scale-95 shadow-2xs"
+                                            className="flex items-center gap-1 px-2 py-1 border border-purple-300/60 bg-purple-50/50 text-[10px] font-mono text-purple-800 hover:bg-purple-100 transition-colors rounded-md active:scale-95 shadow-2xs"
                                             title="Send this response to Canvas for live editing & export"
                                         >
                                             <LayoutGrid size={10} />
@@ -711,7 +711,7 @@ export function ChatInterface({
                                         {/* Ask General AI */}
                                         <button
                                             onClick={() => handleAskGeneralAI(msg.questionRef || msg.content)}
-                                            className="flex items-center gap-1 px-2 py-1 border border-blue-300/60 bg-blue-50/60 text-[10px] font-mono text-blue-800 hover:bg-blue-100 transition-colors rounded-md active:scale-95 shadow-2xs"
+                                            className="flex items-center gap-1 px-2 py-1 border border-indigo-300/60 bg-indigo-50/60 text-[10px] font-mono text-indigo-800 hover:bg-indigo-100 transition-colors rounded-md active:scale-95 shadow-2xs"
                                             title="Ask General AI directly on this topic"
                                         >
                                             <Globe size={10} />
@@ -833,8 +833,8 @@ export function ChatInterface({
                                     className={cn(
                                         "px-2 py-1 text-[11px] font-medium rounded-md flex items-center gap-1 transition-all active:scale-95",
                                         chatMode === "general"
-                                            ? "bg-blue-600 text-white shadow-xs font-medium"
-                                            : "text-slate-600 hover:text-blue-600"
+                                            ? "bg-indigo-600 text-white shadow-xs font-medium"
+                                            : "text-slate-600 hover:text-indigo-600"
                                     )}
                                     title="Query Groq Cloud LLM for broad world knowledge"
                                 >
@@ -935,7 +935,7 @@ function MarkdownText({ content }: { content: string }) {
             const codeParts = part.split(/(`.*?`)/g);
             return codeParts.map((subPart, j) => {
                 if (subPart.startsWith('`') && subPart.endsWith('`')) {
-                    return <code key={j} className="px-1.5 py-0.5 bg-slate-100 border border-slate-200 text-blue-600 font-mono text-xs rounded">{subPart.slice(1, -1)}</code>;
+                    return <code key={j} className="px-1.5 py-0.5 bg-slate-100 border border-slate-200 text-red-600 font-mono text-xs rounded">{subPart.slice(1, -1)}</code>;
                 }
                 return subPart;
             });
@@ -1040,7 +1040,7 @@ function MarkdownText({ content }: { content: string }) {
 
         if (line.trim().startsWith('> ')) {
             elements.push(
-                <blockquote key={i} className="my-2 border-l-4 border-blue-500 pl-3 italic text-slate-700 bg-blue-50/30 py-1.5 rounded-r text-xs leading-relaxed">
+                <blockquote key={i} className="my-2 border-l-4 border-indigo-500 pl-3 italic text-slate-700 bg-indigo-50/30 py-1.5 rounded-r text-xs leading-relaxed">
                     {renderTextWithInlineFormatting(line.trim().substring(2))}
                 </blockquote>
             );
